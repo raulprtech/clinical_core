@@ -59,13 +59,9 @@ class MeanMedianImputer(ImputationStrategy):
                 result[col] = 0.0
         
         if self.numeric_cols:
-            cols_with_data = [c for c in self.numeric_cols if not X[c].isna().all()]
-            if cols_with_data:
-                result[cols_with_data] = self.imputer_num.fit_transform(result[cols_with_data])
+            result[self.numeric_cols] = self.imputer_num.fit_transform(result[self.numeric_cols])
         if self.categorical_cols:
-            cols_with_data = [c for c in self.categorical_cols if not X[c].isna().all()]
-            if cols_with_data:
-                result[cols_with_data] = self.imputer_cat.fit_transform(result[cols_with_data])
+            result[self.categorical_cols] = self.imputer_cat.fit_transform(result[self.categorical_cols])
         return result
     
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
@@ -77,13 +73,13 @@ class MeanMedianImputer(ImputationStrategy):
                 result[col] = 0.0
         
         if self.numeric_cols:
-            cols_with_data = [c for c in self.numeric_cols if c in result.columns and not X[c].isna().all()]
-            if cols_with_data:
-                result[cols_with_data] = self.imputer_num.transform(result[cols_with_data])
+            fit_cols = [c for c in self.numeric_cols if c in result.columns]
+            if fit_cols:
+                result[fit_cols] = self.imputer_num.transform(result[fit_cols])
         if self.categorical_cols:
-            cols_with_data = [c for c in self.categorical_cols if c in result.columns and not X[c].isna().all()]
-            if cols_with_data:
-                result[cols_with_data] = self.imputer_cat.transform(result[cols_with_data])
+            fit_cols = [c for c in self.categorical_cols if c in result.columns]
+            if fit_cols:
+                result[fit_cols] = self.imputer_cat.transform(result[fit_cols])
         return result
 
 

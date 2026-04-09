@@ -230,6 +230,10 @@ class TCGAExtractor:
         df_features = pd.DataFrame(feature_rows).set_index('case_id')
         df_targets = pd.DataFrame(target_rows).set_index('case_id')
         
+        # Deduplicate cases based on index (case_id). Some TCGA cases might have multiple XMLs.
+        df_features = df_features[~df_features.index.duplicated(keep='last')]
+        df_targets = df_targets[~df_targets.index.duplicated(keep='last')]
+        
         # Handle days_to_birth → age conversion if age is missing
         # TCGA stores age as days_to_birth (negative number)
         # Already handled via age_at_initial_pathologic_diagnosis
