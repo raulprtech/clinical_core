@@ -1,0 +1,47 @@
+# ============================================================
+# CLINICAL-CORE: El Velo de Epsilon (.gitignore)
+# ============================================================
+
+# --- [ SISTEMA Y BASURA ] ---
+.DS_Store
+Thumbs.db
+*.Zone.Identifier
+*.tmp
+*.log
+
+# --- [ PYTHON / AMBIENTES ] ---
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+venv/
+env/
+build/
+dist/
+*.egg-info/
+
+# --- [ DATOS Y RESULTADOS (La Bóveda) ] ---
+# Nunca subimos los datos de pacientes ni resultados masivos a GitHub
+data/
+results/
+eda_results/
+eda_figures/
+
+# --- [ JUPYTER NOTEBOOKS ] ---
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+checkpoint/
+*.ipynb_checkpoints
+
+# --- [ IDEs / HERRAMIENTAS ] ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- [ EXCEPCIONES ] ---
+# Si queremos que la carpeta de datos exista pero esté vacía, 
+# podemos ignorar todo excepto un archivo .gitkeep
+# !data/.gitkeep
+# !results/.gitkeep

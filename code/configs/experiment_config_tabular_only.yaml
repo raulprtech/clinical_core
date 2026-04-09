@@ -1,0 +1,144 @@
+# ============================================================
+# CLINICAL-CORE / TABULAR-CONN — TABULAR-ONLY QUICKSTART
+# ============================================================
+# Purpose: validate the full infrastructure end-to-end with ONLY the tabular
+# modality, on the existing 538 TCGA-KIRC XMLs. No text, no vision.
+#
+# Expected runtime in Colab (free tier): 30-60 minutes.
+# Expected outcome: a baseline C-index for the tabular pipeline that you
+# will use as the reference number for every subsequent experiment.
+#
+# To launch from the notebook, just point the runner to this file:
+#     run_experiment("experiment_config_tabular_only.yaml")
+#
+# Or rename it to experiment_config.yaml to use the default cell unchanged.
+# ============================================================
+
+experiment:
+  name: "tabular_only_quickstart"
+  description: "First infrastructure validation: tabular pipeline end-to-end on TCGA-KIRC. 2 seeds, phases 1, 2 and 5 only. Used to confirm that XMLs are parsed correctly, that the registry resolves all components, and that the baseline C-index is in a reasonable range (>0.65) before scaling up."
+  author: "Raul Pacheco"
+  protocol_version: "v8"
+
+# ============================================================
+# DATA SOURCES
+# ============================================================
+data:
+  xml_dir: "/content/drive/MyDrive/data_tesis/clinicalsupplement"
+  feature_config: "config_v2.yaml"
+  drug_file: null
+
+# ============================================================
+# OUTPUT DESTINATION
+# ============================================================
+output:
+  base_dir: "/content/drive/MyDrive/data_tesis/results"
+  save_raw_extraction: true
+  save_resolved_config: true
+
+# ============================================================
+# REPRODUCIBILITY
+# ============================================================
+random:
+  seeds: [42, 123]   # Only 2 seeds for fast validation; expand later
+  n_folds: 5
+
+# ============================================================
+# PHASE 1 — IMPUTATION BENCHMARK (ENABLED)
+# ============================================================
+phase_1_imputation:
+  enabled: true
+  strategies:
+    - mean_median
+    - knn_5
+    - knn_10
+    - mice
+  cox_penalizer: 0.1
+
+# ============================================================
+# PHASE 2 — VARIANT COMPARISON (ENABLED)
+# ============================================================
+phase_2_variants:
+  enabled: true
+  variants:
+    - cox_baseline
+    - tabpfn
+    - linear_fpga
+  output_dim: 768
+  variant_params:
+    linear_fpga:
+      hidden_dim: 128
+      epochs: 200
+      lr: 0.001
+      patience: 20
+      weight_decay: 0.0001
+  imputation_for_variants: "auto"
+  imputation_for_baseline: "mean_median"
+
+# ============================================================
+# PHASE 3 — EFFICIENCY BENCHMARK (DISABLED for quickstart)
+# ============================================================
+phase_3_efficiency:
+  enabled: false
+  variants:
+    - cox_baseline
+    - linear_fpga
+  n_warmup: 10
+  n_runs: 100
+
+# ============================================================
+# PHASE 4 — STRESS TEST (DISABLED for quickstart)
+# ============================================================
+phase_4_stress:
+  enabled: false
+  noise_fraction: 0.20
+  outlier_fraction: 0.05
+  seeds: [42, 123]
+
+# ============================================================
+# PHASE 5 — MULTIMODAL BASELINE (TABULAR ONLY)
+# ============================================================
+# This is the new phase. With only the tabular modality enabled, the
+# ablation table will have a single row: [tabular]. That row is your
+# first end-to-end measurement of the CLINICAL-CORE / RENAL-CORE pipeline
+# and the reference C-index against which every future iteration is compared.
+phase_5_multimodal:
+  enabled: true
+  
+  # ONLY tabular for this quickstart
+  modalities:
+    - tabular
+  
+  modality_dim: 768
+  
+  # Component selections (must exist in the registries)
+  text_conn: "text_baseline_docling_clinicalbert"
+  vision_conn: "vision_baseline_stunet_radiomics"
+  fusion_proc: "fusion_baseline_concat"
+  prognosis_proc: "prognosis_baseline_linear_cox"
+  
+  # Vision backend doesn't matter here since vision is not in modalities,
+  # but we set it to mock to avoid any accidental download attempts.
+  vision_backend: "mock"
+  
+  # Best imputation winner from Phase 1 will be used; this is just the default
+  tabular_imputation: "knn_5"
+  
+  # No external data needed
+  text_dir: null
+  vision_dir: null
+  
+  # Force a single ablation: tabular only
+  ablations:
+    - [tabular]
+  
+  prognosis_epochs: 200
+  prognosis_patience: 20
+
+# ============================================================
+# RUNTIME CONTROLS
+# ============================================================
+runtime:
+  verbosity: "normal"
+  fail_fast: false
+  max_phase_minutes: null

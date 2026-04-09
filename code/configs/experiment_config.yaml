@@ -1,0 +1,200 @@
+# ============================================================
+# CLINICAL-CORE / TABULAR-CONN EXPERIMENT CONFIGURATION
+# ============================================================
+# This file is the SINGLE SOURCE OF TRUTH for an experiment run.
+# Changing what variants are evaluated, which seeds are used, where
+# data lives, or what hyperparameters are tested requires editing
+# THIS FILE ONLY — never the runner code.
+#
+# Each run produces a directory named:
+#   {output.base_dir}/{timestamp}_{config_hash}/
+# containing: a copy of this config, all metric CSVs, and a
+# run_metadata.json with full provenance information.
+# ============================================================
+
+experiment:
+  name: "tabular_conn_baseline_q1"
+  description: "First-quarter baseline of CLINICAL-CORE TABULAR-CONN. Establishes the floor (Cox), the ceiling (TabPFN), and the FPGA-compatible variant (linear encoder)."
+  author: "Raul Pacheco"
+  protocol_version: "v8"
+
+# ============================================================
+# DATA SOURCES
+# ============================================================
+data:
+  # Directory containing TCGA-KIRC BCR XML clinical supplements
+  xml_dir: "/content/drive/MyDrive/data_tesis/clinicalsupplement"
+  
+  # Feature/target schema (the existing config_v2.yaml)
+  feature_config: "config_v2.yaml"
+  
+  # Optional: drug treatment TXT for future use (not used in this run)
+  drug_file: null
+
+# ============================================================
+# OUTPUT DESTINATION
+# ============================================================
+output:
+  # Base directory under which run-specific subdirectories are created.
+  # Each run gets its own timestamped + hashed subdirectory.
+  base_dir: "/content/drive/MyDrive/data_tesis/results"
+  
+  # Whether to copy raw extracted features/targets into the run dir
+  save_raw_extraction: true
+  
+  # Whether to dump the resolved (post-merge) config alongside the run
+  save_resolved_config: true
+
+# ============================================================
+# REPRODUCIBILITY
+# ============================================================
+random:
+  seeds: [42, 123, 456, 789, 1024]
+  
+  # Number of cross-validation folds for survival evaluation
+  n_folds: 5
+
+# ============================================================
+# PHASE 1 — IMPUTATION BENCHMARK
+# ============================================================
+phase_1_imputation:
+  enabled: true
+  
+  # Strategies to evaluate. Each name must exist in registry.IMPUTATION_REGISTRY.
+  strategies:
+    - mean_median
+    - knn_5
+    - knn_10
+    - mice
+  
+  # Cox-PH parameters used as the FIXED downstream predictor
+  cox_penalizer: 0.1
+
+# ============================================================
+# PHASE 2 — VARIANT COMPARISON
+# ============================================================
+phase_2_variants:
+  enabled: true
+  
+  # Encoder variants to evaluate. Each name must exist in registry.VARIANT_REGISTRY.
+  # Add a new variant by registering it in registry.py and adding its name here.
+  variants:
+    - cox_baseline
+    - tabpfn
+    - linear_fpga
+  
+  # Embedding dimensionality (must match downstream FUSION-PROC contract)
+  output_dim: 768
+  
+  # Variant-specific hyperparameters
+  variant_params:
+    linear_fpga:
+      hidden_dim: 128
+      epochs: 200
+      lr: 0.001
+      patience: 20
+      weight_decay: 0.0001
+  
+  # Imputation strategy for variants B and C.
+  # If "auto", uses the winner from phase_1_imputation.
+  # If a specific name (e.g., "knn_5"), uses that regardless of phase 1.
+  imputation_for_variants: "auto"
+  
+  # Variant A (Cox baseline) always uses mean_median (specified by protocol)
+  imputation_for_baseline: "mean_median"
+
+# ============================================================
+# PHASE 3 — EFFICIENCY BENCHMARK
+# ============================================================
+phase_3_efficiency:
+  enabled: true
+  
+  # Variants to benchmark for latency/memory/FLOPs
+  variants:
+    - cox_baseline
+    - linear_fpga
+  
+  n_warmup: 10
+  n_runs: 100
+
+# ============================================================
+# PHASE 4 — STRESS TEST
+# ============================================================
+phase_4_stress:
+  enabled: true
+  
+  # Fraction of values to artificially set to missing (MCAR)
+  noise_fraction: 0.20
+  
+  # Fraction of remaining values to replace with extreme outliers
+  outlier_fraction: 0.05
+  
+  # Use a smaller seed list for stress test to control runtime
+  seeds: [42, 123, 456]
+
+# ============================================================
+# PHASE 5 — MULTIMODAL BASELINE (END-TO-END)
+# ============================================================
+# This is the baseline of CLINICAL-CORE / RENAL-CORE end-to-end:
+# all CONNs run, FUSION-PROC concatenates, PROGNOSIS-PROC predicts.
+# Reports C-index per modality combination (ablation table).
+#
+# Modality data discovery:
+#   - tabular: extracted from xml_dir (no extra config needed)
+#   - text:    expects PDFs/TXTs in text_dir, matched to case_id by filename
+#   - vision:  expects .nii.gz volumes in vision_dir, matched by filename
+#
+# If text_dir / vision_dir are null, those modalities are disabled
+# automatically and the pipeline falls back to whatever is available.
+phase_5_multimodal:
+  enabled: true
+  
+  # Which modalities to attempt to encode
+  modalities:
+    - tabular
+    - text
+    - vision
+  
+  # Per-modality embedding dimensionality (must match across CONNs)
+  modality_dim: 768
+  
+  # Component selections (must exist in respective registries)
+  text_conn: "text_baseline_docling_clinicalbert"
+  vision_conn: "vision_baseline_stunet_radiomics"
+  fusion_proc: "fusion_baseline_concat"
+  prognosis_proc: "prognosis_baseline_linear_cox"
+  
+  # Vision backend: "auto" | "totalseg" | "stunet" | "mock"
+  #   auto:     try totalseg → stunet → mock (recommended for first run)
+  #   totalseg: force TotalSegmentator package (pip install totalsegmentator)
+  #   stunet:   force STU-Net (requires manual setup, see vision_conn.py)
+  #   mock:     force synthetic mask (architecture validation only)
+  vision_backend: "auto"
+  
+  # Imputation strategy used for the tabular path inside the multimodal pipeline
+  tabular_imputation: "knn_5"
+  
+  # Data directories (set to null to disable a modality)
+  text_dir: null  # e.g., "/content/drive/MyDrive/data_tesis/pathology_reports"
+  vision_dir: null  # e.g., "/content/drive/MyDrive/data_tesis/ct_volumes"
+  
+  # Ablations to run. If null, defaults to:
+  #   [tabular], [tabular,text], [tabular,vision], [tabular,text,vision]
+  ablations: null
+  
+  # PROGNOSIS-PROC training hyperparameters
+  prognosis_epochs: 200
+  prognosis_patience: 20
+
+# ============================================================
+# RUNTIME CONTROLS
+# ============================================================
+runtime:
+  # Verbosity: silent | normal | verbose
+  verbosity: "normal"
+  
+  # If true, abort on first phase failure. If false, log and continue.
+  fail_fast: false
+  
+  # Maximum allowed runtime per phase in minutes (null = no limit)
+  max_phase_minutes: null
