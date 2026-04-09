@@ -223,11 +223,13 @@ class TabularPreprocessor:
         self.fitted = True
         self.imputer = imputation_strategy
 
-        # debug
-print(f"DEBUG: Columnas esperadas en config: {len(self.feature_cols)}")
-print(f"DEBUG: Columnas obtenidas tras procesamiento: {df_final.shape[1]}")
-print(f"DEBUG: Columnas faltantes: {set(self.feature_cols) - set(df_final.columns)}")
-        
+        # Ensure output columns match input columns exactly
+        # (guards against columns lost during imputation, e.g. race with 0% data)
+        for col in self.all_cols:
+            if col not in df_imputed.columns:
+                df_imputed[col] = 0.0
+        df_imputed = df_imputed[self.all_cols]
+
         return df_imputed, mask, confidence
     
     def transform(self, df_features: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
@@ -243,6 +245,12 @@ print(f"DEBUG: Columnas faltantes: {set(self.feature_cols) - set(df_final.column
             cols_present = [c for c in self.numeric_cols if c in df_imputed.columns]
             df_imputed[cols_present] = self.scaler.transform(df_imputed[cols_present])
         
+        # Ensure output columns match fitted columns exactly
+        for col in self.all_cols:
+            if col not in df_imputed.columns:
+                df_imputed[col] = 0.0
+        df_imputed = df_imputed[self.all_cols]
+
         return df_imputed, mask, confidence
 
 
