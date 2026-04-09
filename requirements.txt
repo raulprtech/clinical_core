@@ -20,11 +20,14 @@ tabpfn
 # Survival Analysis (Core)
 lifelines
 
-# Vision & Text Ingestion
+# Vision & Text Ingestion 
+# (Note: pyradiomics requires 'cmake' on system)
 nibabel
 totalsegmentator
-pyradiomics
-docling
+# pyradiomics 
+
+# (Note: docling requires Python >= 3.9)
+# docling 
 
 # Utilities
 requests
