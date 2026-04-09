@@ -144,16 +144,16 @@ features:
       "GX": -1   # Not graded — treated as missing
     clinical_relevance: "Fuhrman/ISUP grade; independent prognostic factor (Ricketts et al. 2018)"
 
-  histological_type:
-    sources:
-      - histologic_diagnosis
-      - histological_type
-    type: categorical
-    encoding: binary
-    mapping:
-      "Kidney Clear Cell Renal Carcinoma": 1
-    default: 0
-    clinical_relevance: "Confirm ccRCC subtype (should be ~100% in TCGA-KIRC)"
+#  histological_type:
+#    sources:
+#      - histologic_diagnosis
+#      - histological_type
+#    type: categorical
+#    encoding: binary
+#    mapping:
+#      "Kidney Clear Cell Renal Carcinoma": 1
+#    default: 0
+#    clinical_relevance: "Confirm ccRCC subtype (should be ~100% in TCGA-KIRC)"
 
   laterality:
     sources:
