@@ -45,8 +45,10 @@ class MeanMedianImputer(ImputationStrategy):
         self.imputer_cat = SimpleImputer(strategy='most_frequent')
         self.numeric_cols = []
         self.categorical_cols = []
+        self.columns = []
     
     def fit_transform(self, X: pd.DataFrame, numeric_cols: list, categorical_cols: list) -> pd.DataFrame:
+        self.columns = X.columns.tolist()
         self.numeric_cols = [c for c in numeric_cols if c in X.columns]
         self.categorical_cols = [c for c in categorical_cols if c in X.columns]
         
@@ -65,7 +67,7 @@ class MeanMedianImputer(ImputationStrategy):
         return result
     
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
-        result = X.copy()
+        result = X.reindex(columns=self.columns).copy()
         
         # Pre-fill columns that are 100% NaN
         for col in result.columns:
@@ -105,7 +107,7 @@ class KNNImputerStrategy(ImputationStrategy):
         return result
     
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
-        X_safe = X.copy()
+        X_safe = X.reindex(columns=self.columns).copy()
         for col in X_safe.columns:
             if X_safe[col].isna().all():
                 X_safe[col] = 0.0
@@ -140,7 +142,7 @@ class MICEImputerStrategy(ImputationStrategy):
         return result
     
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
-        X_safe = X.copy()
+        X_safe = X.reindex(columns=self.columns).copy()
         for col in X_safe.columns:
             if X_safe[col].isna().all():
                 X_safe[col] = 0.0
@@ -170,6 +172,7 @@ class TabularPreprocessor:
         self.numeric_cols = []
         self.all_cols = []
         self.categorical_cols = []
+        self.scaler_cols = []
         self.fitted = False
     
     def identify_column_types(self, df: pd.DataFrame) -> Tuple[List[str], List[str]]:
@@ -252,7 +255,9 @@ class TabularPreprocessor:
         # Step 4: Z-score normalize numeric columns
         if self.numeric_cols:
             cols_present = [c for c in self.numeric_cols if c in df_imputed.columns]
-            df_imputed[cols_present] = self.scaler.fit_transform(df_imputed[cols_present])
+            self.scaler_cols = cols_present
+            if self.scaler_cols:
+                df_imputed[self.scaler_cols] = self.scaler.fit_transform(df_imputed[self.scaler_cols])
         
         self.fitted = True
         self.imputer = imputation_strategy
@@ -269,22 +274,22 @@ class TabularPreprocessor:
     def transform(self, df_features: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
         """Transform new data using fitted preprocessor."""
         assert self.fitted, "Must call fit_transform first"
-        
-        mask = self.create_missingness_mask(df_features)
+
+        df_aligned = df_features.reindex(columns=self.all_cols).copy()
+
+        mask = self.create_missingness_mask(df_aligned)
         confidence = self.compute_confidence(mask)
-        
-        df_imputed = self.imputer.transform(df_features)
-        
-        if self.numeric_cols:
-            cols_present = [c for c in self.numeric_cols if c in df_imputed.columns]
-            df_imputed[cols_present] = self.scaler.transform(df_imputed[cols_present])
-        
-        # Ensure output columns match fitted columns exactly
+
+        df_imputed = self.imputer.transform(df_aligned)
+
         for col in self.all_cols:
             if col not in df_imputed.columns:
                 df_imputed[col] = 0.0
         df_imputed = df_imputed[self.all_cols]
 
+        if self.scaler_cols:
+            df_imputed[self.scaler_cols] = self.scaler.transform(df_imputed[self.scaler_cols])
+        
         return df_imputed, mask, confidence
 
 

@@ -177,6 +177,20 @@ class MultimodalPipeline:
             backend = ph5.get('vision_backend', 'auto')
             self._vision_conn = get_vision_conn(vision_name, backend=backend)
         return self._vision_conn
+
+    @staticmethod
+    def _target_scalar(df_targets: pd.DataFrame, case_id: str, column: str) -> float:
+        value = df_targets.loc[case_id, column]
+        if isinstance(value, pd.Series):
+            value = pd.to_numeric(value, errors='coerce').dropna()
+            if value.empty:
+                return np.nan
+            if column == 'event':
+                return float(value.max())
+            return float(value.iloc[0])
+        if pd.isna(value):
+            return np.nan
+        return float(value)
     
     def encode_cohort(
         self,
@@ -280,8 +294,10 @@ class MultimodalPipeline:
             if 'tabular' in self.cache._cache[cid]
             and cid in df_targets.index
         ]
-        valid_cases = [cid for cid in valid_cases
-                       if df_targets.loc[cid, 'survival_days'] > 0]
+        valid_cases = [
+            cid for cid in valid_cases
+            if self._target_scalar(df_targets, cid, 'survival_days') > 0
+        ]
         
         if len(valid_cases) < 50:
             return {'error': f'Too few cases ({len(valid_cases)}) for cross-validation'}
@@ -292,11 +308,13 @@ class MultimodalPipeline:
         for cid in valid_cases:
             patient_outputs = self.cache.get_for_patient(cid, modality_subset)
             fused, _ = fusion.fuse_one(patient_outputs)
+            survival_days = self._target_scalar(df_targets, cid, 'survival_days')
+            event = self._target_scalar(df_targets, cid, 'event')
             fused_list.append(fused)
             targets_filtered.append({
                 'case_id': cid,
-                'survival_days': df_targets.loc[cid, 'survival_days'],
-                'event': df_targets.loc[cid, 'event'],
+                'survival_days': survival_days,
+                'event': int(event) if not np.isnan(event) else 0,
             })
         
         X_all = torch.stack(fused_list)
