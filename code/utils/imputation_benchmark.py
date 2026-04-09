@@ -51,18 +51,39 @@ class MeanMedianImputer(ImputationStrategy):
         self.categorical_cols = [c for c in categorical_cols if c in X.columns]
         
         result = X.copy()
+        
+        # Pre-fill columns that are 100% NaN — SimpleImputer drops them,
+        # causing "Columns must be same length as key"
+        for col in result.columns:
+            if result[col].isna().all():
+                result[col] = 0.0
+        
         if self.numeric_cols:
-            result[self.numeric_cols] = self.imputer_num.fit_transform(X[self.numeric_cols])
+            cols_with_data = [c for c in self.numeric_cols if not X[c].isna().all()]
+            if cols_with_data:
+                result[cols_with_data] = self.imputer_num.fit_transform(result[cols_with_data])
         if self.categorical_cols:
-            result[self.categorical_cols] = self.imputer_cat.fit_transform(X[self.categorical_cols])
+            cols_with_data = [c for c in self.categorical_cols if not X[c].isna().all()]
+            if cols_with_data:
+                result[cols_with_data] = self.imputer_cat.fit_transform(result[cols_with_data])
         return result
     
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         result = X.copy()
+        
+        # Pre-fill columns that are 100% NaN
+        for col in result.columns:
+            if result[col].isna().all():
+                result[col] = 0.0
+        
         if self.numeric_cols:
-            result[self.numeric_cols] = self.imputer_num.transform(X[self.numeric_cols])
+            cols_with_data = [c for c in self.numeric_cols if c in result.columns and not X[c].isna().all()]
+            if cols_with_data:
+                result[cols_with_data] = self.imputer_num.transform(result[cols_with_data])
         if self.categorical_cols:
-            result[self.categorical_cols] = self.imputer_cat.transform(X[self.categorical_cols])
+            cols_with_data = [c for c in self.categorical_cols if c in result.columns and not X[c].isna().all()]
+            if cols_with_data:
+                result[cols_with_data] = self.imputer_cat.transform(result[cols_with_data])
         return result
 
 
@@ -76,15 +97,24 @@ class KNNImputerStrategy(ImputationStrategy):
     
     def fit_transform(self, X: pd.DataFrame, **kwargs) -> pd.DataFrame:
         self.columns = X.columns.tolist()
+        X_safe = X.copy()
+        # Pre-fill columns that are 100% NaN to avoid imputer issues
+        for col in X_safe.columns:
+            if X_safe[col].isna().all():
+                X_safe[col] = 0.0
         result = pd.DataFrame(
-            self.imputer.fit_transform(X),
+            self.imputer.fit_transform(X_safe),
             columns=self.columns, index=X.index
         )
         return result
     
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        X_safe = X.copy()
+        for col in X_safe.columns:
+            if X_safe[col].isna().all():
+                X_safe[col] = 0.0
         result = pd.DataFrame(
-            self.imputer.transform(X),
+            self.imputer.transform(X_safe),
             columns=self.columns, index=X.index
         )
         return result
@@ -103,15 +133,23 @@ class MICEImputerStrategy(ImputationStrategy):
     
     def fit_transform(self, X: pd.DataFrame, **kwargs) -> pd.DataFrame:
         self.columns = X.columns.tolist()
+        X_safe = X.copy()
+        for col in X_safe.columns:
+            if X_safe[col].isna().all():
+                X_safe[col] = 0.0
         result = pd.DataFrame(
-            self.imputer.fit_transform(X),
+            self.imputer.fit_transform(X_safe),
             columns=self.columns, index=X.index
         )
         return result
     
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        X_safe = X.copy()
+        for col in X_safe.columns:
+            if X_safe[col].isna().all():
+                X_safe[col] = 0.0
         result = pd.DataFrame(
-            self.imputer.transform(X),
+            self.imputer.transform(X_safe),
             columns=self.columns, index=X.index
         )
         return result
