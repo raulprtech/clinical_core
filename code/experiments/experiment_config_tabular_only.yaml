@@ -24,7 +24,7 @@ experiment:
 # DATA SOURCES
 # ============================================================
 data:
-  xml_dir: "/content/drive/MyDrive/data_tesis/clinicalsupplement"
+  xml_dir: "/home/raulprtech/tesis/clinical_core/data/raw/clinicalsupplement"
   feature_config: "../configs/config.yaml"
   drug_file: null
 
@@ -32,7 +32,7 @@ data:
 # OUTPUT DESTINATION
 # ============================================================
 output:
-  base_dir: "/content/drive/MyDrive/data_tesis/results"
+  base_dir: "/home/raulprtech/tesis/clinical_core/results"
   save_raw_extraction: true
   save_resolved_config: true
 
