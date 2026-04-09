@@ -29,8 +29,8 @@ import torch
 from sklearn.model_selection import StratifiedKFold
 from lifelines.utils import concordance_index
 
-from extractor import TCGAExtractor
-from imputation_benchmark import TabularPreprocessor
+from utils.extractor import TCGAExtractor
+from utils.imputation_benchmark import TabularPreprocessor
 from registry import (
     get_imputation,
     get_text_conn,
