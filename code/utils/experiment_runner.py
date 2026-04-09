@@ -51,17 +51,22 @@ from lifelines.utils import concordance_index
 
 warnings.filterwarnings('ignore')
 
-from extractor import TCGAExtractor
-from imputation_benchmark import TabularPreprocessor
-from encoders import (
+# Add parent directory to path to allow absolute imports from 'code'
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+from utils.extractor import TCGAExtractor
+from utils.imputation_benchmark import TabularPreprocessor
+from utils.model_utils import (
     verify_ingestion_contract,
     train_variant_c,
     benchmark_efficiency,
     cox_partial_likelihood_loss,
-    VariantC_LinearEncoder,
 )
+from components.connectors.tabular.linear_fpga import VariantC_LinearEncoder
 from registry import get_imputation, get_variant, list_components
-from multimodal_pipeline import MultimodalPipeline, discover_modality_files
+from main import MultimodalPipeline, discover_modality_files
 
 
 # ============================================================
@@ -707,7 +712,7 @@ def run_experiment(config_path: str = "experiment_config.yaml") -> dict:
     # Resolve feature_config relative to experiment_config dir if not absolute
     feat_path = Path(config['data']['feature_config'])
     if not feat_path.is_absolute():
-        feat_path = config_path.parent / feat_path
+        feat_path = (config_path.parent / feat_path).resolve()
         config['data']['feature_config'] = str(feat_path)
     
     verbosity = config.get('runtime', {}).get('verbosity', 'normal')

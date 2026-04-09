@@ -33,11 +33,12 @@ code/
 │   │   └── text/               # clinicalbert
 │   │
 │   └── processors/             # 🧠 Reasoning Layer
-│       ├── fusion/             # concatenation, attention (WIP)
-│       └── prognosis/          # linear_cox, deep_hit (WIP)
+│       ├── fusion/             # concatenation
+│       └── prognosis/          # linear_cox
 │
-├── configs/                    # ⚙️ Experiment definitions (YAML)
-└── utils/                      # 🛠️ Helpers (extractor, benchmark, runner)
+├── experiments/                # ⚙️ Experiment definitions (YAML battle plans)
+├── configs/                    # 📋 Data schemas (config.yaml)
+└── utils/                      # 🛠️ Helpers (extractor, model_utils, runner)
 ```
 
 ## Quick Start

@@ -25,8 +25,8 @@ data:
   # Directory containing TCGA-KIRC BCR XML clinical supplements
   xml_dir: "/content/drive/MyDrive/data_tesis/clinicalsupplement"
   
-  # Feature/target schema (the existing config_v2.yaml)
-  feature_config: "config_v2.yaml"
+  # Feature/target schema (config.yaml)
+  feature_config: "../configs/config.yaml"
   
   # Optional: drug treatment TXT for future use (not used in this run)
   drug_file: null

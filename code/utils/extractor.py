@@ -21,7 +21,7 @@ import warnings
 class TCGAExtractor:
     """Extracts clinical variables from TCGA BCR XML files."""
     
-    def __init__(self, config_path: str = "config_v2.yaml"):
+    def __init__(self, config_path: str = "configs/config.yaml"):
         with open(config_path, 'r') as f:
             self.config = yaml.safe_load(f)
         

@@ -25,7 +25,7 @@ experiment:
 # ============================================================
 data:
   xml_dir: "/content/drive/MyDrive/data_tesis/clinicalsupplement"
-  feature_config: "config_v2.yaml"
+  feature_config: "../configs/config.yaml"
   drug_file: null
 
 # ============================================================
