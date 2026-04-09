@@ -222,6 +222,11 @@ class TabularPreprocessor:
         
         self.fitted = True
         self.imputer = imputation_strategy
+
+        # Añade esto antes del error para que Epsilon pueda ver la verdad:
+print(f"DEBUG: Columnas esperadas en config: {len(self.feature_cols)}")
+print(f"DEBUG: Columnas obtenidas tras procesamiento: {df_final.shape[1]}")
+print(f"DEBUG: Columnas faltantes: {set(self.feature_cols) - set(df_final.columns)}")
         
         return df_imputed, mask, confidence
     
