@@ -1,0 +1,321 @@
+# CLINICAL-CORE / TABULAR-CONN Configuration v2 — ABLATION: NO LEAKAGE SUSPECTS
+# Aligned with Protocol v8 — Survival Analysis
+# Dataset: TCGA-KIRC (n=538, NCI BCR XML clinical supplements)
+#
+# CRITICAL: survival variables are TARGETS, not features.
+# They must NEVER be included in the input embedding.
+#
+# ABLATION NOTE: This config EXCLUDES the following features suspected of leakage
+# or low-quality post-diagnostic information:
+#   - tumor_status (person_neoplasm_cancer_status): 80.6% presence, but encodes
+#     TUMOR FREE vs WITH TUMOR measured AFTER nefrectomy → temporal leakage
+#   - karnofsky_score: 24.6% presence, likely from follow-up visits
+#   - ecog_score: 7.4% presence, likely from follow-up visits
+#
+# If C-index stays ≥0.77 without these, the 0.80+ result is legitimate
+# and attributable to IMDC/MSKCC enrichment. If it drops to 0.72-0.78,
+# tumor_status was the culprit and should be permanently excluded.
+
+# ============================================================
+# TARGET VARIABLES (for Cox / survival prediction)
+# ============================================================
+targets:
+  survival_days:
+    sources:
+      - days_to_death          # If patient died
+      - days_to_last_followup  # If patient is alive (censored)
+    description: "Time-to-event in days. Use days_to_death if available, else days_to_last_followup."
+  
+  vital_status:
+    sources:
+      - vital_status
+    mapping:
+      Dead: 1       # Event observed
+      Alive: 0      # Censored
+    description: "Censoring indicator. 1 = event (death), 0 = censored (alive at last followup)."
+
+# ============================================================
+# INPUT FEATURES — Demographics
+# ============================================================
+features:
+  age:
+    sources:
+      - age_at_initial_pathologic_diagnosis
+    type: continuous
+    normalization: zscore
+    clinical_relevance: "Independent prognostic factor in ccRCC (Capitanio et al. 2019)"
+    
+  gender:
+    sources:
+      - gender
+    type: categorical
+    mapping:
+      MALE: 1
+      FEMALE: 0
+    clinical_relevance: "Male sex associated with higher incidence (3:2 ratio, EAU 2025)"
+    
+  race:
+    sources:
+      - race
+    type: categorical
+    encoding: onehot
+    categories: ["WHITE", "BLACK OR AFRICAN AMERICAN", "ASIAN", "OTHER"]
+    clinical_relevance: "Epidemiological covariate; potential confound"
+    
+  ethnicity:
+    sources:
+      - ethnicity
+    type: categorical
+    mapping:
+      "HISPANIC OR LATINO": 1
+      "NOT HISPANIC OR LATINO": 0
+    clinical_relevance: "Epidemiological covariate"
+
+  # ============================================================
+  # INPUT FEATURES — Staging (AJCC/TNM)
+  # ============================================================
+  pathologic_stage:
+    sources:
+      - ajcc_pathologic_tumor_stage
+      - pathologic_stage
+      - tumor_stage
+    type: categorical
+    encoding: ordinal
+    mapping:
+      "Stage I": 1
+      "Stage II": 2
+      "Stage III": 3
+      "Stage IV": 4
+    clinical_relevance: "Primary clinical staging; direct prognostic value"
+
+  pathologic_T:
+    sources:
+      - ajcc_tumor_pathologic_pt
+      - pathologic_t
+      - pathologic_T
+    type: categorical
+    encoding: ordinal
+    mapping:
+      "T1": 1
+      "T1a": 1
+      "T1b": 1
+      "T2": 2
+      "T2a": 2
+      "T2b": 2
+      "T3": 3
+      "T3a": 3
+      "T3b": 3
+      "T3c": 3
+      "T4": 4
+    clinical_relevance: "Tumor size/extent; primary determinant of stage"
+
+  pathologic_N:
+    sources:
+      - ajcc_nodes_pathologic_pn
+      - pathologic_n
+      - pathologic_N
+    type: categorical
+    encoding: ordinal
+    mapping:
+      "N0": 0
+      "N1": 1
+      "N2": 2
+      "NX": -1   # Not assessed — will be treated as missing
+    clinical_relevance: "Lymph node involvement"
+
+  pathologic_M:
+    sources:
+      - ajcc_metastasis_pathologic_pm
+      - pathologic_m
+      - pathologic_M
+    type: categorical
+    encoding: ordinal
+    mapping:
+      "M0": 0
+      "M1": 1
+      "MX": -1   # Not assessed — treated as missing
+    clinical_relevance: "Distant metastasis; strongest single prognostic factor"
+
+  # ============================================================
+  # INPUT FEATURES — Histology
+  # ============================================================
+  histologic_grade:
+    sources:
+      - neoplasm_histologic_grade
+      - tumor_grade
+      - histological_grade
+      - nuclear_grade
+    type: categorical
+    encoding: ordinal
+    mapping:
+      "G1": 1
+      "G2": 2
+      "G3": 3
+      "G4": 4
+      "GX": -1   # Not graded — treated as missing
+    clinical_relevance: "Fuhrman/ISUP grade; independent prognostic factor (Ricketts et al. 2018)"
+
+#  histological_type:
+#    sources:
+#      - histologic_diagnosis
+#      - histological_type
+#    type: categorical
+#    encoding: binary
+#    mapping:
+#      "Kidney Clear Cell Renal Carcinoma": 1
+#    default: 0
+#    clinical_relevance: "Confirm ccRCC subtype (should be ~100% in TCGA-KIRC)"
+
+  laterality:
+    sources:
+      - laterality
+    type: categorical
+    mapping:
+      "Right": 1
+      "Left": 0
+      "Bilateral": 2
+    clinical_relevance: "Anatomical covariate; limited prognostic value"
+
+  # ============================================================
+  # INPUT FEATURES — Laboratory values (IMDC/MSKCC criteria)
+  # ============================================================
+  hemoglobin:
+    sources:
+      - hemoglobin_level
+      - hemoglobin_result
+    type: categorical_lab
+    mapping:
+      "Low": 0
+      "Normal": 1
+      "Elevated": 2
+    clinical_relevance: "IMDC criterion: anemia (hemoglobin < lower limit of normal)"
+
+  serum_calcium:
+    sources:
+      - serum_calcium_level
+      - serum_calcium_result
+    type: categorical_lab
+    mapping:
+      "Low": 0
+      "Normal": 1
+      "Elevated": 2
+    clinical_relevance: "IMDC criterion: corrected calcium > upper limit of normal"
+
+  ldh:
+    sources:
+      - ldh_level
+      - lactate_dehydrogenase_result
+    type: categorical_lab
+    mapping:
+      "Normal": 0
+      "Elevated": 1
+    clinical_relevance: "MSKCC criterion: LDH > 1.5× upper limit of normal"
+
+  platelet_count:
+    sources:
+      - platelet_count
+      - platelet_qualitative_result
+    type: categorical_lab
+    mapping:
+      "Low": 0
+      "Normal": 1
+      "Elevated": 2
+    clinical_relevance: "IMDC criterion: thrombocytosis"
+
+  white_cell_count:
+    sources:
+      - white_cell_count
+      - white_cell_count_result
+    type: categorical_lab
+    mapping:
+      "Low": 0
+      "Normal": 1
+      "Elevated": 2
+    clinical_relevance: "IMDC criterion: neutrophilia"
+
+  erythrocyte_sedimentation_rate:
+    sources:
+      - erythrocyte_sedimentation_rate
+      - erythrocyte_sedimentation_rate_result
+    type: categorical_lab
+    mapping:
+      "Normal": 0
+      "Elevated": 1
+    clinical_relevance: "Inflammatory marker; prognostic in ccRCC"
+
+  # ============================================================
+  # INPUT FEATURES — Performance status
+  # ============================================================
+  # ABLATION: karnofsky_score EXCLUDED — 24.6% presence, likely from follow-ups
+  # karnofsky_score:
+  #   sources:
+  #     - karnofsky_score
+  #     - karnofsky_performance_score
+  #   type: continuous
+  #   normalization: zscore
+  #   clinical_relevance: "IMDC/MSKCC criterion: KPS < 80%"
+
+  # ABLATION: ecog_score EXCLUDED — 7.4% presence, likely from follow-ups
+  # ecog_score:
+  #   sources:
+  #     - ecog_score
+  #     - eastern_cancer_oncology_group
+  #   type: continuous
+  #   normalization: zscore
+  #   clinical_relevance: "Alternative performance status to Karnofsky"
+
+  # ============================================================
+  # INPUT FEATURES — Clinical history
+  # ============================================================
+  neoadjuvant_treatment:
+    sources:
+      - history_neoadjuvant_treatment
+      - history_of_neoadjuvant_treatment
+    type: categorical
+    mapping:
+      "Yes": 1
+      "No": 0
+    clinical_relevance: "Prior treatment before surgery"
+
+  # ABLATION: tumor_status EXCLUDED — 80.6% presence but encodes post-surgical
+  # information (TUMOR FREE vs WITH TUMOR measured after nefrectomy).
+  # This is temporal leakage if predicting prognosis from diagnosis.
+  # tumor_status:
+  #   sources:
+  #     - person_neoplasm_cancer_status
+  #   type: categorical
+  #   mapping:
+  #     "TUMOR FREE": 0
+  #     "WITH TUMOR": 1
+  #   clinical_relevance: "Post-surgical tumor burden status"
+
+  lymph_nodes_examined:
+    sources:
+      - lymph_nodes_examined
+      - primary_lymph_node_presentation_assessment
+    type: categorical
+    mapping:
+      "YES": 1
+      "NO": 0
+    clinical_relevance: "Whether lymph node dissection was performed"
+
+  other_malignancy:
+    sources:
+      - history_other_malignancy
+      - other_dx
+    type: categorical
+    mapping:
+      "Yes": 1
+      "No": 0
+      "Yes, History of Prior Malignancy": 1
+      "Yes, History of Synchronous and or Bilateral Malignancy": 1
+    clinical_relevance: "Competing mortality risk"
+
+# ============================================================
+# EMBEDDING OUTPUT SPECIFICATION
+# ============================================================
+embedding:
+  output_dim: 768          # Match ClinicalBERT for FUSION-PROC compatibility
+  fpga_output_dim: 32      # Reduced dim for FPGA-compatible variant
+  hidden_dim: 128          # Intermediate layer for 2-layer encoder
+  activation: relu         # FPGA-synthesizable: max(0, x)

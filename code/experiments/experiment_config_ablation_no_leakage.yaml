@@ -1,0 +1,132 @@
+# ============================================================
+# CLINICAL-CORE / TABULAR-CONN — ABLATION: ANTI-LEAKAGE TEST
+# ============================================================
+# Purpose: determine whether the 0.80+ C-index in Phase 2 is due to
+# data leakage from tumor_status (post-surgical variable) or is a
+# legitimate result of IMDC/MSKCC feature enrichment.
+#
+# Changes vs baseline experiment_config_tabular_only.yaml:
+#   - feature_config points to config_v2_ablation_no_leakage.yaml
+#   - experiment name reflects ablation purpose
+#   - Removed tabpfn from Phase 2 (contract-rejected, not relevant here)
+#
+# Interpretation guide:
+#   If C-index ≥ 0.77:  leakage is NOT the explanation. IMDC/MSKCC enrichment
+#                        is a publishable finding. Permanently exclude tumor_status
+#                        anyway (it's still post-diagnostic), keep the valid result.
+#   If C-index 0.72-0.76: tumor_status was partially responsible. Exclude it
+#                          permanently and report the lower but clean number.
+#   If C-index < 0.72:   tumor_status was driving the result. Major revision needed.
+#
+# Expected runtime: ~15-30 min (2 seeds × 5 folds × 2 variants)
+# ============================================================
+
+experiment:
+  name: "ablation_anti_leakage_no_tumor_status"
+  description: "Ablation to test whether 0.80+ C-index is due to leakage from tumor_status (post-surgical variable) or legitimate IMDC/MSKCC enrichment. Excludes tumor_status, karnofsky_score, and ecog_score."
+  author: "Raul Pacheco"
+  protocol_version: "v8"
+
+# ============================================================
+# DATA SOURCES
+# ============================================================
+data:
+  xml_dir: "/home/raulprtech/tesis/clinical_core/data/raw/clinicalsupplement"
+  feature_config: "../configs/config_v2_ablation_no_leakage.yaml"
+  drug_file: null
+
+# ============================================================
+# OUTPUT DESTINATION
+# ============================================================
+output:
+  base_dir: "/home/raulprtech/tesis/clinical_core/results"
+  save_raw_extraction: true
+  save_resolved_config: true
+
+# ============================================================
+# REPRODUCIBILITY
+# ============================================================
+random:
+  seeds: [42, 123]   # Same seeds as baseline for comparability
+  n_folds: 5
+
+# ============================================================
+# PHASE 1 — IMPUTATION BENCHMARK (ENABLED)
+# ============================================================
+phase_1_imputation:
+  enabled: true
+  strategies:
+    - mean_median
+    - knn_5
+    - knn_10
+    - mice
+  cox_penalizer: 0.1
+
+# ============================================================
+# PHASE 2 — VARIANT COMPARISON (ENABLED)
+# ============================================================
+phase_2_variants:
+  enabled: true
+  variants:
+    - cox_baseline
+    - linear_fpga
+    # tabpfn: removed — contract-rejected, not relevant for this ablation
+  output_dim: 768
+  variant_params:
+    linear_fpga:
+      hidden_dim: 128
+      epochs: 200
+      lr: 0.001
+      patience: 20
+      weight_decay: 0.0001
+  imputation_for_variants: "auto"
+  imputation_for_baseline: "mean_median"
+
+# ============================================================
+# PHASE 3 — EFFICIENCY BENCHMARK (DISABLED — not relevant)
+# ============================================================
+phase_3_efficiency:
+  enabled: false
+  variants:
+    - cox_baseline
+    - linear_fpga
+  n_warmup: 10
+  n_runs: 100
+
+# ============================================================
+# PHASE 4 — STRESS TEST (DISABLED — not relevant)
+# ============================================================
+phase_4_stress:
+  enabled: false
+  noise_fraction: 0.20
+  outlier_fraction: 0.05
+  seeds: [42, 123]
+
+# ============================================================
+# PHASE 5 — MULTIMODAL BASELINE (TABULAR ONLY)
+# ============================================================
+phase_5_multimodal:
+  enabled: true
+  modalities:
+    - tabular
+  modality_dim: 768
+  text_conn: "text_baseline_docling_clinicalbert"
+  vision_conn: "vision_baseline_stunet_radiomics"
+  fusion_proc: "fusion_baseline_concat"
+  prognosis_proc: "prognosis_baseline_linear_cox"
+  vision_backend: "mock"
+  tabular_imputation: "knn_5"
+  text_dir: null
+  vision_dir: null
+  ablations:
+    - [tabular]
+  prognosis_epochs: 200
+  prognosis_patience: 20
+
+# ============================================================
+# RUNTIME CONTROLS
+# ============================================================
+runtime:
+  verbosity: "normal"
+  fail_fast: false
+  max_phase_minutes: null
