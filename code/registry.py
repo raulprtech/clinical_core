@@ -1,9 +1,4 @@
-"""
-TABULAR-CONN: Component Registry
-================================
 
-Single source of truth for all swappable components in CLINICAL-CORE.
-"""
 
 from utils.imputation_benchmark import (
     MeanMedianImputer,
@@ -19,7 +14,7 @@ from components.connectors.vision.stunet import VisionConn_Baseline
 from components.processors.fusion.concatenation import FusionProc_Concatenation
 from components.processors.prognosis.linear_cox import PrognosisProc_LinearCox
 
-
+from components.processors.explain.graph_rag_explainer import GraphRAGExplainer
 # ============================================================
 # IMPUTATION STRATEGIES
 # ============================================================
@@ -82,6 +77,14 @@ PROGNOSIS_PROC_REGISTRY = {
     'prognosis_baseline_linear_cox': lambda fused_dim, **kw: PrognosisProc_LinearCox(
         fused_dim=fused_dim, **kw
     ),
+}
+
+
+# ============================================================
+# EXPLAIN-PROC IMPLEMENTATIONS
+# ============================================================
+EXPLAIN_PROC_REGISTRY = {
+    'explain_graph_rag': lambda **kw: GraphRAGExplainer(**kw),
 }
 
 

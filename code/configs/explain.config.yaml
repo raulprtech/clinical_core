@@ -1,0 +1,14 @@
+experiment:
+  name: "Renal-CORE-Explainability-Audit"
+  pipeline:
+    connectors: ["vision", "tabular", "text"]
+    fusion: "vae_fusion"
+    prognosis: "weibull_risk"
+    # Nueva sección que invoca el módulo
+    explain:
+      type: "graph_rag"
+      params:
+        backend: "oxigraph" # La joya rápida que validamos
+        llm_model: "gemini-2.0-flash"
+        ontology: "UMLS_KIRC"
+        confidence_threshold: 0.45

@@ -69,6 +69,8 @@ from registry import get_imputation, get_variant, list_components
 from main import MultimodalPipeline, discover_modality_files
 
 
+
+
 # ============================================================
 # PROVENANCE & RUN DIRECTORY MANAGEMENT
 # ============================================================
@@ -789,6 +791,15 @@ def run_experiment(config_path: str = "experiment_config.yaml") -> dict:
             summary['phases']['phase_5'] = ph5.to_dict(orient='records')
     except Exception as e:
         summary['errors'].append({'phase': 5, 'error': str(e)})
+        if fail_fast: raise
+
+        # --- NUEVO BLOQUE EXPLAINABILITY ---
+    try:
+        ph_explain = phase_explainability_benchmark(config, run_dir)
+        if ph_explain is not None:
+            summary['phases']['phase_explain'] = ph_explain.to_dict(orient='records')
+    except Exception as e:
+        summary['errors'].append({'phase': 'explain', 'error': str(e)})
         if fail_fast: raise
     
     # ---- Final summary ----
