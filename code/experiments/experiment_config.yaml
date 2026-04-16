@@ -104,6 +104,24 @@ phase_2_variants:
   imputation_for_baseline: "mean_median"
 
 # ============================================================
+# PHASE 2 EXTERNAL — non-compliant SOTA baselines
+# ============================================================
+phase_2_external_baselines:
+  enabled: true
+  baselines:
+    tabpfn_external:
+      enabled: true
+      device: auto          # 'cuda', 'cpu', or 'auto'
+      n_estimators: 4
+    rsf_external:
+      enabled: true
+      n_estimators: 100
+      min_samples_split: 10
+      min_samples_leaf: 15
+      max_features: sqrt
+      n_jobs: -1
+
+# ============================================================
 # PHASE 3 — EFFICIENCY BENCHMARK
 # ============================================================
 phase_3_efficiency:

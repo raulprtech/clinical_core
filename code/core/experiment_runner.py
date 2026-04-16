@@ -518,6 +518,219 @@ def _eval_linear_compact(X_tr, X_va, y_tr, y_va, mask_tr, mask_va, conf_va, outp
 
 
 # ============================================================
+# PHASE 2 EXTERNAL — non-compliant SOTA baselines
+# ============================================================
+
+def phase_2_external_baselines(
+    df_features: pd.DataFrame,
+    df_targets: pd.DataFrame,
+    config: dict,
+    run_dir: Path,
+    best_imputation: str,
+) -> Optional[pd.DataFrame]:
+    """
+    Run external (non-contract-compliant) SOTA baselines for tabular survival.
+
+    Uses the SAME preprocessing as phase_2_variants advanced variants
+    (imputation_for_variants, typically KNN k=5) and the SAME StratifiedKFold
+    partition with the SAME seeds, so that every external baseline row is
+    evaluated on the same validation set as every compliant variant row.
+    """
+    phase_cfg = config.get('phase_2_external_baselines', {})
+    if not phase_cfg.get('enabled', False):
+        log("[PHASE 2-EXTERNAL] DISABLED")
+        return None
+
+    log("\n[PHASE 2-EXTERNAL] External non-compliant baselines")
+
+    baselines_cfg = phase_cfg.get('baselines', {})
+    active = [name for name, cfg in baselines_cfg.items() if cfg.get('enabled', True)]
+    if not active:
+        log("  No external baselines enabled. Skipping.")
+        return None
+
+    log(f"  Enabled baselines: {active}")
+
+    # --------------------------------------------------------
+    # Data setup — MUST mirror phase_2_variants exactly
+    # --------------------------------------------------------
+    valid = df_targets['survival_days'].notna() & (df_targets['survival_days'] > 0)
+    X_all = df_features.loc[valid].copy()
+    y_all = df_targets.loc[valid].copy()
+
+    seeds = config['random']['seeds']
+    n_folds = config['random']['n_folds']
+
+    # Imputation strategy — same as the advanced variants of phase_2_variants
+    imp_for_variants = config['phase_2_variants']['imputation_for_variants']
+    if imp_for_variants == "auto":
+        imp_for_variants = best_imputation
+
+    log(f"  Cases: {len(X_all)}")
+    log(f"  Imputation: {imp_for_variants}")
+    log(f"  Seeds: {seeds}")
+    log(f"  N folds: {n_folds}")
+
+    rows = []
+    for seed in seeds:
+        log(f"  Seed {seed}")
+        skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
+
+        for fold_idx, (tr_idx, va_idx) in enumerate(skf.split(X_all, y_all['event'])):
+            X_tr_raw, X_va_raw = X_all.iloc[tr_idx].copy(), X_all.iloc[va_idx].copy()
+            y_tr, y_va = y_all.iloc[tr_idx].copy(), y_all.iloc[va_idx].copy()
+
+            prep = TabularPreprocessor()
+            X_tr, _, _ = prep.fit_transform(X_tr_raw, get_imputation(imp_for_variants))
+            X_va, _, _ = prep.transform(X_va_raw)
+
+            # Fill any remaining NaNs (some imputers can leave them at edges)
+            X_tr = X_tr.replace([np.inf, -np.inf], np.nan).fillna(0)
+            X_va = X_va.replace([np.inf, -np.inf], np.nan).fillna(0)
+
+            # -- TabPFN --
+            if 'tabpfn_external' in active:
+                row = _eval_tabpfn_external(
+                    X_tr, X_va, y_tr, y_va,
+                    cfg=baselines_cfg.get('tabpfn_external', {}),
+                    seed=seed, fold=fold_idx,
+                )
+                rows.append(row)
+
+            # -- RSF --
+            if 'rsf_external' in active:
+                row = _eval_rsf_external(
+                    X_tr, X_va, y_tr, y_va,
+                    cfg=baselines_cfg.get('rsf_external', {}),
+                    seed=seed, fold=fold_idx,
+                )
+                rows.append(row)
+
+    if not rows:
+        return None
+
+    df_results = pd.DataFrame(rows)
+    # Drop the nested model_summary from the CSV (it's kept only for the JSON summary).
+    csv_view = df_results.drop(columns=['model_summary'], errors='ignore')
+    csv_view.to_csv(run_dir / "phase2_external_baselines.csv", index=False)
+
+    # Aggregated summary
+    summary = (
+        csv_view
+        .groupby('baseline')
+        .agg(
+            cindex_mean=('cindex', 'mean'),
+            cindex_std=('cindex', 'std'),
+            n_folds=('fold', 'count'),
+        )
+        .round(4)
+    )
+    summary['contract_compliant'] = False
+    summary.to_csv(run_dir / "phase2_external_baselines_summary.csv")
+
+    log("\n  EXTERNAL BASELINES SUMMARY:")
+    log(summary.to_string())
+
+    return df_results
+
+
+def _eval_tabpfn_external(X_tr, X_va, y_tr, y_va, cfg, seed, fold):
+    """Fit TabPFN on binary-at-median survival task, compute C-index."""
+    try:
+        from components.external.tabpfn_external import TabPFNExternalBaseline
+    except ImportError:
+        # Fallback if structure varies slightly
+        try:
+            from tabpfn_external import TabPFNExternalBaseline
+        except ImportError:
+            log(f"    tabpfn_external fold={fold} seed={seed} FAILED: module not found")
+            return {'baseline': 'tabpfn_external', 'seed': seed, 'fold': fold, 'cindex': np.nan, 'contract_compliant': False, 'model_summary': {'error': 'ImportError'}}
+
+    try:
+        model = TabPFNExternalBaseline(
+            device=cfg.get('device', 'auto'),
+            n_estimators=cfg.get('n_estimators', 4),
+            random_state=seed,
+        )
+        model.fit(
+            X_tr,
+            survival_days=y_tr['survival_days'].values,
+            event=y_tr['event'].values,
+        )
+        risk = model.predict_risk(X_va)
+        ci = concordance_index(
+            y_va['survival_days'].values, -risk, y_va['event'].values
+        )
+        model_sum = model.summary()
+        return {
+            'baseline': 'tabpfn_external',
+            'seed': seed,
+            'fold': fold,
+            'cindex': float(ci),
+            'contract_compliant': False,
+            'model_summary': model_sum,
+        }
+    except Exception as e:
+        log(f"    tabpfn_external fold={fold} seed={seed} FAILED: {e}", level="debug")
+        return {
+            'baseline': 'tabpfn_external',
+            'seed': seed, 'fold': fold,
+            'cindex': float('nan'),
+            'contract_compliant': False,
+            'model_summary': {'error': str(e)},
+        }
+
+
+def _eval_rsf_external(X_tr, X_va, y_tr, y_va, cfg, seed, fold):
+    """Fit Random Survival Forest, compute C-index."""
+    try:
+        from components.external.rsf_external import RSFExternalBaseline
+    except ImportError:
+        try:
+            from rsf_external import RSFExternalBaseline
+        except ImportError:
+            log(f"    rsf_external fold={fold} seed={seed} FAILED: module not found")
+            return {'baseline': 'rsf_external', 'seed': seed, 'fold': fold, 'cindex': np.nan, 'contract_compliant': False, 'model_summary': {'error': 'ImportError'}}
+
+    try:
+        model = RSFExternalBaseline(
+            n_estimators=cfg.get('n_estimators', 100),
+            min_samples_split=cfg.get('min_samples_split', 10),
+            min_samples_leaf=cfg.get('min_samples_leaf', 15),
+            max_features=cfg.get('max_features', 'sqrt'),
+            n_jobs=cfg.get('n_jobs', -1),
+            random_state=seed,
+        )
+        model.fit(
+            X_tr,
+            survival_days=y_tr['survival_days'].values,
+            event=y_tr['event'].values,
+        )
+        risk = model.predict_risk(X_va)
+        ci = concordance_index(
+            y_va['survival_days'].values, -risk, y_va['event'].values
+        )
+        model_sum = model.summary()
+        return {
+            'baseline': 'rsf_external',
+            'seed': seed,
+            'fold': fold,
+            'cindex': float(ci),
+            'contract_compliant': False,
+            'model_summary': model_sum,
+        }
+    except Exception as e:
+        log(f"    rsf_external fold={fold} seed={seed} FAILED: {e}", level="debug")
+        return {
+            'baseline': 'rsf_external',
+            'seed': seed, 'fold': fold,
+            'cindex': float('nan'),
+            'contract_compliant': False,
+            'model_summary': {'error': str(e)},
+        }
+
+
+# ============================================================
 # PHASE 3 — EFFICIENCY BENCHMARK
 # ============================================================
 
@@ -777,8 +990,29 @@ def run_experiment(config_input: Union[str, Path, dict] = "experiment_config.yam
         if ph2 is not None:
             ph2_summary = ph2.groupby('variant')['cindex'].agg(['mean', 'std']).round(4)
             summary['phases']['phase_2'] = ph2_summary.to_dict()
+        
+        # New Phase 2 External Baselines
+        ph2_ext = phase_2_external_baselines(df_features, df_targets, config, run_dir, best_imp)
+        if ph2_ext is not None:
+            ph2_ext_summary = (
+                ph2_ext
+                .drop(columns=['model_summary'], errors='ignore')
+                .groupby('baseline')['cindex']
+                .agg(['mean', 'std'])
+                .round(4)
+            )
+            summary['phases']['phase_2_external'] = {
+                'cindex_summary': ph2_ext_summary.to_dict(),
+                'contract_compliant': False,
+                'model_summaries': (
+                    ph2_ext
+                    .groupby('baseline')['model_summary']
+                    .first()
+                    .to_dict()
+                ),
+            }
     except Exception as e:
-        summary['errors'].append({'phase': 2, 'error': str(e)})
+        summary['errors'].append({'phase': '2_external', 'error': str(e)})
         if fail_fast: raise
     
     try:

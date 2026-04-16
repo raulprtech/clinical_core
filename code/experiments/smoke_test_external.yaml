@@ -1,0 +1,51 @@
+# Simple test config for Phase 2 External Baselines
+experiment:
+  name: "phase_2_external_smoke_test"
+  description: "Rapid validation of TabPFN and RSF external baselines integration."
+  author: "Antigravity"
+
+data:
+  xml_dir: "/home/raulprtech/tesis/clinical_core/data/raw/clinicalsupplement"
+  feature_config: "configs/tabular_mapping.yaml"
+
+output:
+  base_dir: "/home/raulprtech/tesis/clinical_core/results_test"
+  save_raw_extraction: false
+  save_resolved_config: true
+
+random:
+  seeds: [42]
+  n_folds: 2
+
+phase_1_imputation:
+  enabled: false
+
+phase_2_variants:
+  enabled: true
+  variants: [cox_baseline]
+  output_dim: 768
+  imputation_for_variants: "mean_median"
+
+phase_2_external_baselines:
+  enabled: true
+  baselines:
+    tabpfn_external:
+      enabled: true
+      device: cpu
+      n_estimators: 1
+    rsf_external:
+      enabled: true
+      n_estimators: 10
+
+phase_3_efficiency:
+  enabled: false
+
+phase_4_stress:
+  enabled: false
+
+phase_5_multimodal:
+  enabled: false
+
+runtime:
+  verbosity: "normal"
+  fail_fast: true

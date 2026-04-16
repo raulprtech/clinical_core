@@ -1,12 +1,12 @@
 # CLINICAL-CORE / RENAL-CORE (Modular Modality Architecture)
 
-End-to-end multimodal ecosystem for CLINICAL-CORE, validated on TCGA-KIRC. This repository implements a modular, modality-centric structure where logic, models, and utilities are self-contained within each component.
+End-to-end multimodal ecosystem for CLINICAL-CORE, validated on TCGA-KIRC. This repository implements a modular, modality-centric structure based on **Hexagonal Architecture** principles, where logic and models are isolated from external interfaces via **Adapters**.
 
 ```mermaid
 graph TD
-    A[TABULAR] --> D[FUSION]
-    B[TEXT] --> D
-    C[VISION] --> D[FUSION]
+    A[TABULAR Adapter] --> D[FUSION]
+    B[TEXT Adapter] --> D
+    C[VISION Adapter] --> D[FUSION]
     D --> E[PROGNOSIS]
     E --> F[C-index / Survival Risk]
 ```
@@ -24,16 +24,19 @@ The project is organized into a modular hierarchy:
 ```
 code/
 ├── main.py                     # Entry point shim
-├── core/                       # 🏗️ Core Orchestration Layer
+├── core/                       # 🏗️ Core Orchestration Layer (Domain/Ports)
 │   ├── main.py                 # Multi-modal pipeline logic
 │   ├── registry.py             # Master component registry
 │   ├── experiment_runner.py    # Execution engine
 │   └── model_utils.py          # Shared ML utilities
 │
-├── components/                 # 🧩 Modular Components
-│   ├── tabular/                # Models (Cox, Compact), Utils (Sweep, Extractor)
-│   ├── vision/                 # STU-Net, Radiomics, KiTS23 Finetuning
-│   ├── text/                   # ClinicalBERT, Docling
+├── components/                 # 🧩 Modular Components (Adapters)
+│   ├── <modality>/             # e.g., tabular, vision, text
+│   │   ├── models/             # 🧠 Internal model architectures
+│   │   ├── utils/              # 🛠️ Component-specific tools (Sweeps, Extractors)
+│   │   ├── configs/            # 📋 Component mapping schemas
+│   │   └── experiments/        # ⚙️ Modality-specific experiment YAMLs
+│   │
 │   ├── fusion/                 # Concatenation strategies
 │   └── prognosis/              # Linear Cox prediction
 │
@@ -50,7 +53,7 @@ code/
     ```
 3.  **Inspect**: Results are stored in `results/{run_id}/`.
 
-## Multi-Modal Connectors
+## Multi-Modal Adapters
 
 ### VISION
 - **`stunet`**: Uses STU-Net (SOTA medical segmentation) and TotalSegmentator.
@@ -73,7 +76,7 @@ code/
 ## What's New (v5 Refactor: Modality Centric)
 
 The architecture has transitioned from a file-type grouping to **Modality-Centric Modularity**:
-- **Consolidated Components**: Models, utils, and configs are now co-located by modality (e.g., `components/tabular/utils/sweep.py`).
+- **Hexagonal Alignment**: External interfaces are now strictly treated as **Adapters**, isolating the core domain logic.
+- **Granular Components**: Each modality now explicitly separates its `models/` from its `utils/`.
 - **Centralized Core**: Orchestrators moved to `core/` to leave the root clean.
-- **Rebranding**: `linear_fpga` has been officially renamed to `linear_compact` (Variant C).
 - **Lazy Loading**: Heavy models (BERT, STU-Net) now use lazy initialization to speed up registry lookups.
