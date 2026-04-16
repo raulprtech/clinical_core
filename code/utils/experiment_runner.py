@@ -793,14 +793,14 @@ def run_experiment(config_path: str = "experiment_config.yaml") -> dict:
         summary['errors'].append({'phase': 5, 'error': str(e)})
         if fail_fast: raise
 
-        # --- NUEVO BLOQUE EXPLAINABILITY ---
-    try:
-        ph_explain = phase_explainability_benchmark(config, run_dir)
-        if ph_explain is not None:
-            summary['phases']['phase_explain'] = ph_explain.to_dict(orient='records')
-    except Exception as e:
-        summary['errors'].append({'phase': 'explain', 'error': str(e)})
-        if fail_fast: raise
+    #     # --- NUEVO BLOQUE EXPLAINABILITY ---
+    # try:
+    #     ph_explain = phase_explainability_benchmark(config, run_dir)
+    #     if ph_explain is not None:
+    #         summary['phases']['phase_explain'] = ph_explain.to_dict(orient='records')
+    # except Exception as e:
+    #     summary['errors'].append({'phase': 'explain', 'error': str(e)})
+    #     if fail_fast: raise
     
     # ---- Final summary ----
     summary['runtime_seconds'] = round(time.time() - t_start, 2)

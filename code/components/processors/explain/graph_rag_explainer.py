@@ -11,7 +11,7 @@ class GraphRAGExplainer(BaseExplainer):
         self.model = config.get('llm_model', 'gemini-2.5-flash')
         
         # Selección dinámica del backend desde el YAML
-        backend_type = config.get('backend', 'oxigraph', 'rdflib')
+        backend_type = config.get('backend', 'oxigraph')
         if backend_type == 'oxigraph':
             from .backends.oxigraph_db import OxigraphStore
             self.graph = OxigraphStore()
@@ -43,18 +43,3 @@ class GraphRAGExplainer(BaseExplainer):
             confidence_flag="reliable" if prediction['confidence'] > 0.6 else "uncertain",
             latency_ms=(time.time() - start_time) * 1000
         )
-```
-
-### 4. Registro y Orquestación
-Para que esto "despierte", solo necesitamos dos toques finales:
-
-1.  **En `code/registry.py`**:
-    Añade `"graph_rag": GraphRAGExplainer` bajo una nueva categoría `EXPLAINERS`.
-
-2.  **En `code/utils/experiment_runner.py`**:
-    En el bucle principal de ejecución, tras obtener la `prediction`, añade:
-    ```python
-    if 'explain' in self.config['pipeline']:
-        explainer = self.registry.get_explainer(self.config['pipeline']['explain'])
-        explanation = explainer.explain(features, prediction)
-        self.save_results(explanation)
