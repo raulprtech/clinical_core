@@ -80,15 +80,13 @@ phase_2_variants:
   # Add a new variant by registering it in registry.py and adding its name here.
   variants:
     - cox_baseline
-    - ft_transformer
     - linear_compact
+    - ft_transformer
   
   # Embedding dimensionality (must match downstream FUSION-PROC contract)
   output_dim: 768
   
   # Variant-specific hyperparameters
-phase_2_variants:
-  variants: [cox_baseline, linear_compact, ft_transformer]
   variant_params:
     linear_compact:
       hidden_dim: 64
