@@ -1,21 +1,21 @@
-# CLINICAL-CORE / RENAL-CORE (Modular Architecture)
+# CLINICAL-CORE / RENAL-CORE (Modular Modality Architecture)
 
-End-to-end multimodal ecosystem for CLINICAL-CORE, validated on TCGA-KIRC. This repository implements a modular pipeline where every component (ingestion, fusion, prognosis) is a swappable unit.
+End-to-end multimodal ecosystem for CLINICAL-CORE, validated on TCGA-KIRC. This repository implements a modular, modality-centric structure where logic, models, and utilities are self-contained within each component.
 
 ```mermaid
 graph TD
-    A[TABULAR-CONN] --> D[FUSION-PROC]
-    B[TEXT-CONN] --> D
-    C[VISION-CONN] --> D[FUSION-PROC]
-    D --> E[PROGNOSIS-PROC]
+    A[TABULAR] --> D[FUSION]
+    B[TEXT] --> D
+    C[VISION] --> D[FUSION]
+    D --> E[PROGNOSIS]
     E --> F[C-index / Survival Risk]
 ```
 
 ## The Three Rules of the Ecosystem
 
-1.  **Declarative configs**: Every decision lives in `configs/*.yaml`. No hardcoding in Python.
+1.  **Declarative configs**: Every decision lives in configuration YAMLs. No hardcoding in Python.
 2.  **Structured provenance**: Every run is logged in a unique timestamped directory with a copy of its config.
-3.  **Component Swapping**: Adding a new backend requires ZERO changes to the orchestrator (`main.py`). Just implement, register in `registry.py`, and update the YAML.
+3.  **Component Modularity**: Each modality (Tabular, Vision, Text) is self-contained with its own models and tools.
 
 ## File Structure
 
@@ -23,60 +23,57 @@ The project is organized into a modular hierarchy:
 
 ```
 code/
-├── main.py                     # Primary orchestrator
-├── registry.py                 # The "Master of Keys" (component registry)
+├── main.py                     # Entry point shim
+├── core/                       # 🏗️ Core Orchestration Layer
+│   ├── main.py                 # Multi-modal pipeline logic
+│   ├── registry.py             # Master component registry
+│   ├── experiment_runner.py    # Execution engine
+│   └── model_utils.py          # Shared ML utilities
 │
-├── components/                 # 🧩 Component Ecosystem
-│   ├── connectors/             # 📡 Ingestion Layer
-│   │   ├── tabular/            # cox_baseline, tabpfn_v2, linear_fpga
-│   │   ├── vision/             # stunet (segmentation), radiomics (features)
-│   │   └── text/               # clinicalbert
-│   │
-│   └── processors/             # 🧠 Reasoning Layer
-│       ├── fusion/             # concatenation
-│       └── prognosis/          # linear_cox
+├── components/                 # 🧩 Modular Components
+│   ├── tabular/                # Models (Cox, Compact), Utils (Sweep, Extractor)
+│   ├── vision/                 # STU-Net, Radiomics, KiTS23 Finetuning
+│   ├── text/                   # ClinicalBERT, Docling
+│   ├── fusion/                 # Concatenation strategies
+│   └── prognosis/              # Linear Cox prediction
 │
-├── experiments/                # ⚙️ Experiment definitions (YAML battle plans)
-├── configs/                    # 📋 Data schemas (config.yaml)
-└── utils/                      # 🛠️ Helpers (extractor, model_utils, runner)
+├── experiments/                # ⚙️ Global Experiment Configs
+└── configs/                    # 📋 Data Mapping Schemas (tabular_mapping.yaml)
 ```
 
 ## Quick Start
 
-1.  **Configure**: Edit `code/configs/experiment_config.yaml` to select your components.
+1.  **Configure**: select your components in `code/experiments/experiment_config.yaml`.
 2.  **Run**:
     ```bash
-    python code/main.py
+    python3 code/main.py --config experiments/experiment_config.yaml
     ```
 3.  **Inspect**: Results are stored in `results/{run_id}/`.
 
-## Multi-Modal Connectors (CONNs)
+## Multi-Modal Connectors
 
-### VISION-CONN
-Three backends available, managed via `vision_backend` in config:
-- **`totalseg`**: Uses TotalSegmentator for automated kidney ROI segmentation.
-- **`stunet`**: Uses STU-Net (SOTA medical segmentation).
+### VISION
+- **`stunet`**: Uses STU-Net (SOTA medical segmentation) and TotalSegmentator.
 - **`mock`**: Architectural validation with synthetic masks.
 
-### TEXT-CONN
-- **`clinicalbert`**: Combines Docling for markdown extraction and ClinicalBERT for clinical embeddings.
+### TEXT
+- **`clinicalbert`**: Docling extraction + ClinicalBERT embeddings.
 
-### TABULAR-CONN
-- **`cox_baseline`**: Raw feature padding.
-- **`tabpfn`**: SOTA in-context learning (Hollmann et al., Nature 2025).
-- **`linear_fpga`**: Optimized for hardware synthesis (Jetson-ready).
+### TABULAR
+- **`cox_baseline`**: Cox Proportional Hazards baseline.
+- **`tabpfn`**: Large In-Context Learning for tabular data.
+- **`linear_compact`**: Resource-efficient linear encoder (formerly linear_fpga).
 
 ## Adding Components
 
-1.  Implement your class in the appropriate `code/components/...` subdirectory.
-2.  Import and add it to the corresponding dictionary in `code/registry.py`.
-3.  Update your `.yaml` config to use the new string key.
+1.  Implement your class in `code/components/<modality>/models/`.
+2.  Register it in `code/core/registry.py`.
+3.  Update your `.yaml` experiment config.
 
-For a detailed technical guide, see [docs/architecture.md](docs/architecture.md).
+## What's New (v5 Refactor: Modality Centric)
 
-## What's New (v4 Refactor)
-
-Recent updates have moved the project from a flat structure to a **Modular Ecosystem**:
-- **Decomposed Encoders**: Large files like `encoders.py` were split into specialized modules.
-- **Layered Processing**: Clear separation between Ingestion (Connectors) and Reasoning (Processors).
-- **Clean Root**: Support scripts moved to `utils/` to improve maintainability.
+The architecture has transitioned from a file-type grouping to **Modality-Centric Modularity**:
+- **Consolidated Components**: Models, utils, and configs are now co-located by modality (e.g., `components/tabular/utils/sweep.py`).
+- **Centralized Core**: Orchestrators moved to `core/` to leave the root clean.
+- **Rebranding**: `linear_fpga` has been officially renamed to `linear_compact` (Variant C).
+- **Lazy Loading**: Heavy models (BERT, STU-Net) now use lazy initialization to speed up registry lookups.
