@@ -65,7 +65,7 @@ from utils.model_utils import (
     benchmark_efficiency,
     cox_partial_likelihood_loss,
 )
-from components.connectors.tabular.linear_fpga import VariantC_LinearEncoder
+from components.connectors.tabular.linear_compact import VariantC_LinearEncoder
 from registry import get_imputation, get_variant, list_components
 from main import MultimodalPipeline, discover_modality_files
 
@@ -404,8 +404,8 @@ def _evaluate_variant(
             return _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv)
         elif variant_name == 'tabpfn':
             return _eval_tabpfn(X_tr, X_va, y_tr, y_va, conf_tr, conf_va, output_dim, variant_params)
-        elif variant_name == 'linear_fpga':
-            return _eval_linear_fpga(X_tr, X_va, y_tr, y_va, mask_tr, mask_va, conf_va, output_dim, variant_params)
+        elif variant_name == 'linear_compact':
+            return _eval_linear_compact(X_tr, X_va, y_tr, y_va, mask_tr, mask_va, conf_va, output_dim, variant_params)
         else:
             # Generic fallback for future-registered variants
             log(f"    {variant_name}: no evaluator registered, skipping", level="debug")
@@ -478,9 +478,9 @@ def _eval_tabpfn(X_tr, X_va, y_tr, y_va, conf_tr, conf_va, output_dim, params):
     return ci, ece, bs, contract.get('contract_satisfied', False)
 
 
-def _eval_linear_fpga(X_tr, X_va, y_tr, y_va, mask_tr, mask_va, conf_va, output_dim, params):
+def _eval_linear_compact(X_tr, X_va, y_tr, y_va, mask_tr, mask_va, conf_va, output_dim, params):
     encoder = get_variant(
-        'linear_fpga',
+        'linear_compact',
         input_dim=X_tr.shape[1],
         output_dim=output_dim,
         hidden_dim=params.get('hidden_dim', 128),

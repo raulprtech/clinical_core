@@ -7,7 +7,7 @@ from utils.imputation_benchmark import (
 )
 from components.connectors.tabular.cox_baseline import VariantA_CoxBaseline
 from components.connectors.tabular.tabpfn_v2 import VariantB_TabPFN
-from components.connectors.tabular.linear_fpga import VariantC_LinearEncoder
+from components.connectors.tabular.linear_compact import VariantC_LinearEncoder
 
 from components.connectors.text.clinicalbert import TextConn_Baseline
 from components.connectors.vision.stunet import VisionConn_Baseline
@@ -36,7 +36,7 @@ VARIANT_REGISTRY = {
     'tabpfn': lambda input_dim, output_dim, **kw: VariantB_TabPFN(
         output_dim=output_dim
     ),
-    'linear_fpga': lambda input_dim, output_dim, **kw: VariantC_LinearEncoder(
+    'linear_compact': lambda input_dim, output_dim, **kw: VariantC_LinearEncoder(
         input_dim=input_dim,
         hidden_dim=kw.get('hidden_dim', 128),
         output_dim=output_dim

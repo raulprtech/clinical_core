@@ -100,7 +100,7 @@ def trial_signature(trial: dict) -> str:
 def build_trial_config(base_config_path: Path, trial_params: dict, trial_id: int) -> dict:
     """
     Construct an experiment config for one trial: starts from the base config,
-    forces phase 2 with only the linear_fpga variant, and overrides its
+    forces phase 2 with only the linear_compact variant, and overrides its
     hyperparameters with the trial values. Other phases are disabled to
     minimize trial runtime.
     """
@@ -115,9 +115,9 @@ def build_trial_config(base_config_path: Path, trial_params: dict, trial_id: int
         f"params {trial_params}."
     )
 
-    config['phase_2_variants']['variants'] = ['linear_fpga']
+    config['phase_2_variants']['variants'] = ['linear_compact']
     config['phase_2_variants']['variant_params'] = {
-        'linear_fpga': {
+        'linear_compact': {
             'hidden_dim':   int(trial_params['hidden_dim']),
             'lr':           float(trial_params['lr']),
             'weight_decay': float(trial_params['weight_decay']),
@@ -178,7 +178,7 @@ def discover_completed_trials(results_dir: Path) -> Dict[str, dict]:
             if not name.startswith('sweep_variant_c'):
                 continue
 
-            params = cfg['phase_2_variants']['variant_params'].get('linear_fpga', {})
+            params = cfg['phase_2_variants']['variant_params'].get('linear_compact', {})
             if not params:
                 continue
 
@@ -194,7 +194,7 @@ def discover_completed_trials(results_dir: Path) -> Dict[str, dict]:
 
             ph2 = summary.get('phases', {}).get('phase_2', {})
             mean = ph2.get('mean', {}) if isinstance(ph2, dict) else {}
-            cindex = mean.get('linear_fpga')
+            cindex = mean.get('linear_compact')
 
             if cindex is not None:
                 completed[sig] = {
@@ -358,7 +358,7 @@ def run_sweep(
 
             ph2 = summary.get('phases', {}).get('phase_2', {})
             mean = ph2.get('mean', {}) if isinstance(ph2, dict) else {}
-            cindex = mean.get('linear_fpga')
+            cindex = mean.get('linear_compact')
 
             if cindex is None:
                 print(f"  → run completed but no C-index reported")

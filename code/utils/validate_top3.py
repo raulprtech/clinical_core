@@ -108,10 +108,10 @@ def build_validation_config(base_config_path: Path, candidate: dict) -> dict:
         f"Hyperparameters: {candidate['params']}."
     )
 
-    # Same contract as the sweep: only linear_fpga, pinned imputation.
-    config['phase_2_variants']['variants'] = ['linear_fpga']
+    # Same contract as the sweep: only linear_compact, pinned imputation.
+    config['phase_2_variants']['variants'] = ['linear_compact']
     config['phase_2_variants']['variant_params'] = {
-        'linear_fpga': {
+        'linear_compact': {
             'hidden_dim':   int(candidate['params']['hidden_dim']),
             'lr':           float(candidate['params']['lr']),
             'weight_decay': float(candidate['params']['weight_decay']),
@@ -139,7 +139,7 @@ def build_validation_config(base_config_path: Path, candidate: dict) -> dict:
 
 def extract_per_seed_cindex(run_dir: Path) -> Dict[int, float]:
     """
-    Read phase_2 output and return {seed: cindex} for the linear_fpga variant.
+    Read phase_2 output and return {seed: cindex} for the linear_compact variant.
     Falls back to the aggregated mean if per-seed breakdown is unavailable.
     """
     summary_path = run_dir / 'summary.json'
@@ -158,7 +158,7 @@ def extract_per_seed_cindex(run_dir: Path) -> Dict[int, float]:
     try:
         df = pd.read_csv(csv_path)
         # Filter for the variant we care about
-        df_v = df[df['variant'] == 'linear_fpga']
+        df_v = df[df['variant'] == 'linear_compact']
         if df_v.empty:
             return {}
         
@@ -173,21 +173,21 @@ def extract_per_seed_cindex(run_dir: Path) -> Dict[int, float]:
 
 
 def extract_overall_cindex(run_dir: Path) -> Optional[float]:
-    """Read the final aggregated C-index for linear_fpga across all seeds."""
+    """Read the final aggregated C-index for linear_compact across all seeds."""
     summary_path = run_dir / 'summary.json'
     if not summary_path.exists():
         return None
     with open(summary_path) as f:
         summary = json.load(f)
-    # experiment_runner structure: summary['phases']['phase_2']['mean']['linear_fpga']
+    # experiment_runner structure: summary['phases']['phase_2']['mean']['linear_compact']
     phases = summary.get('phases', {})
     ph2 = phases.get('phase_2') or phases.get('phase_2_variants') or {}
     
     if isinstance(ph2, dict):
         # Check 'mean' sub-dict
         mean_dict = ph2.get('mean', {})
-        if 'linear_fpga' in mean_dict:
-            return float(mean_dict['linear_fpga'])
+        if 'linear_compact' in mean_dict:
+            return float(mean_dict['linear_compact'])
         
         # Check direct keys (fallback)
         for k in ('cindex_mean', 'c_index_mean', 'cindex', 'c_index'):

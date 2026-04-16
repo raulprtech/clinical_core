@@ -1,8 +1,8 @@
 """
-TABULAR-CONN Variante C: Linear FPGA-Compatible Encoder
-========================================================
-
-Mi orgullo para la Jetson.
+TABULAR-CONN Variante C: Linear Compact Encoder
+================================================
+    
+Compact architecture for edge deployment.
 Architecture: input_dim → hidden_dim → output_dim
 """
 
@@ -12,13 +12,13 @@ from typing import Tuple
 
 class VariantC_LinearEncoder(nn.Module):
     """
-    Variant C: FPGA-compatible linear encoder.
+    Variant C: Compact linear encoder.
     
     Architecture: input_dim → hidden_dim → output_dim
     Activation: ReLU (synthesizable as max(0, x))
     Normalization: LayerNorm (post-embedding)
     """
-    name = "C_linear_fpga"
+    name = "C_linear_compact"
     
     def __init__(self, input_dim: int, hidden_dim: int = 128, output_dim: int = 768):
         super().__init__()

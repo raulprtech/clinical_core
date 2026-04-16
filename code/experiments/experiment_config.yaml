@@ -81,14 +81,14 @@ phase_2_variants:
   variants:
     - cox_baseline
     - tabpfn
-    - linear_fpga
+    - linear_compact
   
   # Embedding dimensionality (must match downstream FUSION-PROC contract)
   output_dim: 768
   
   # Variant-specific hyperparameters
   variant_params:
-    linear_fpga:
+    linear_compact:
       hidden_dim: 128
       epochs: 200
       lr: 0.001
@@ -112,7 +112,7 @@ phase_3_efficiency:
   # Variants to benchmark for latency/memory/FLOPs
   variants:
     - cox_baseline
-    - linear_fpga
+    - linear_compact
   
   n_warmup: 10
   n_runs: 100
