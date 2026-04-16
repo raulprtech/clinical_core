@@ -25,6 +25,7 @@ The script intentionally has zero new dependencies. It only uses the
 existing experiment_runner + registry + config infrastructure.
 """
 
+# Add project root to path
 import argparse
 import hashlib
 import json
@@ -34,10 +35,10 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
-
 import yaml
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent.parent))
 
-from experiment_runner import run_experiment
+from core.experiment_runner import run_experiment
 
 
 # ============================================================

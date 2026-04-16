@@ -1,18 +1,18 @@
 
 
-from utils.imputation_benchmark import (
+from components.tabular.utils.imputation_benchmark import (
     MeanMedianImputer,
     KNNImputerStrategy,
     MICEImputerStrategy,
 )
-from components.connectors.tabular.cox_baseline import VariantA_CoxBaseline
-from components.connectors.tabular.tabpfn_v2 import VariantB_TabPFN
-from components.connectors.tabular.linear_compact import VariantC_LinearEncoder
+from components.tabular.models.cox_baseline import VariantA_CoxBaseline
+from components.tabular.models.tabpfn_v2 import VariantB_TabPFN
+from components.tabular.models.linear_compact import VariantC_LinearEncoder
 
-from components.connectors.text.clinicalbert import TextConn_Baseline
-from components.connectors.vision.stunet import VisionConn_Baseline
-from components.processors.fusion.concatenation import FusionProc_Concatenation
-from components.processors.prognosis.linear_cox import PrognosisProc_LinearCox
+from components.text.models.clinicalbert import TextConn_Baseline
+from components.vision.models.stunet import VisionConn_Baseline
+from components.fusion.models.concatenation import FusionProc_Concatenation
+from components.prognosis.models.linear_cox import PrognosisProc_LinearCox
 
 # from components.processors.explain.graph_rag_explainer import GraphRAGExplainer
 # ============================================================

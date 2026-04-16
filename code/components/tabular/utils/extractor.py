@@ -9,19 +9,21 @@ Usage:
 """
 
 import xml.etree.ElementTree as ET
-from pathlib import Path
 from typing import Dict, Optional, Tuple, List
 import pandas as pd
 import numpy as np
 import yaml
 import re
 import warnings
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent.parent))
 
 
 class TCGAExtractor:
     """Extracts clinical variables from TCGA BCR XML files."""
     
-    def __init__(self, config_path: str = "configs/config.yaml"):
+    def __init__(self, config_path: str = "configs/tabular_mapping.yaml"):
         with open(config_path, 'r') as f:
             self.config = yaml.safe_load(f)
         
@@ -313,7 +315,7 @@ def parse_drug_file(txt_path: str) -> pd.DataFrame:
 if __name__ == "__main__":
     import sys
     xml_dir = sys.argv[1] if len(sys.argv) > 1 else "."
-    extractor = TCGAExtractor("config_v2.yaml")
+    extractor = TCGAExtractor("configs/tabular_mapping.yaml")
     df_feat, df_targ = extractor.extract_cohort(xml_dir)
     
     # Save

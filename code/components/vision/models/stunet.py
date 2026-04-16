@@ -65,18 +65,22 @@ class TotalSegmentatorSegmenter(_BaseSegmenter):
     def __init__(self, fast: bool = True):
         self.fast = fast
         self._totalsegmentator = None
-        self._available = self._init_backend()
+        self._available = "uninitialized"  # "yes", "no", or "uninitialized"
 
-    def _init_backend(self) -> bool:
+    def _lazy_init(self) -> bool:
+        if self._available != "uninitialized":
+            return self._available == "yes"
         try:
             from totalsegmentator.python_api import totalsegmentator
             self._totalsegmentator = totalsegmentator
+            self._available = "yes"
             return True
         except ImportError:
+            self._available = "no"
             return False
 
     def is_available(self) -> bool:
-        return self._available
+        return self._lazy_init()
 
     def segment_kidney(
         self, volume: np.ndarray, metadata: dict
@@ -115,19 +119,24 @@ class STUNetSegmenter(_BaseSegmenter):
     def __init__(self, model_size: str = "B"):
         self.model_size = model_size
         self.checkpoint_path = os.environ.get('CLINICAL_CORE_STUNET_CHECKPOINT')
-        self._available = self._init_model()
+        self._available = "uninitialized"
 
-    def _init_model(self) -> bool:
+    def _lazy_init(self) -> bool:
+        if self._available != "uninitialized":
+            return self._available == "yes"
         if self.checkpoint_path is None or not Path(self.checkpoint_path).exists():
+            self._available = "no"
             return False
         try:
             from nnunetv2.inference.predict_from_raw_data import nnUNetPredictor  # noqa
+            self._available = "yes"
             return True
         except ImportError:
+            self._available = "no"
             return False
 
     def is_available(self) -> bool:
-        return self._available
+        return self._lazy_init()
 
     def segment_kidney(
         self, volume: np.ndarray, metadata: dict

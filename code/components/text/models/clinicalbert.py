@@ -58,17 +58,26 @@ class ClinicalBertEmbedder:
     MODEL_NAME = "emilyalsentzer/Bio_ClinicalBERT"
     EMBEDDING_DIM = 768
     def __init__(self):
-        self._tokenizer = None; self._model = None
-        self._mode = self._init_model()
-    def _init_model(self) -> str:
+        self._tokenizer = None
+        self._model = None
+        self._mode = "uninitialized"  # "real", "mock", or "uninitialized"
+    def _lazy_init(self) -> str:
+        if self._mode != "uninitialized":
+            return self._mode
         try:
             from transformers import AutoTokenizer, AutoModel
             self._tokenizer = AutoTokenizer.from_pretrained(self.MODEL_NAME)
             self._model = AutoModel.from_pretrained(self.MODEL_NAME)
-            self._model.eval(); return "real"
-        except Exception: return "mock"
+            self._model.eval()
+            self._mode = "real"
+        except Exception as e:
+            warnings.warn(f"Failed to load ClinicalBERT, falling back to mock: {e}")
+            self._mode = "mock"
+        return self._mode
+
     def embed(self, text: str) -> torch.Tensor:
-        if self._mode == "real":
+        mode = self._lazy_init()
+        if mode == "real":
             with torch.no_grad():
                 inputs = self._tokenizer(text, return_tensors="pt", truncation=True, max_length=512, padding=True)
                 outputs = self._model(**inputs)

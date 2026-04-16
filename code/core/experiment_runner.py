@@ -57,17 +57,17 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from utils.extractor import TCGAExtractor
-from utils.imputation_benchmark import TabularPreprocessor
-from utils.model_utils import (
+from components.tabular.utils.extractor import TCGAExtractor
+from components.tabular.utils.imputation_benchmark import TabularPreprocessor
+from core.model_utils import (
     verify_ingestion_contract,
     train_variant_c,
     benchmark_efficiency,
     cox_partial_likelihood_loss,
 )
-from components.connectors.tabular.linear_compact import VariantC_LinearEncoder
-from registry import get_imputation, get_variant, list_components
-from main import MultimodalPipeline, discover_modality_files
+from components.tabular.models.linear_compact import VariantC_LinearEncoder
+from core.registry import get_imputation, get_variant, list_components
+from core.main import MultimodalPipeline, discover_modality_files
 
 
 

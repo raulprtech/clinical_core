@@ -18,6 +18,9 @@ from sklearn.model_selection import StratifiedKFold
 from lifelines import CoxPHFitter
 from lifelines.utils import concordance_index
 import warnings
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent.parent))
 warnings.filterwarnings('ignore')
 
 

@@ -20,6 +20,7 @@ Usage:
     python validate_top3.py --config experiment_config_tabular_only.yaml
 """
 
+# Add project root to path
 import argparse
 import hashlib
 import json
@@ -29,11 +30,12 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional
-
 import pandas as pd
 import yaml
 
-from experiment_runner import run_experiment
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent.parent))
+
+from core.experiment_runner import run_experiment
 
 
 # ============================================================

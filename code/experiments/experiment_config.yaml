@@ -25,8 +25,8 @@ data:
   # Directory containing TCGA-KIRC BCR XML clinical supplements
   xml_dir: "/home/raulprtech/tesis/clinical_core/data/raw/clinicalsupplement"
   
-  # Feature/target schema (config.yaml)
-  feature_config: "../configs/config.yaml"
+  # Feature/target schema (tabular_mapping.yaml)
+  feature_config: "../configs/tabular_mapping.yaml"
   
   # Optional: drug treatment TXT for future use (not used in this run)
   drug_file: null

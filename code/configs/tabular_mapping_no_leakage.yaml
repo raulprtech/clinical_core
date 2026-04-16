@@ -1,0 +1,209 @@
+# CLINICAL-CORE / TABULAR-CONN Configuration v2 — ANTI-LEAKAGE ABLATION
+# Excludes post-surgical/leakage-prone variables to validate enrichment.
+# Excluded: tumor_status, karnofsky_score, ecog_score.
+
+targets:
+  survival_days:
+    sources:
+      - days_to_death
+      - days_to_last_followup
+    description: "Time-to-event in days."
+  
+  vital_status:
+    sources:
+      - vital_status
+    mapping:
+      Dead: 1
+      Alive: 0
+    description: "Censoring indicator."
+
+features:
+  age:
+    sources:
+      - age_at_initial_pathologic_diagnosis
+    type: continuous
+    normalization: zscore
+    
+  gender:
+    sources:
+      - gender
+    type: categorical
+    mapping:
+      MALE: 1
+      FEMALE: 0
+    
+  race:
+    sources:
+      - race
+    type: categorical
+    encoding: onehot
+    categories: ["WHITE", "BLACK OR AFRICAN AMERICAN", "ASIAN", "OTHER"]
+    
+  ethnicity:
+    sources:
+      - ethnicity
+    type: categorical
+    mapping:
+      "HISPANIC OR LATINO": 1
+      "NOT HISPANIC OR LATINO": 0
+
+  pathologic_stage:
+    sources:
+      - ajcc_pathologic_tumor_stage
+      - pathologic_stage
+      - tumor_stage
+    type: categorical
+    encoding: ordinal
+    mapping:
+      "Stage I": 1
+      "Stage II": 2
+      "Stage III": 3
+      "Stage IV": 4
+
+  pathologic_T:
+    sources:
+      - ajcc_tumor_pathologic_pt
+      - pathologic_t
+    type: categorical
+    encoding: ordinal
+    mapping:
+      "T1": 1
+      "T1a": 1
+      "T1b": 1
+      "T2": 2
+      "T2a": 2
+      "T2b": 2
+      "T3": 3
+      "T3a": 3
+      "T3b": 3
+      "T3c": 3
+      "T4": 4
+
+  pathologic_N:
+    sources:
+      - ajcc_nodes_pathologic_pn
+      - pathologic_n
+    type: categorical
+    encoding: ordinal
+    mapping:
+      "N0": 0
+      "N1": 1
+      "N2": 2
+      "NX": -1
+
+  pathologic_M:
+    sources:
+      - ajcc_metastasis_pathologic_pm
+      - pathologic_m
+    type: categorical
+    encoding: ordinal
+    mapping:
+      "M0": 0
+      "M1": 1
+      "MX": -1
+
+  histologic_grade:
+    sources:
+      - neoplasm_histologic_grade
+      - tumor_grade
+    type: categorical
+    encoding: ordinal
+    mapping:
+      "G1": 1
+      "G2": 2
+      "G3": 3
+      "G4": 4
+      "GX": -1
+
+  laterality:
+    sources:
+      - laterality
+    type: categorical
+    mapping:
+      "Right": 1
+      "Left": 0
+      "Bilateral": 2
+
+  hemoglobin:
+    sources:
+      - hemoglobin_level
+    type: categorical_lab
+    mapping:
+      "Low": 0
+      "Normal": 1
+      "Elevated": 2
+
+  serum_calcium:
+    sources:
+      - serum_calcium_level
+    type: categorical_lab
+    mapping:
+      "Low": 0
+      "Normal": 1
+      "Elevated": 2
+
+  ldh:
+    sources:
+      - ldh_level
+    type: categorical_lab
+    mapping:
+      "Normal": 0
+      "Elevated": 1
+
+  platelet_count:
+    sources:
+      - platelet_count
+    type: categorical_lab
+    mapping:
+      "Low": 0
+      "Normal": 1
+      "Elevated": 2
+
+  white_cell_count:
+    sources:
+      - white_cell_count
+    type: categorical_lab
+    mapping:
+      "Low": 0
+      "Normal": 1
+      "Elevated": 2
+
+  erythrocyte_sedimentation_rate:
+    sources:
+      - erythrocyte_sedimentation_rate
+    type: categorical_lab
+    mapping:
+      "Normal": 0
+      "Elevated": 1
+
+  neoadjuvant_treatment:
+    sources:
+      - history_neoadjuvant_treatment
+    type: categorical
+    mapping:
+      "Yes": 1
+      "No": 0
+
+  lymph_nodes_examined:
+    sources:
+      - lymph_nodes_examined
+    type: categorical
+    mapping:
+      "YES": 1
+      "NO": 0
+
+  other_malignancy:
+    sources:
+      - history_other_malignancy
+    type: categorical
+    mapping:
+      "Yes": 1
+      "No": 0
+      "Yes, History of Prior Malignancy": 1
+      "Yes, History of Synchronous and or Bilateral Malignancy": 1
+
+embedding:
+  output_dim: 768
+  fpga_output_dim: 32
+  hidden_dim: 128
+  activation: relu
