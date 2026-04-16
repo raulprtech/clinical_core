@@ -24,8 +24,8 @@ def cox_partial_likelihood_loss(risk_scores: torch.Tensor, survival_times: torch
     if event_mask.sum() == 0: return torch.tensor(0.0, requires_grad=True)
     return -uncensored[event_mask].mean()
 
-def train_variant_c(model, X_train, M_train, T_train, E_train, X_val, M_val, T_val, E_val, epochs=200, lr=0.001, patience=20, verbose=False) -> dict:
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+def train_variant_c(model, X_train, M_train, T_train, E_train, X_val, M_val, T_val, E_val, epochs=200, lr=0.001, patience=20, weight_decay=0.0, verbose=False) -> dict:
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     risk_head = nn.Linear(model.output_dim, 1)
     optimizer.add_param_group({'params': risk_head.parameters()})
     best_loss = float('inf'); best_state = None; patience_cnt = 0

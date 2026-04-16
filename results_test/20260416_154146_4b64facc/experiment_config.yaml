@@ -6,7 +6,7 @@ experiment:
 
 data:
   xml_dir: "/home/raulprtech/tesis/clinical_core/data/raw/clinicalsupplement"
-  feature_config: "../configs/tabular_mapping.yaml"
+  feature_config: "configs/tabular_mapping.yaml"
 
 output:
   base_dir: "/home/raulprtech/tesis/clinical_core/results_test"

@@ -1,0 +1,5 @@
+baseline,seed,fold,cindex,contract_compliant
+tabpfn_external,42,0,,False
+rsf_external,42,0,0.7493900313698153,False
+tabpfn_external,42,1,,False
+rsf_external,42,1,0.778712758699113,False

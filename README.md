@@ -30,15 +30,23 @@ code/
 │   ├── experiment_runner.py    # Execution engine
 │   └── model_utils.py          # Shared ML utilities
 │
-├── components/                 # 🧩 Modular Components (Adapters)
-│   ├── <modality>/             # e.g., tabular, vision, text
-│   │   ├── models/             # 🧠 Internal model architectures
-│   │   ├── utils/              # 🛠️ Component-specific tools (Sweeps, Extractors)
-│   │   ├── configs/            # 📋 Component mapping schemas
-│   │   └── experiments/        # ⚙️ Modality-specific experiment YAMLs
+├── components/                 # 🧩 Modular Components (Hexagonal Expansion)
+│   ├── adapters/               # 🔌 External Interface Handlers
+│   │   ├── ingestion/          # e.g., tabular, vision, text modalities
+│   │   │   ├── models/         # 🧠 Internal architectures (Encoders, Segmenters)
+│   │   │   ├── utils/          # 🛠️ Component-specific tools (Sweeps, Extractors)
+│   │   │   ├── configs/        # 📋 Component mapping schemas
+│   │   │   └── experiments/    # ⚙️ Modality-specific experiment YAMLs
+│   │   ├── channels/           # Future integrations
+│   │   └── bridges/            # Future integrations
 │   │
-│   ├── fusion/                 # Concatenation strategies
-│   └── prognosis/              # Linear Cox prediction
+│   ├── procesors/              # ⚙️ Core processing and task logic
+│   │   ├── fusion/             # Concatenation and aggregation strategies
+│   │   └── prognosis/          # Linear Cox prediction
+│   │
+│   ├── explainers/             # 🔍 Interpretability (e.g. GraphRAG)
+│   ├── monitors/               # 📊 System monitoring
+│   └── external/               # 🏛️ Non-compliant baselines for reference
 │
 ├── experiments/                # ⚙️ Global Experiment Configs
 └── configs/                    # 📋 Data Mapping Schemas (tabular_mapping.yaml)

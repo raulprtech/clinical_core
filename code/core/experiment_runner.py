@@ -57,15 +57,15 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from components.tabular.utils.extractor import TCGAExtractor
-from components.tabular.utils.imputation_benchmark import TabularPreprocessor
+from components.adapters.ingestion.tabular.utils.extractor import TCGAExtractor
+from components.adapters.ingestion.tabular.utils.imputation_benchmark import TabularPreprocessor
 from core.model_utils import (
     verify_ingestion_contract,
     train_variant_c,
     benchmark_efficiency,
     cox_partial_likelihood_loss,
 )
-from components.tabular.models.linear_compact import VariantC_LinearEncoder
+from components.adapters.ingestion.tabular.models.linear_compact import VariantC_LinearEncoder
 from core.registry import get_imputation, get_variant, list_components
 from core.main import MultimodalPipeline, discover_modality_files
 
@@ -402,10 +402,14 @@ def _evaluate_variant(
     try:
         if variant_name == 'cox_baseline':
             return _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv)
-        elif variant_name == 'tabpfn':
-            return _eval_tabpfn(X_tr, X_va, y_tr, y_va, conf_tr, conf_va, output_dim, variant_params)
         elif variant_name == 'linear_compact':
             return _eval_linear_compact(X_tr, X_va, y_tr, y_va, mask_tr, mask_va, conf_va, output_dim, variant_params)
+        elif variant_name == 'ft_transformer':
+            return _eval_ft_transformer(
+                X_tr, X_va, y_tr, y_va,
+                mask_tr, mask_va, conf_va, output_dim,
+                variant_params.get(variant_name, {}),
+            )
         else:
             # Generic fallback for future-registered variants
             log(f"    {variant_name}: no evaluator registered, skipping", level="debug")
@@ -451,33 +455,6 @@ def _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv)
     return ci, ece, bs, contract.get('contract_satisfied', False)
 
 
-def _eval_tabpfn(X_tr, X_va, y_tr, y_va, conf_tr, conf_va, output_dim, params):
-    variant = get_variant('tabpfn', X_tr.shape[1], output_dim)
-    variant.fit(X_tr.values.astype(np.float32), y_tr['risk_group'].values)
-    
-    emb_tr, _ = variant.encode(
-        X_tr.values.astype(np.float32),
-        conf_tr.values.astype(np.float32)
-    )
-    emb_va, conf_va_t = variant.encode(
-        X_va.values.astype(np.float32),
-        conf_va.values.astype(np.float32)
-    )
-    
-    from sklearn.linear_model import LinearRegression
-    lr = LinearRegression()
-    lr.fit(emb_tr.numpy(), y_tr['survival_days'].values)
-    pred = lr.predict(emb_va.numpy())
-    ci = concordance_index(y_va['survival_days'], pred, y_va['event'])
-    
-    pred_probs = 1 - np.clip(pred / max(pred.max(), 1e-8), 0.01, 0.99)
-    ece = expected_calibration_error(pred_probs, y_va['event'].values)
-    bs = brier_score(pred_probs, y_va['event'].values)
-    
-    contract = verify_ingestion_contract(emb_va, conf_va_t, output_dim, verbose=False)
-    return ci, ece, bs, contract.get('contract_satisfied', False)
-
-
 def _eval_linear_compact(X_tr, X_va, y_tr, y_va, mask_tr, mask_va, conf_va, output_dim, params):
     encoder = get_variant(
         'linear_compact',
@@ -513,6 +490,92 @@ def _eval_linear_compact(X_tr, X_va, y_tr, y_va, mask_tr, mask_va, conf_va, outp
     ece = expected_calibration_error(pred_probs, y_va['event'].values)
     bs = brier_score(pred_probs, y_va['event'].values)
     
+    contract = verify_ingestion_contract(emb, conf_t, output_dim, verbose=False)
+    return ci, ece, bs, contract.get('contract_satisfied', False)
+
+
+def _eval_ft_transformer(
+    X_tr, X_va, y_tr, y_va,
+    mask_tr, mask_va, conf_va,
+    output_dim, params,
+):
+    """
+    Evaluate the FT-Transformer variant on one fold.
+
+    Mirrors _eval_linear_compact in structure so the two encoders are directly
+    comparable: identical training loop, identical loss, identical contract
+    verification. The only thing that changes is the encoder architecture
+    itself (registered under name 'ft_transformer' in the registry).
+
+    Parameters
+    ----------
+    X_tr, X_va : pd.DataFrame
+        Preprocessed training and validation features (advanced-variant
+        imputation, typically KNN k=5).
+    y_tr, y_va : pd.DataFrame
+        Targets with columns ['survival_days', 'event', 'risk_group'].
+    mask_tr, mask_va : pd.DataFrame
+        Missingness masks with `mask__<feature>` columns.
+    conf_va : pd.DataFrame
+        Per-case confidence columns used for the ingestion contract check.
+    output_dim : int
+        Contract-fixed embedding dim (typically 768).
+    params : dict
+        Variant-specific hyperparameters from the YAML.
+
+    Returns
+    -------
+    (cindex, ece, brier_score, contract_satisfied) : tuple
+        Same signature as the other _eval_* helpers in the runner.
+    """
+    # Encoder construction via registry — same pattern as linear_compact
+    encoder = get_variant(
+        'ft_transformer',
+        input_dim=X_tr.shape[1],
+        output_dim=output_dim,
+        d_token=params.get('d_token', 192),
+        n_blocks=params.get('n_blocks', 3),
+        n_heads=params.get('n_heads', 8),
+        d_ff=params.get('d_ff', None),
+        dropout=params.get('dropout', 0.1),
+    )
+
+    # Tensor conversion — identical to _eval_linear_compact
+    X_tr_t = torch.tensor(X_tr.values, dtype=torch.float32)
+    X_va_t = torch.tensor(X_va.values, dtype=torch.float32)
+    M_tr = _build_mask_aligned(mask_tr, X_tr)
+    M_va = _build_mask_aligned(mask_va, X_va)
+    T_tr = torch.tensor(y_tr['survival_days'].values, dtype=torch.float32)
+    E_tr = torch.tensor(y_tr['event'].values, dtype=torch.float32)
+    T_va = torch.tensor(y_va['survival_days'].values, dtype=torch.float32)
+    E_va = torch.tensor(y_va['event'].values, dtype=torch.float32)
+
+    # Training — Cox partial-likelihood, same as linear_compact for fair
+    # architectural comparison. FT-Transformer benefits from slightly gentler
+    # learning rates than a linear MLP (Gorishniy 2021 reports lr≈3e-4 as
+    # a strong default for transformers of this size on small tabular data).
+    result = train_variant_c(
+        encoder, X_tr_t, M_tr, T_tr, E_tr,
+        X_va_t, M_va, T_va, E_va,
+        epochs=params.get('epochs', 200),
+        lr=params.get('lr', 3e-4),
+        patience=params.get('patience', 20),
+        weight_decay=params.get('weight_decay', 1e-4),
+        verbose=False,
+    )
+    ci = result['best_val_cindex']
+
+    # Calibration & contract verification on validation set — same pattern
+    encoder.eval()
+    with torch.no_grad():
+        emb, conf_t = encoder(X_va_t, M_va)
+        risk = result['risk_head'](emb).squeeze(-1).numpy()
+
+    pred_probs = 1 / (1 + np.exp(-risk))
+    pred_probs = np.clip(pred_probs, 0.01, 0.99)
+    ece = expected_calibration_error(pred_probs, y_va['event'].values)
+    bs = brier_score(pred_probs, y_va['event'].values)
+
     contract = verify_ingestion_contract(emb, conf_t, output_dim, verbose=False)
     return ci, ece, bs, contract.get('contract_satisfied', False)
 

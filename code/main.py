@@ -25,13 +25,13 @@ def main():
     
     if args.sweep:
         print("Redirecting to sweep.py...")
-        from components.tabular.utils.sweep import main as sweep_main
+        from components.adapters.ingestion.tabular.utils.sweep import main as sweep_main
         # Override sys.argv for the sub-module
         sys.argv = [sys.argv[0], '--config', args.config]
         sweep_main()
     elif args.validate:
         print("Redirecting to validate_top3.py...")
-        from components.tabular.utils.validate_top3 import main as validate_main
+        from components.adapters.ingestion.tabular.utils.validate_top3 import main as validate_main
         sys.argv = [sys.argv[0], '--config', args.config]
         validate_main()
     else:

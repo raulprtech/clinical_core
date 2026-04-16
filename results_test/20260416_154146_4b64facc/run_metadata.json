@@ -1,0 +1,39 @@
+{
+  "run_id": "20260416_154146_4b64facc",
+  "timestamp": "20260416_154146",
+  "config_hash": "4b64facc",
+  "experiment_name": "phase_2_external_smoke_test",
+  "protocol_version": "unknown",
+  "environment": {
+    "python": "3.8.10",
+    "platform": "Linux-5.15.153.1-microsoft-standard-WSL2-x86_64-with-glibc2.29",
+    "torch": "2.4.1+cu121",
+    "numpy": "1.24.4",
+    "pandas": "2.0.3"
+  },
+  "registered_components": {
+    "imputation": [
+      "knn_10",
+      "knn_5",
+      "mean_median",
+      "mice"
+    ],
+    "variants": [
+      "cox_baseline",
+      "ft_transformer",
+      "linear_compact"
+    ],
+    "text_conn": [
+      "text_baseline_docling_clinicalbert"
+    ],
+    "vision_conn": [
+      "vision_baseline_stunet_radiomics"
+    ],
+    "fusion_proc": [
+      "fusion_baseline_concat"
+    ],
+    "prognosis_proc": [
+      "prognosis_baseline_linear_cox"
+    ]
+  }
+}

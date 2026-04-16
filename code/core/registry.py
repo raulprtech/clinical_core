@@ -1,18 +1,18 @@
 
 
-from components.tabular.utils.imputation_benchmark import (
+from components.adapters.ingestion.tabular.utils.imputation_benchmark import (
     MeanMedianImputer,
     KNNImputerStrategy,
     MICEImputerStrategy,
 )
-from components.tabular.models.cox_baseline import VariantA_CoxBaseline
-from components.tabular.models.tabpfn_v2 import VariantB_TabPFN
-from components.tabular.models.linear_compact import VariantC_LinearEncoder
+from components.adapters.ingestion.tabular.models.cox_baseline import VariantA_CoxBaseline
+from components.adapters.ingestion.tabular.models.linear_compact import VariantC_LinearEncoder
+from components.adapters.ingestion.tabular.models.ft_transformer import build_ft_transformer
 
-from components.text.models.clinicalbert import TextConn_Baseline
-from components.vision.models.stunet import VisionConn_Baseline
-from components.fusion.models.concatenation import FusionProc_Concatenation
-from components.prognosis.models.linear_cox import PrognosisProc_LinearCox
+from components.adapters.ingestion.text.models.clinicalbert import TextConn_Baseline
+from components.adapters.ingestion.vision.models.stunet import VisionConn_Baseline
+from components.procesors.fusion.models.concatenation import FusionProc_Concatenation
+from components.procesors.prognosis.models.linear_cox import PrognosisProc_LinearCox
 
 # from components.processors.explain.graph_rag_explainer import GraphRAGExplainer
 # ============================================================
@@ -33,13 +33,15 @@ VARIANT_REGISTRY = {
     'cox_baseline': lambda input_dim, output_dim, **kw: VariantA_CoxBaseline(
         input_dim=input_dim, output_dim=output_dim
     ),
-    'tabpfn': lambda input_dim, output_dim, **kw: VariantB_TabPFN(
-        output_dim=output_dim
-    ),
     'linear_compact': lambda input_dim, output_dim, **kw: VariantC_LinearEncoder(
         input_dim=input_dim,
         hidden_dim=kw.get('hidden_dim', 128),
         output_dim=output_dim
+    ),
+    'ft_transformer': lambda input_dim, output_dim, **kw: build_ft_transformer(
+        input_dim=input_dim,
+        output_dim=output_dim,
+        **kw
     ),
 }
 

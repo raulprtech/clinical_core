@@ -1,0 +1,52 @@
+{
+  "phases": {
+    "phase_2": {
+      "mean": {
+        "cox_baseline": 0.8159,
+        "ft_transformer": 0.7903
+      },
+      "std": {
+        "cox_baseline": 0.0114,
+        "ft_transformer": 0.0082
+      }
+    },
+    "phase_2_external": {
+      "cindex_summary": {
+        "mean": {
+          "rsf_external": 0.7641,
+          "tabpfn_external": NaN
+        },
+        "std": {
+          "rsf_external": 0.0207,
+          "tabpfn_external": NaN
+        }
+      },
+      "contract_compliant": false,
+      "model_summaries": {
+        "rsf_external": {
+          "name": "rsf_external",
+          "contract_compliant": false,
+          "model_type": "ensemble_trees",
+          "hyperparameters": {
+            "n_estimators": 10,
+            "min_samples_split": 10,
+            "min_samples_leaf": 15,
+            "max_features": "sqrt",
+            "random_state": 42
+          },
+          "fit_time_seconds": 0.0437,
+          "inference_time_ms_per_case": 0.0841
+        },
+        "tabpfn_external": {
+          "error": "__init__() got an unexpected keyword argument 'n_estimators'"
+        }
+      }
+    }
+  },
+  "errors": [],
+  "n_cases": 537,
+  "n_features": 22,
+  "n_events": 140,
+  "runtime_seconds": 101.7,
+  "run_dir": "/home/raulprtech/tesis/clinical_core/results_test/20260416_154201_a7c4290b"
+}
