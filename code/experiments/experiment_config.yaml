@@ -80,29 +80,30 @@ phase_2_variants:
   # Add a new variant by registering it in registry.py and adding its name here.
   variants:
     - cox_baseline
-    - tabpfn
+    - ft_transformer
     - linear_compact
   
   # Embedding dimensionality (must match downstream FUSION-PROC contract)
   output_dim: 768
   
   # Variant-specific hyperparameters
+phase_2_variants:
+  variants: [cox_baseline, linear_compact, ft_transformer]
   variant_params:
     linear_compact:
-      hidden_dim: 128
+      hidden_dim: 64
+      lr: 0.01
+      weight_decay: 1.0e-5
       epochs: 200
-      lr: 0.001
-      patience: 20
-      weight_decay: 0.0001
+      patience: 10
     ft_transformer:
       d_token: 192
       n_blocks: 3
       n_heads: 8
       dropout: 0.1
       epochs: 200
-      lr: 0.0003
+      lr: 3.0e-4
       patience: 20
-      weight_decay: 0.0001
   
   # Imputation strategy for variants B and C.
   # If "auto", uses the winner from phase_1_imputation.
