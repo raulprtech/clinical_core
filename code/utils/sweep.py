@@ -126,6 +126,14 @@ def build_trial_config(base_config_path: Path, trial_params: dict, trial_id: int
         }
     }
 
+    # Force explicit imputation strategies for both baseline and variants.
+    # The base config may have 'auto' for variants, which depends on phase 1
+    # running to pick a winner. Since phase 1 is disabled in sweep trials,
+    # we must pin concrete strategies or every trial fails silently.
+    # KNN k=5 is the winner documented in the protocol v12 preliminary results.
+    config['phase_2_variants']['imputation_for_variants'] = 'knn_5'
+    config['phase_2_variants']['imputation_for_baseline'] = 'mean_median'
+
     # Disable other phases — sweep cares only about Variant C performance
     for phase in ['phase_1_imputation', 'phase_3_efficiency',
                   'phase_4_stress', 'phase_5_multimodal']:
