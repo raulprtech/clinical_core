@@ -39,7 +39,8 @@ import platform
 import warnings
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, Union
+import os
 
 import numpy as np
 import pandas as pd
@@ -81,8 +82,8 @@ def compute_config_hash(config_dict: dict) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()[:8]
 
 
-def create_run_directory(config: dict, config_path: Path) -> Path:
-    """Create timestamped + hashed run directory and copy configs into it."""
+def create_run_directory(config: dict, config_path: Optional[Union[str, Path]] = None) -> Path:
+    """Create timestamped + hashed run directory and save config into it."""
     base_dir = Path(config['output']['base_dir'])
     base_dir.mkdir(parents=True, exist_ok=True)
     
@@ -92,8 +93,12 @@ def create_run_directory(config: dict, config_path: Path) -> Path:
     run_dir = base_dir / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
     
-    # Copy experiment config verbatim
-    shutil.copy2(config_path, run_dir / "experiment_config.yaml")
+    # Save experiment config
+    if config_path and Path(config_path).exists():
+        shutil.copy2(config_path, run_dir / "experiment_config.yaml")
+    else:
+        with open(run_dir / "experiment_config.yaml", 'w') as f:
+            yaml.dump(config, f, sort_keys=False)
     
     # Copy feature config verbatim
     feature_config_path = Path(config['data']['feature_config'])
@@ -699,22 +704,29 @@ def phase_5_multimodal(
 # MAIN ENTRY POINT
 # ============================================================
 
-def run_experiment(config_path: str = "experiment_config.yaml") -> dict:
+def run_experiment(config_input: Union[str, Path, dict] = "experiment_config.yaml") -> dict:
     """
-    Main experiment runner. Reads config, executes all enabled phases,
-    writes structured outputs to a unique run directory.
+    Main experiment runner. Accepts a path to a YAML config or a config dictionary directly.
+    Executes all enabled phases and returns a summary dictionary.
     """
-    config_path = Path(config_path).resolve()
-    if not config_path.exists():
-        raise FileNotFoundError(f"Experiment config not found: {config_path}")
-    
-    with open(config_path) as f:
-        config = yaml.safe_load(f)
+    if isinstance(config_input, dict):
+        config = config_input
+        config_path = None
+    else:
+        config_path = Path(config_input).resolve()
+        if not config_path.exists():
+            raise FileNotFoundError(f"Experiment config not found: {config_path}")
+        
+        with open(config_path) as f:
+            config = yaml.safe_load(f)
     
     # Resolve feature_config relative to experiment_config dir if not absolute
     feat_path = Path(config['data']['feature_config'])
     if not feat_path.is_absolute():
-        feat_path = (config_path.parent / feat_path).resolve()
+        # If we have a config_path, resolve relative to it. 
+        # Otherwise assume relative to current working directory.
+        base_dir = config_path.parent if config_path else Path.cwd()
+        feat_path = (base_dir / feat_path).resolve()
         config['data']['feature_config'] = str(feat_path)
     
     verbosity = config.get('runtime', {}).get('verbosity', 'normal')
