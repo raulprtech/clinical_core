@@ -1,0 +1,15 @@
+experiment_name: "fusion_efficiency_duel"
+hardware_target: "jetson_nano_profile"
+metrics_to_track: ["c_index", "peak_ram_mb", "latency_ms"]
+
+data:
+  batch_size: 1 # Rigor edge: procesamos un paciente a la vez
+
+models:
+  - name: "SOTA_Cross_Attention"
+    component: "fusion_cross_attention"
+
+  - name: "Propuesta_Optimal_Transport"
+    component: "fusion_optimal_transport"
+    params:
+      sinkhorn_iters: 5

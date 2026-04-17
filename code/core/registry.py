@@ -11,8 +11,8 @@ from components.adapters.ingestion.tabular.models.ft_transformer import build_ft
 
 from components.adapters.ingestion.text.models.clinicalbert import TextConn_Baseline
 from components.adapters.ingestion.vision.models.stunet import VisionConn_Baseline
-from components.procesors.fusion.models.concatenation import FusionProc_Concatenation
-from components.procesors.prognosis.models.linear_cox import PrognosisProc_LinearCox
+from components.processors.fusion.models.concatenation import FusionProc_Concatenation
+from components.processors.prognosis.models.linear_cox import PrognosisProc_LinearCox
 
 # from components.processors.explain.graph_rag_explainer import GraphRAGExplainer
 # ============================================================
