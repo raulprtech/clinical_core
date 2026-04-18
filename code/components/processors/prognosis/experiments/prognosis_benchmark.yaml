@@ -1,0 +1,70 @@
+# ============================================================
+# PROGNOSIS-PROC: Cox vs Weibull Benchmark
+# ============================================================
+# Compares linear_cox (relative risk ordering, fast) vs weibull_head
+# (parametric survival function, supports calibration plots and DCA)
+# on a frozen latent space Z produced by FUSION-PROC.
+# ============================================================
+
+experiment:
+  name: "prognosis_cox_vs_weibull_benchmark"
+  description: "Benchmark of PROGNOSIS-PROC variants on frozen Z from fusion_vae_generative."
+  author: "Raul Pacheco"
+  protocol_version: "v12"
+
+# ============================================================
+# DATA SOURCES
+# ============================================================
+data:
+  # Frozen latent space produced by a prior FUSION-PROC run.
+  # Expected format: .npz with keys Z [N, d_latent], T [N], E [N]
+  latent_path: "/content/drive/MyDrive/datatesis/data/raw/fusion_vae_outputs/latent_generative.npz"
+
+# ============================================================
+# MODELS TO COMPARE
+# ============================================================
+models:
+  - name: "prognosis_baseline_linear_cox"
+    description: "Linear Cox head, baseline for ranking."
+    params:
+      lr: 1.0e-3
+      weight_decay: 1.0e-3
+  
+  - name: "prognosis_weibull_head"
+    description: "Weibull parametric head, enables calibration and DCA."
+    params:
+      lr: 1.0e-3
+      weight_decay: 1.0e-3
+
+# ============================================================
+# EVALUATION PROTOCOL
+# ============================================================
+evaluation:
+  # Cross-validation on Z
+  n_folds: 5
+  seeds: [42, 123, 456, 789, 1024]
+  stratify_by: "event"
+  
+  # Training hyperparameters (same for both for fair comparison)
+  epochs: 200
+  patience: 20
+  
+  # Metrics to report
+  metrics:
+    - c_index
+    - ece_1yr       # Expected Calibration Error at 1 year
+    - ece_3yr
+    - ece_5yr
+    - decision_curve_analysis
+  
+  # Time horizons for calibration and survival curves (days)
+  time_horizons_days: [365, 1095, 1825]
+
+# ============================================================
+# OUTPUT
+# ============================================================
+output:
+  base_dir: "/content/drive/MyDrive/datatesis/data/raw/prognosis_benchmark"
+  save_survival_curves: true     # S(t|z) per patient
+  save_calibration_plots: true
+  save_metrics_csv: true

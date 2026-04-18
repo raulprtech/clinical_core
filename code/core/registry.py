@@ -14,6 +14,15 @@ from components.adapters.ingestion.vision.models.stunet import VisionConn_Baseli
 from components.processors.fusion.models.concatenation import FusionProc_Concatenation
 from components.processors.prognosis.models.linear_cox import PrognosisProc_LinearCox
 
+from components.processors.fusion.models.vae_generative import (
+    FusionProc_GenerativeVAE,
+    build_generative_vae,
+)
+from components.processors.prognosis.models.weibull_head import (
+    PrognosisProc_WeibullHead,
+    build_weibull_head,
+)
+
 # from components.processors.explain.graph_rag_explainer import GraphRAGExplainer
 # ============================================================
 # IMPUTATION STRATEGIES
@@ -69,6 +78,13 @@ FUSION_PROC_REGISTRY = {
     'fusion_baseline_concat': lambda modalities, modality_dims=None, **kw: FusionProc_Concatenation(
         modalities=modalities, modality_dims=modality_dims, **kw
     ),
+    'fusion_vae_generative': lambda modalities, modality_dims=None, **kw: build_generative_vae(
+        input_dim=sum((modality_dims or {m: 768 for m in modalities}).values()),
+        d_latent=kw.get('d_latent', 128),
+        hidden_dims=tuple(kw.get('hidden_dims', (512, 256))),
+        n_modalities=len(modalities),
+        dropout=kw.get('dropout', 0.1),
+    ),
 }
 
 
@@ -77,6 +93,9 @@ FUSION_PROC_REGISTRY = {
 # ============================================================
 PROGNOSIS_PROC_REGISTRY = {
     'prognosis_baseline_linear_cox': lambda fused_dim, **kw: PrognosisProc_LinearCox(
+        fused_dim=fused_dim, **kw
+    ),
+    'prognosis_weibull_head': lambda fused_dim, **kw: build_weibull_head(
         fused_dim=fused_dim, **kw
     ),
 }

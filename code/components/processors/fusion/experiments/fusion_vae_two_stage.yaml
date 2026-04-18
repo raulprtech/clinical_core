@@ -1,0 +1,92 @@
+# ============================================================
+# FUSION-PROC: Two-Stage VAE Training Experiment
+# ============================================================
+# Trains fusion_vae_generative in the two-stage regime:
+#   Stage A: generative pretraining (recon + KL)
+#   Stage B: contrastive fine-tuning by survival
+#
+# Produces a frozen latent space Z that downstream PROGNOSIS-PROC
+# components (linear_cox, weibull_head) can consume independently.
+# ============================================================
+
+experiment:
+  name: "fusion_vae_generative_two_stage"
+  description: "FUSION-PROC as pure generative VAE + survival contrastive fine-tuning. Decoupled from PROGNOSIS-PROC per protocol v12."
+  author: "Raul Pacheco"
+  protocol_version: "v12"
+
+# ============================================================
+# DATA SOURCES
+# ============================================================
+data:
+  # Source of real tabular embedding (from linear_compact winner)
+  tabular_emb_path: "/content/drive/MyDrive/datatesis/data/raw/fusion_vae_outputs/tabular_emb.npz"
+  targets_path: "/content/drive/MyDrive/datatesis/data/raw/fusion_vae_outputs/targets.csv"
+  # Modalities to concatenate. Absent ones are filled with zeros + conf=0
+  # (mock mode — needed until VISION-IN and TEXT-IN are operational).
+  modalities:
+    - tabular      # 768-dim real, from linear_compact
+    - text         # 768-dim mock (zeros) this quarter
+    - vision       # 768-dim mock (zeros) this quarter
+  d_per_modality: 768
+
+# ============================================================
+# MODEL
+# ============================================================
+model:
+  name: "fusion_vae_generative"  # must match FUSION_PROC_REGISTRY
+  params:
+    d_latent: 128
+    hidden_dims: [512, 256]
+    dropout: 0.1
+
+# ============================================================
+# TRAINING (two-stage)
+# ============================================================
+training:
+  # Stage A — generative pretraining
+  stage_a:
+    epochs: 100
+    lr: 1.0e-3
+    patience: 20
+    kl_anneal_epochs: 30
+  
+  # Stage B — contrastive fine-tuning by survival
+  stage_b:
+    epochs: 60
+    lr: 3.0e-4
+    patience: 15
+    triplet_margin: 1.0
+    time_similar_window: 180.0   # days; defines "similar survival"
+  
+  # Shared loss weights
+  loss_weights:
+    alpha_recon: 1.0
+    beta_kl: 0.01
+    delta_contra: 0.5   # Active only in Stage B
+  
+  # Optional modality dropout during training
+  train_with_masking: false   # set true to enforce graceful degradation
+  modality_dropout_prob: 0.3
+  
+  # Shared optimizer params
+  weight_decay: 1.0e-4
+  batch_size: 64
+
+# ============================================================
+# SPLIT & REPRODUCIBILITY
+# ============================================================
+split:
+  val_fraction: 0.15
+  stratify_by: "event"
+random:
+  seed: 42
+
+# ============================================================
+# OUTPUT
+# ============================================================
+output:
+  base_dir: "/content/drive/MyDrive/datatesis/data/raw/fusion_vae_outputs"
+  save_latent_npz: true     # export Z for the full cohort
+  save_checkpoint: true
+  save_history: true
