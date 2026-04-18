@@ -49,7 +49,6 @@ code/
 │   └── external/               # 🏛️ Non-compliant baselines for reference
 │
 ├── experiments/                # ⚙️ Global Experiment Configs
-└── configs/                    # 📋 Data Mapping Schemas (tabular_mapping.yaml)
 ```
 
 ## Quick Start

@@ -37,11 +37,6 @@ class VariantA_CoxBaseline:
         else:
             embedding = features[:, :self.output_dim]
         
-        # L2 normalize
-        norms = np.linalg.norm(embedding, axis=1, keepdims=True)
-        norms = np.maximum(norms, 1e-8)
-        embedding = embedding / norms
-        
         return (
             torch.tensor(embedding, dtype=torch.float32),
             torch.tensor(confidence, dtype=torch.float32).unsqueeze(-1)

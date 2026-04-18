@@ -223,11 +223,6 @@ class MultimodalPipeline:
                 else:
                     embedding = features[:self.modality_dim]
                 
-                # L2 normalize
-                norm = np.linalg.norm(embedding)
-                if norm > 1e-8:
-                    embedding = embedding / norm
-                
                 self.cache.put(
                     case_id, 'tabular',
                     torch.tensor(embedding, dtype=torch.float32),

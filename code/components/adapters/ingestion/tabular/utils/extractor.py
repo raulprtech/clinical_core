@@ -23,7 +23,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent.parent.parent))
 class TCGAExtractor:
     """Extracts clinical variables from TCGA BCR XML files."""
     
-    def __init__(self, config_path: str = "configs/tabular_mapping.yaml"):
+    def __init__(self, config_path: str = "components/adapters/ingestion/tabular/configs/tabular_mapping.yaml"):
         with open(config_path, 'r') as f:
             self.config = yaml.safe_load(f)
         
@@ -315,7 +315,7 @@ def parse_drug_file(txt_path: str) -> pd.DataFrame:
 if __name__ == "__main__":
     import sys
     xml_dir = sys.argv[1] if len(sys.argv) > 1 else "."
-    extractor = TCGAExtractor("configs/tabular_mapping.yaml")
+    extractor = TCGAExtractor("components/adapters/ingestion/tabular/configs/tabular_mapping.yaml")
     df_feat, df_targ = extractor.extract_cohort(xml_dir)
     
     # Save
