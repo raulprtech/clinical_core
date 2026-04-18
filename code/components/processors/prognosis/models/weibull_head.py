@@ -1,6 +1,6 @@
 """
-PROGNOSIS-PROC: Weibull Parametric Head
-========================================
+PROGNOSIS-PROC: Weibull Parametric Head (v2 — fixed initialization)
+====================================================================
 
 Paramteric survival head that predicts a full survival curve S(t|Z) via
 Weibull distribution parameters (k, λ), not just a relative risk score.
@@ -13,28 +13,27 @@ Motivation over linear Cox:
       2. Time-specific survival probabilities for calibration plots.
       3. Decision Curve Analysis at arbitrary thresholds.
 
-Protocol v12 §4.2 OE3: "PROGNOSIS-PROC implemented as Weibull head,
-decoupable from the fusion processor". This module is that implementation.
-
 Parametrization:
     For each patient z, the head outputs two parameters:
         k(z)  = softplus(w_k · z + b_k) + 1e-3   (shape parameter, > 0)
         λ(z)  = softplus(w_λ · z + b_λ) + 1e-3   (scale parameter, > 0)
-    
+
     Survival function: S(t|z) = exp(-(t/λ(z))^k(z))
-    Risk score (for C-index): -log(λ(z)) gives a scalar ordering that
-        correlates with hazard; used only for concordance computation.
+    Risk score (for C-index): -log(λ(z)).
+
+Initialization fix (v2):
+    λ must start close to the cohort's median survival time (~1000 days
+    for TCGA-KIRC) so that (t/λ)^k stays in a tractable range during the
+    first epochs. Since softplus(x) ≈ x for large positive x, the scale
+    bias is initialized DIRECTLY to init_scale (e.g. 1000.0), not to
+    log(init_scale). A previous version used log(1000)≈7 as bias, which
+    produced λ≈7 and collapsed all survival curves to zero — documented
+    as a lesson learned for the quarterly report.
 
 Training loss:
-    Negative log-likelihood of the Weibull distribution with right censoring.
-    For uncensored patients: log f(t) = log(k/λ) + (k-1)·log(t/λ) - (t/λ)^k
-    For censored patients:   log S(t) = -(t/λ)^k
-    
-    NLL = -Σ_uncensored log f(t_i | z_i) - Σ_censored log S(t_i | z_i)
-
-This implementation follows Chapfuwa et al. (2019) on calibrated Weibull
-networks for survival and adapts it to operate on top of a frozen latent
-space produced by FUSION-PROC.
+    Negative log-likelihood of Weibull with right censoring.
+        uncensored: log f(t) = log(k/λ) + (k-1)·log(t/λ) - (t/λ)^k
+        censored:   log S(t) = -(t/λ)^k
 """
 
 from typing import Dict, Optional
@@ -50,16 +49,7 @@ def _weibull_nll(
     durations: torch.Tensor,
     events: torch.Tensor,
 ) -> torch.Tensor:
-    """
-    Negative log-likelihood of Weibull with right censoring.
-
-    Args:
-        k:         shape parameter, [batch], > 0
-        lam:       scale parameter, [batch], > 0
-        durations: survival/censoring times, [batch], > 0
-        events:    1 if event observed, 0 if censored, [batch]
-    """
-    # Numerical safeguards
+    """Negative log-likelihood of Weibull with right censoring."""
     eps = 1e-7
     durations = durations.clamp(min=eps)
     k = k.clamp(min=eps)
@@ -68,53 +58,54 @@ def _weibull_nll(
     t_over_lam = durations / lam
     log_t_over_lam = torch.log(t_over_lam + eps)
 
-    # Log-hazard for uncensored: log(k/λ) + (k-1)·log(t/λ)
     log_hazard = torch.log(k / lam + eps) + (k - 1.0) * log_t_over_lam
-    # Cumulative hazard: (t/λ)^k, log-survival = -cum hazard
     cum_hazard = t_over_lam.pow(k)
 
-    # NLL: uncensored contribute log_hazard - cum_hazard;
-    #      censored contribute -cum_hazard only
     log_lik = events * log_hazard - cum_hazard
     return -log_lik.mean()
 
 
 class PrognosisProc_WeibullHead(nn.Module):
     """
-    Weibull parametric survival head that consumes a latent Z and outputs
-    survival curve parameters (k, λ) per patient.
+    Weibull parametric survival head consuming a latent Z.
+
+    Args:
+        fused_dim:  input dimensionality (= d_latent of FUSION-PROC).
+        init_scale: expected median survival time, in the same units as
+                    durations (default 1000.0 days ≈ TCGA-KIRC median).
+        init_shape: expected Weibull shape at initialization (default 1.0).
     """
 
     name = "prognosis_weibull_head"
 
-    def __init__(self, fused_dim: int, **kwargs):
+    def __init__(
+        self,
+        fused_dim: int,
+        init_scale: float = 1000.0,
+        init_shape: float = 1.0,
+        **kwargs,
+    ):
         super().__init__()
         self.fused_dim = fused_dim
-        # Two separate linear heads — one for each Weibull parameter
         self.shape_head = nn.Linear(fused_dim, 1)
         self.scale_head = nn.Linear(fused_dim, 1)
 
         nn.init.xavier_uniform_(self.shape_head.weight)
-        nn.init.zeros_(self.shape_head.bias)
         nn.init.xavier_uniform_(self.scale_head.weight)
-        # Initialize scale bias so λ starts around a reasonable prior
-        # (median survival time in TCGA-KIRC is ~1000 days → log(1000) ≈ 7)
-        nn.init.constant_(self.scale_head.bias, 7.0)
+
+        # Initialize biases directly to the desired raw values.
+        # softplus(x) ≈ x for x >> 0, so bias=1000 gives λ≈1000 at epoch 0.
+        nn.init.constant_(self.scale_head.bias, float(init_scale))
+        nn.init.constant_(self.shape_head.bias, float(init_shape))
 
         self.weight_decay = kwargs.get('weight_decay', 1e-3)
         self.lr = kwargs.get('lr', 1e-3)
 
     def forward(self, fused_embedding: torch.Tensor) -> Dict[str, torch.Tensor]:
-        """
-        Returns dict with k, lam, and risk (scalar for C-index).
-        All tensors have shape [batch].
-        """
         k_raw = self.shape_head(fused_embedding).squeeze(-1)
         lam_raw = self.scale_head(fused_embedding).squeeze(-1)
-        # softplus keeps params positive; +eps guards against exactly zero
         k = torch.nn.functional.softplus(k_raw) + 1e-3
         lam = torch.nn.functional.softplus(lam_raw) + 1e-3
-        # Use -log(λ) as scalar risk ordering. Shorter scale → higher risk.
         risk = -torch.log(lam + 1e-7)
         return {'k': k, 'lam': lam, 'risk': risk}
 
@@ -126,20 +117,17 @@ class PrognosisProc_WeibullHead(nn.Module):
         patience: int = 20,
         verbose: bool = False,
     ) -> dict:
-        """
-        Train on a frozen latent Z (X_train/X_val are Z from FUSION-PROC).
-
-        Compatible with the fit() signature used by main.py's PROGNOSIS-PROC
-        invocation, so it drops into the existing pipeline without runner
-        changes.
-        """
         optimizer = torch.optim.Adam(
             self.parameters(), lr=self.lr, weight_decay=self.weight_decay,
         )
         best_ci = 0.0
         best_state = None
         patience_counter = 0
-        history = {'train_loss': [], 'val_cindex': []}
+        history = {
+            'train_loss': [], 'val_cindex': [],
+            'k_mean': [], 'k_std': [],
+            'lam_mean': [], 'lam_std': [],
+        }
 
         for epoch in range(epochs):
             self.train()
@@ -154,9 +142,12 @@ class PrognosisProc_WeibullHead(nn.Module):
             with torch.no_grad():
                 val_out = self(X_val)
                 val_risk = val_out['risk'].cpu().numpy()
+                history['k_mean'].append(float(val_out['k'].mean()))
+                history['k_std'].append(float(val_out['k'].std()))
+                history['lam_mean'].append(float(val_out['lam'].mean()))
+                history['lam_std'].append(float(val_out['lam'].std()))
+
             try:
-                # For Weibull, higher -log(λ) means shorter expected survival,
-                # so risk itself (not -risk) is the hazard-like ordering
                 val_ci = concordance_index(
                     T_val.cpu().numpy(), -val_risk, E_val.cpu().numpy(),
                 )
@@ -177,7 +168,9 @@ class PrognosisProc_WeibullHead(nn.Module):
 
             if verbose and epoch % 20 == 0:
                 print(f"  [ep {epoch:3d}] NLL={loss.item():.4f}  "
-                      f"val_CI={val_ci:.4f}")
+                      f"val_CI={val_ci:.4f}  "
+                      f"λ̄={history['lam_mean'][-1]:.1f}  "
+                      f"k̄={history['k_mean'][-1]:.2f}")
 
         if best_state:
             self.load_state_dict(best_state)
@@ -194,25 +187,24 @@ class PrognosisProc_WeibullHead(nn.Module):
     ) -> np.ndarray:
         """
         Predict S(t|z) for each patient at each requested time.
-        
+
         Args:
             X:     [batch, fused_dim] latent space
-            times: [T] numpy array of time points in the same units as
-                   durations during training (typically days)
-        
+            times: [T] numpy array of time points (same units as durations)
+
         Returns:
-            [batch, T] numpy array of survival probabilities.
+            [batch, T] numpy array of survival probabilities in [0, 1].
         """
         self.eval()
         out = self(X)
         k = out['k'].cpu().numpy()
         lam = out['lam'].cpu().numpy()
-        # Broadcast: times shape [T] vs params shape [batch]
-        # S(t|z) = exp(-(t/λ)^k)
-        t = times[np.newaxis, :]              # [1, T]
-        k_b = k[:, np.newaxis]                # [batch, 1]
-        lam_b = lam[:, np.newaxis]            # [batch, 1]
-        return np.exp(-np.power(t / lam_b, k_b))
+        t = times[np.newaxis, :]
+        k_b = k[:, np.newaxis]
+        lam_b = lam[:, np.newaxis]
+        # Clip exponent to prevent overflow when λ is small or t is large
+        exponent = np.clip(np.power(t / lam_b, k_b), 0, 700)
+        return np.exp(-exponent)
 
 
 def build_weibull_head(fused_dim: int, **kwargs) -> PrognosisProc_WeibullHead:
