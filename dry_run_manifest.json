@@ -1,0 +1,8 @@
+{
+    "project_id": "TCGA-KIRC",
+    "case_ids": [
+        "cc353686-e2b6-46a1-8095-48e2bc44b11f",
+        "ce0ab696-4e50-4b05-a7e5-5191c257bfbe"
+    ],
+    "generated_from_files": 2
+}
