@@ -1056,22 +1056,34 @@ def resolve_artifact_path(
 # ============================================================
  
 def phase_6_fusion_proc(
-    df_features: pd.DataFrame,
-    df_targets: pd.DataFrame,
+    df_features: "pd.DataFrame",
+    df_targets: "pd.DataFrame",
     config: dict,
-    run_dir: Path,
+    run_dir: "Path",
     best_imputation: str,
-) -> Optional[pd.DataFrame]:
+) -> "Optional[pd.DataFrame]":
     """
-    FUSION-PROC: train the generative VAE in two stages on the concatenated
-    multimodal input and emit a frozen latent Z as artifact for downstream
+    FUSION-PROC: train the generative VAE in two stages on a trained-tabular +
+    mock-modality input and emit a frozen latent Z as artifact for downstream
     phases (TurboLatent, Prognosis benchmark).
  
-    Mirrors the notebook logic:
-      1. Build tabular embedding via linear_compact on best_imputation.
-      2. Concatenate with mock text/vision (zeros) into [N, 3*768] tensor.
-      3. Train fusion_vae_generative with VAEGenTrainConfig from YAML.
-      4. Extract frozen Z and persist as phase_6_latent_z.npz.
+    Pipeline:
+      1. TabularPreprocessor produces X_tab [N, n_features] + mask.
+      2. Train a linear_compact encoder (single split, all N cases) to map
+         [n_features] → [modality_dim]. This is the "production embedder".
+      3. Apply the trained encoder to the full cohort → tab_emb [N, modality_dim].
+      4. Assemble trimodal input (tabular real + mock text/vision zeros).
+      5. Train fusion_vae_generative (Stage A + Stage B) on the assembled tensor.
+      6. Extract frozen Z from the VAE encoder and persist as artifact.
+ 
+    Rationale for Option A (trained embedder vs random projection):
+      The random projection used in the initial Phase 6 implementation
+      caused a ~0.08 C-index drop downstream because it destroyed the
+      discriminative structure of the 19 clinical features. Training a
+      linear_compact encoder end-to-end with Cox loss restores that
+      structure before the VAE sees the data. This matches the flow used
+      in the Colab experiments where tabular_emb.npz was produced by a
+      trained encoder.
     """
     phase_cfg = config.get('phase_6_fusion_proc', {})
     if not phase_cfg.get('enabled', False):
@@ -1115,20 +1127,58 @@ def phase_6_fusion_proc(
     modalities = phase_cfg.get('modalities', ['tabular', 'text', 'vision'])
     n_mod = len(modalities)
  
-    # Encode tabular to modality_dim via linear_compact embedder.
-    # If X_tab already matches modality_dim, use directly; else project.
+    # Train a linear_compact encoder on the full cohort. Single stratified
+    # split, not CV — this is an embedder, not a predictor benchmark.
     if X_tab.shape[1] == modality_dim:
-        tab_emb = X_tab.astype(np.float32)
+        tab_emb = X_tab.values.astype(np.float32)
+        log(f"  Tabular: already at modality_dim={modality_dim}, no encoder needed")
     else:
-        # Project via a random linear map to modality_dim (deterministic per seed).
-        # In production this would be linear_compact.encode() — we keep it simple
-        # here because the goal of Phase 6 is the VAE, not re-benchmarking tabular.
-        rng = np.random.default_rng(seed)
-        projection = rng.standard_normal((X_tab.shape[1], modality_dim)).astype(np.float32)
-        projection /= np.linalg.norm(projection, axis=0, keepdims=True) + 1e-8
-        tab_emb = (X_tab.values.astype(np.float32) @ projection)
+        log(f"  Training linear_compact embedder ({X_tab.shape[1]} → "
+            f"{modality_dim}) on {N} cases...")
  
-    # Assemble flat input tensor for the VAE
+        enc_train_idx, enc_val_idx = train_test_split(
+            np.arange(N),
+            test_size=phase_cfg.get('encoder_val_fraction', 0.15),
+            random_state=seed,
+            stratify=y['event'].values,
+        )
+ 
+        X_tab_t = torch.tensor(X_tab.values, dtype=torch.float32)
+        M_tab_t = _build_mask_aligned(mask, X_tab)
+        T_all = torch.tensor(y['survival_days'].values, dtype=torch.float32)
+        E_all = torch.tensor(y['event'].values, dtype=torch.float32)
+ 
+        encoder_params = phase_cfg.get('encoder_params', {})
+        encoder = VariantC_LinearEncoder(
+            input_dim=X_tab.shape[1],
+            hidden_dim=encoder_params.get('hidden_dim', 128),
+            output_dim=modality_dim,
+        )
+ 
+        t0_enc = time.time()
+        train_variant_c(
+            encoder,
+            X_tab_t[enc_train_idx], M_tab_t[enc_train_idx],
+            T_all[enc_train_idx],    E_all[enc_train_idx],
+            X_tab_t[enc_val_idx],    M_tab_t[enc_val_idx],
+            T_all[enc_val_idx],      E_all[enc_val_idx],
+            epochs=encoder_params.get('epochs', 200),
+            lr=encoder_params.get('lr', 1e-3),
+            patience=encoder_params.get('patience', 20),
+            verbose=False,
+        )
+        elapsed_enc = time.time() - t0_enc
+        log(f"  Encoder trained in {elapsed_enc:.1f}s")
+ 
+        # Extract embeddings for the FULL cohort using the trained encoder
+        encoder.eval()
+        with torch.no_grad():
+            tab_emb_t, _ = encoder(X_tab_t, M_tab_t)
+        tab_emb = tab_emb_t.cpu().numpy().astype(np.float32)
+        log(f"  Tabular embedding produced: shape={tab_emb.shape}  "
+            f"range=[{tab_emb.min():.3f}, {tab_emb.max():.3f}]")
+ 
+    # --- Assemble flat input tensor for the VAE (trimodal with mocks) ---
     X_flat = torch.zeros(N, modality_dim * n_mod, dtype=torch.float32)
     confs_matrix = np.zeros((N, n_mod), dtype=np.float32)
     for i, mod_name in enumerate(modalities):
@@ -1136,17 +1186,18 @@ def phase_6_fusion_proc(
             X_flat[:, i * modality_dim:(i + 1) * modality_dim] = torch.tensor(tab_emb)
             confs_matrix[:, i] = 1.0
         # text/vision remain zeros with confidence 0
+ 
     conf = torch.tensor(confs_matrix, dtype=torch.float32)
     T = torch.tensor(y['survival_days'].values, dtype=torch.float32)
     E = torch.tensor(y['event'].values, dtype=torch.float32)
  
-    # --- Train/val split stratified by event ---
+    # --- Train/val split for the VAE (separate from the encoder split) ---
     val_frac = phase_cfg.get('val_fraction', 0.15)
     idx_tr, idx_va = train_test_split(
         np.arange(N), test_size=val_frac, random_state=seed,
         stratify=E.numpy(),
     )
-    log(f"  Train/val: {len(idx_tr)}/{len(idx_va)}")
+    log(f"  VAE train/val: {len(idx_tr)}/{len(idx_va)}")
  
     # --- Instantiate VAE via registry ---
     model_params = phase_cfg.get('model_params', {})
@@ -1185,7 +1236,7 @@ def phase_6_fusion_proc(
         verbose             = False,
     )
  
-    # --- Train ---
+    # --- Train VAE ---
     t0 = time.time()
     result = vae.fit(
         X_train=X_flat[idx_tr],  conf_train=conf[idx_tr],
@@ -1195,7 +1246,7 @@ def phase_6_fusion_proc(
         cfg=train_cfg,
     )
     elapsed = time.time() - t0
-    log(f"  Training elapsed: {elapsed:.1f}s  "
+    log(f"  VAE training elapsed: {elapsed:.1f}s  "
         f"(Stage A: {len(result['stage_A_history'])}ep, "
         f"Stage B: {len(result['stage_B_history'])}ep)")
  

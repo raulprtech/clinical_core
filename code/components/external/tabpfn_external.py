@@ -36,17 +36,12 @@ Comparability to compliant variants:
 """
 from __future__ import annotations
 
-import os
 import time
 import warnings
 from typing import Dict, Any, Optional
 
-from dotenv import load_dotenv
 import numpy as np
 import pandas as pd
-
-# Attempt to load token from .env automatically
-load_dotenv()
 
 
 class TabPFNExternalBaseline:
@@ -94,7 +89,6 @@ class TabPFNExternalBaseline:
             device=device,
             n_estimators=n_estimators,
             random_state=random_state,
-            token=os.getenv("TABPFN_API_KEY")
         )
         self._hyperparams = {
             'device': device,
