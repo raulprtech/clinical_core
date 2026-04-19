@@ -167,9 +167,10 @@ def phase_1_imputation(
     run_dir: Path,
 ) -> Tuple[pd.DataFrame, str]:
     phase_cfg = config['phase_1_imputation']
-    if not phase_cfg['enabled']:
+    if not phase_cfg.get('enabled', False):
         log("[PHASE 1] DISABLED — skipping imputation benchmark")
-        return None, config['phase_2_variants'].get('imputation_for_variants', 'knn_5')
+        fallback = config.get('phase_2_variants', {}).get('imputation_for_variants', 'knn_5')
+        return None, 'knn_5' if fallback == 'auto' else fallback
     
     log("\n[PHASE 1] Imputation benchmark")
     
@@ -882,11 +883,12 @@ def phase_4_stress(
         'n_folds': config['random']['n_folds'],
     }
     
+    (run_dir / "_stress_clean").mkdir(parents=True, exist_ok=True)
+    (run_dir / "_stress_noisy").mkdir(parents=True, exist_ok=True)
+    
     log("  Running clean evaluation...")
     clean_results = phase_2_variants(df_features, df_targets, stress_config, run_dir / "_stress_clean", best_imputation)
     log("  Running noisy evaluation...")
-    (run_dir / "_stress_clean").mkdir(exist_ok=True)
-    (run_dir / "_stress_noisy").mkdir(exist_ok=True)
     noisy_results = phase_2_variants(df_noisy, df_targets, stress_config, run_dir / "_stress_noisy", best_imputation)
     
     if clean_results is None or noisy_results is None:

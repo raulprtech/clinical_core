@@ -229,6 +229,9 @@ class TCGAExtractor:
                 'event': event
             })
         
+        if not feature_rows:
+            raise ValueError(f"No clinical XML records were successfully extracted from {xml_dir}. Make sure the directory has files and they are valid.")
+
         df_features = pd.DataFrame(feature_rows).set_index('case_id')
         df_targets = pd.DataFrame(target_rows).set_index('case_id')
         
