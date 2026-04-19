@@ -977,6 +977,535 @@ def phase_5_multimodal(
 
 
 # ============================================================
+# ARTIFACT MANAGEMENT (shared by phases 6/7/8)
+# ============================================================
+ 
+def get_artifacts_dir(run_dir: Path) -> Path:
+    """Canonical artifacts directory inside a run directory."""
+    artifacts_dir = run_dir / "artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    return artifacts_dir
+ 
+ 
+def find_most_recent_artifact(
+    base_dir: Path,
+    artifact_name: str,
+    within_n_runs: int = 10,
+) -> Optional[Path]:
+    """
+    Search {base_dir}/*/artifacts/{artifact_name} across recent runs.
+ 
+    Returns the most recent matching path, or None if none exists.
+    Only looks at the last `within_n_runs` runs (sorted by directory name,
+    which embeds the timestamp — this is why the run_dir format matters).
+    """
+    if not base_dir.exists():
+        return None
+    run_dirs = sorted(
+        [d for d in base_dir.iterdir() if d.is_dir()],
+        reverse=True,
+    )[:within_n_runs]
+    for rd in run_dirs:
+        candidate = rd / "artifacts" / artifact_name
+        if candidate.exists():
+            return candidate
+    return None
+ 
+ 
+def resolve_artifact_path(
+    artifact_name: str,
+    current_run_dir: Path,
+    phase_cfg: dict,
+    output_base_dir: Path,
+    explicit_key: str = "source_artifact_path",
+) -> Optional[Path]:
+    """
+    Precedence-ordered artifact discovery.
+ 
+    Args:
+        artifact_name: canonical filename (e.g. 'phase_6_latent_z.npz').
+        current_run_dir: {output.base_dir}/{timestamp_hash}/
+        phase_cfg: the config block of the phase requesting the artifact.
+        output_base_dir: {output.base_dir}/
+        explicit_key: config key under which an explicit path may be set.
+    """
+    # 1. Current run (same-session)
+    current = current_run_dir / "artifacts" / artifact_name
+    if current.exists():
+        return current
+ 
+    # 2. Explicit path from YAML
+    explicit = phase_cfg.get(explicit_key)
+    if explicit:
+        explicit_path = Path(explicit)
+        if explicit_path.exists():
+            return explicit_path
+ 
+    # 3. Most recent across prior runs
+    recent = find_most_recent_artifact(output_base_dir, artifact_name)
+    if recent is not None:
+        return recent
+ 
+    return None
+ 
+ 
+# ============================================================
+# PHASE 6 — FUSION-PROC (VAE generative, 2-stage training)
+# ============================================================
+ 
+def phase_6_fusion_proc(
+    df_features: pd.DataFrame,
+    df_targets: pd.DataFrame,
+    config: dict,
+    run_dir: Path,
+    best_imputation: str,
+) -> Optional[pd.DataFrame]:
+    """
+    FUSION-PROC: train the generative VAE in two stages on the concatenated
+    multimodal input and emit a frozen latent Z as artifact for downstream
+    phases (TurboLatent, Prognosis benchmark).
+ 
+    Mirrors the notebook logic:
+      1. Build tabular embedding via linear_compact on best_imputation.
+      2. Concatenate with mock text/vision (zeros) into [N, 3*768] tensor.
+      3. Train fusion_vae_generative with VAEGenTrainConfig from YAML.
+      4. Extract frozen Z and persist as phase_6_latent_z.npz.
+    """
+    phase_cfg = config.get('phase_6_fusion_proc', {})
+    if not phase_cfg.get('enabled', False):
+        log("[PHASE 6] DISABLED")
+        return None
+ 
+    log("\n[PHASE 6] FUSION-PROC (VAE generative, 2-stage)")
+ 
+    from components.processors.fusion.models.vae_generative import (
+        VAEGenTrainConfig,
+    )
+    from core.registry import get_fusion_proc, get_imputation
+    from components.adapters.ingestion.tabular.utils.imputation_benchmark import (
+        TabularPreprocessor,
+    )
+    from sklearn.model_selection import train_test_split
+ 
+    seed = config['random'].get('seed', 42)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+ 
+    # --- Filter valid cases (with survival data) ---
+    valid = df_targets['survival_days'].notna() & (df_targets['survival_days'] > 0)
+    X_raw = df_features.loc[valid].copy()
+    y = df_targets.loc[valid].copy()
+    case_ids = np.array(X_raw.index.tolist())
+ 
+    # --- Preprocess tabular with best imputation ---
+    imp_name = phase_cfg.get('tabular_imputation', 'auto')
+    if imp_name == 'auto':
+        imp_name = best_imputation
+    prep = TabularPreprocessor()
+    X_tab, mask, conf_tab = prep.fit_transform(X_raw, get_imputation(imp_name))
+    N = X_tab.shape[0]
+ 
+    log(f"  Cases: {N}  (events: {int(y['event'].sum())})")
+    log(f"  Imputation: {imp_name}")
+ 
+    # --- Build trimodal input (tabular real + mock text/vision) ---
+    modality_dim = phase_cfg.get('modality_dim', 768)
+    modalities = phase_cfg.get('modalities', ['tabular', 'text', 'vision'])
+    n_mod = len(modalities)
+ 
+    # Encode tabular to modality_dim via linear_compact embedder.
+    # If X_tab already matches modality_dim, use directly; else project.
+    if X_tab.shape[1] == modality_dim:
+        tab_emb = X_tab.astype(np.float32)
+    else:
+        # Project via a random linear map to modality_dim (deterministic per seed).
+        # In production this would be linear_compact.encode() — we keep it simple
+        # here because the goal of Phase 6 is the VAE, not re-benchmarking tabular.
+        rng = np.random.default_rng(seed)
+        projection = rng.standard_normal((X_tab.shape[1], modality_dim)).astype(np.float32)
+        projection /= np.linalg.norm(projection, axis=0, keepdims=True) + 1e-8
+        tab_emb = (X_tab.values.astype(np.float32) @ projection)
+ 
+    # Assemble flat input tensor for the VAE
+    X_flat = torch.zeros(N, modality_dim * n_mod, dtype=torch.float32)
+    confs_matrix = np.zeros((N, n_mod), dtype=np.float32)
+    for i, mod_name in enumerate(modalities):
+        if mod_name == 'tabular':
+            X_flat[:, i * modality_dim:(i + 1) * modality_dim] = torch.tensor(tab_emb)
+            confs_matrix[:, i] = 1.0
+        # text/vision remain zeros with confidence 0
+    conf = torch.tensor(confs_matrix, dtype=torch.float32)
+    T = torch.tensor(y['survival_days'].values, dtype=torch.float32)
+    E = torch.tensor(y['event'].values, dtype=torch.float32)
+ 
+    # --- Train/val split stratified by event ---
+    val_frac = phase_cfg.get('val_fraction', 0.15)
+    idx_tr, idx_va = train_test_split(
+        np.arange(N), test_size=val_frac, random_state=seed,
+        stratify=E.numpy(),
+    )
+    log(f"  Train/val: {len(idx_tr)}/{len(idx_va)}")
+ 
+    # --- Instantiate VAE via registry ---
+    model_params = phase_cfg.get('model_params', {})
+    vae = get_fusion_proc(
+        phase_cfg.get('fusion_proc', 'fusion_vae_generative'),
+        modalities=modalities,
+        modality_dims={m: modality_dim for m in modalities},
+        d_latent=model_params.get('d_latent', 128),
+        hidden_dims=tuple(model_params.get('hidden_dims', [512, 256])),
+        dropout=model_params.get('dropout', 0.1),
+    )
+ 
+    # --- Build training config from YAML ---
+    train_params = phase_cfg.get('training', {})
+    stage_a = train_params.get('stage_a', {})
+    stage_b = train_params.get('stage_b', {})
+    loss_w = train_params.get('loss_weights', {})
+    train_cfg = VAEGenTrainConfig(
+        epochs_stage_a      = stage_a.get('epochs', 100),
+        lr_stage_a          = stage_a.get('lr', 1e-3),
+        patience_stage_a    = stage_a.get('patience', 20),
+        kl_anneal_epochs    = stage_a.get('kl_anneal_epochs', 30),
+        epochs_stage_b      = stage_b.get('epochs', 60),
+        lr_stage_b          = stage_b.get('lr', 3e-4),
+        patience_stage_b    = stage_b.get('patience', 15),
+        triplet_margin      = stage_b.get('triplet_margin', 1.0),
+        time_similar_window = stage_b.get('time_similar_window', 180.0),
+        alpha_recon         = loss_w.get('alpha_recon', 1.0),
+        beta_kl             = loss_w.get('beta_kl', 0.01),
+        delta_contra        = loss_w.get('delta_contra', 0.5),
+        train_with_masking  = train_params.get('train_with_masking', False),
+        modality_dropout_prob = train_params.get('modality_dropout_prob', 0.3),
+        weight_decay        = train_params.get('weight_decay', 1e-4),
+        batch_size          = train_params.get('batch_size', 64),
+        seed                = seed,
+        verbose             = False,
+    )
+ 
+    # --- Train ---
+    t0 = time.time()
+    result = vae.fit(
+        X_train=X_flat[idx_tr],  conf_train=conf[idx_tr],
+        T_train=T[idx_tr],        E_train=E[idx_tr],
+        X_val=X_flat[idx_va],     conf_val=conf[idx_va],
+        T_val=T[idx_va],          E_val=E[idx_va],
+        cfg=train_cfg,
+    )
+    elapsed = time.time() - t0
+    log(f"  Training elapsed: {elapsed:.1f}s  "
+        f"(Stage A: {len(result['stage_A_history'])}ep, "
+        f"Stage B: {len(result['stage_B_history'])}ep)")
+ 
+    # --- Extract frozen Z for full cohort ---
+    vae.eval()
+    with torch.no_grad():
+        Z, conf_full = vae.extract_latent_space(X_flat, conf)
+    Z = Z.cpu().numpy()
+    conf_full = conf_full.cpu().numpy()
+ 
+    # --- Persist artifact ---
+    artifacts_dir = get_artifacts_dir(run_dir)
+    latent_path = artifacts_dir / "phase_6_latent_z.npz"
+    np.savez(
+        latent_path,
+        Z=Z, conf=conf_full,
+        T=T.numpy(), E=E.numpy(),
+        case_ids=case_ids,
+        train_idx=idx_tr, val_idx=idx_va,
+    )
+    log(f"  Latent Z saved: {latent_path}  (shape: {Z.shape})")
+ 
+    # --- Persist checkpoint + history ---
+    ckpt_path = artifacts_dir / "phase_6_vae_checkpoint.pt"
+    torch.save({
+        'model_state': vae.state_dict(),
+        'model_name':  vae.name,
+        'n_parameters': vae.n_parameters(),
+        'train_cfg': train_cfg.__dict__,
+    }, ckpt_path)
+ 
+    history_path = artifacts_dir / "phase_6_vae_history.json"
+    with open(history_path, 'w') as f:
+        json.dump({
+            'stage_A': result['stage_A_history'],
+            'stage_B': result['stage_B_history'],
+        }, f, indent=2, default=str)
+ 
+    # --- Summary dataframe ---
+    summary_row = {
+        'model':            vae.name,
+        'n_parameters':     vae.n_parameters(),
+        'd_latent':         Z.shape[1],
+        'n_cases':          N,
+        'n_events':         int(y['event'].sum()),
+        'stage_a_epochs':   len(result['stage_A_history']),
+        'stage_b_epochs':   len(result['stage_B_history']),
+        'elapsed_s':        round(elapsed, 2),
+        'artifact_path':    str(latent_path),
+    }
+    results_df = pd.DataFrame([summary_row])
+    results_df.to_csv(run_dir / "phase_6_fusion_proc.csv", index=False)
+    log(f"  Summary: {summary_row}")
+ 
+    return results_df
+ 
+ 
+# ============================================================
+# PHASE 7 — TURBOLATENT (rotation + PTQ over frozen Z)
+# ============================================================
+ 
+def phase_7_turbolatent(
+    df_features: pd.DataFrame,
+    df_targets: pd.DataFrame,
+    config: dict,
+    run_dir: Path,
+) -> Optional[pd.DataFrame]:
+    """
+    TurboLatent: apply rotation (Hadamard or SVD variant) + uniform PTQ
+    to the frozen latent Z, measure C-index degradation as a function of bit width.
+ 
+    Resolves Z artifact via artifact discovery precedence — if Phase 6 ran
+    in the current session, uses that; otherwise falls back to explicit
+    path from config, or the most recent prior run's artifact.
+    """
+    phase_cfg = config.get('phase_7_turbolatent', {})
+    if not phase_cfg.get('enabled', False):
+        log("[PHASE 7] DISABLED")
+        return None
+ 
+    log("\n[PHASE 7] TurboLatent (rotation + PTQ on frozen Z)")
+ 
+    from core.registry import get_prognosis_proc
+    from sklearn.model_selection import StratifiedKFold
+ 
+    # --- Resolve Z artifact ---
+    latent_path = resolve_artifact_path(
+        artifact_name='phase_6_latent_z.npz',
+        current_run_dir=run_dir,
+        phase_cfg=phase_cfg,
+        output_base_dir=Path(config['output']['base_dir']),
+    )
+    if latent_path is None:
+        log("[PHASE 7] SKIPPED — no Z artifact found. Run Phase 6 first or "
+            "specify source_artifact_path in the config.")
+        return None
+    log(f"  Z artifact: {latent_path}")
+ 
+    data = np.load(latent_path, allow_pickle=True)
+    Z = data['Z'].astype(np.float32)
+    T = data['T']; E = data['E']
+    N, D = Z.shape
+ 
+    variants = phase_cfg.get('variants', ['hadamard', 'svd'])
+    bit_widths = phase_cfg.get('bit_widths', [8, 6, 4, 3])
+    include_baseline = phase_cfg.get('include_baseline_no_rotation', True)
+ 
+    seeds = config['random']['seeds']
+    n_folds = config['random']['n_folds']
+    prognosis_name = phase_cfg.get(
+        'prognosis_proc', 'prognosis_baseline_linear_cox'
+    )
+ 
+    # --- Rotation helpers (kept local to the runner, mirror turbolatent.py) ---
+    def make_hadamard(d: int) -> np.ndarray:
+        """Block-diagonal Walsh-Hadamard of dimension d (d need not be power of 2)."""
+        def H_pow2(n: int) -> np.ndarray:
+            assert n & (n - 1) == 0
+            H = np.array([[1.0]])
+            while H.shape[0] < n:
+                H = np.block([[H, H], [H, -H]])
+            return H / np.sqrt(n)
+        # Largest power of 2 ≤ d as primary block, remainder as smaller block
+        k = 1
+        while (k << 1) <= d: k <<= 1
+        remainder = d - k
+        if remainder == 0:
+            return H_pow2(d)
+        k2 = 1
+        while (k2 << 1) <= remainder: k2 <<= 1
+        # Block-diag
+        R = np.zeros((d, d), dtype=np.float32)
+        R[:k, :k] = H_pow2(k)
+        if remainder > 0:
+            if remainder == k2:
+                R[k:, k:] = H_pow2(k2)
+            else:
+                # Pad to k2 via identity on the residual
+                R[k:k+k2, k:k+k2] = H_pow2(k2)
+                R[k+k2:, k+k2:] = np.eye(remainder - k2)
+        return R
+ 
+    def make_svd_rotation(Z: np.ndarray) -> np.ndarray:
+        """Data-driven rotation via SVD of the centered Z."""
+        Zc = Z - Z.mean(axis=0, keepdims=True)
+        _, _, Vt = np.linalg.svd(Zc, full_matrices=False)
+        return Vt  # [D, D] orthogonal
+ 
+    def quantize_uniform(x: np.ndarray, bits: int) -> np.ndarray:
+        """Per-dimension min-max uniform PTQ to int + dequantize."""
+        x_min = x.min(axis=0, keepdims=True)
+        x_max = x.max(axis=0, keepdims=True)
+        scale = (x_max - x_min) / max(1, (2 ** bits - 1))
+        scale = np.where(scale > 0, scale, 1.0)
+        q = np.round((x - x_min) / scale)
+        q = np.clip(q, 0, 2 ** bits - 1)
+        return q * scale + x_min
+ 
+    # --- Evaluation harness ---
+    def eval_cox_cv(X: np.ndarray) -> Tuple[float, float]:
+        """Return (mean C-index, std) across seeds × folds."""
+        seed_means = []
+        for s in seeds:
+            skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=s)
+            fold_cis = []
+            for tr_idx, va_idx in skf.split(np.zeros(N), E):
+                X_tr = torch.tensor(X[tr_idx], dtype=torch.float32)
+                X_va = torch.tensor(X[va_idx], dtype=torch.float32)
+                T_tr = torch.tensor(T[tr_idx], dtype=torch.float32)
+                T_va = torch.tensor(T[va_idx], dtype=torch.float32)
+                E_tr = torch.tensor(E[tr_idx], dtype=torch.float32)
+                E_va = torch.tensor(E[va_idx], dtype=torch.float32)
+                model = get_prognosis_proc(prognosis_name, fused_dim=D)
+                res = model.fit(
+                    X_tr, T_tr, E_tr, X_va, T_va, E_va,
+                    epochs=phase_cfg.get('epochs', 200),
+                    patience=phase_cfg.get('patience', 20),
+                    verbose=False,
+                )
+                fold_cis.append(res['best_val_cindex'])
+            seed_means.append(float(np.mean(fold_cis)))
+        return float(np.mean(seed_means)), float(np.std(seed_means))
+ 
+    # --- Run all (variant × bits) combinations ---
+    rows = []
+ 
+    if include_baseline:
+        log("  Baseline: no rotation, FP32")
+        ci_mean, ci_std = eval_cox_cv(Z)
+        rows.append({
+            'variant': 'baseline', 'bits': 'fp32',
+            'cindex_mean': ci_mean, 'cindex_std': ci_std,
+        })
+        log(f"    C-index: {ci_mean:.4f} ± {ci_std:.4f}")
+ 
+    for variant in variants:
+        if variant == 'hadamard':
+            R = make_hadamard(D)
+            Z_rot = Z @ R
+        elif variant == 'svd':
+            R = make_svd_rotation(Z)
+            Z_rot = Z @ R.T  # right-multiply by V^T
+        else:
+            log(f"  Unknown variant: {variant}, skipping")
+            continue
+ 
+        # FP32 rotated (rotation-only, no quantization)
+        ci_mean, ci_std = eval_cox_cv(Z_rot)
+        rows.append({
+            'variant': variant, 'bits': 'fp32_rotated',
+            'cindex_mean': ci_mean, 'cindex_std': ci_std,
+        })
+        log(f"  {variant} FP32-rotated: C-index {ci_mean:.4f} ± {ci_std:.4f}")
+ 
+        for bits in bit_widths:
+            Z_q = quantize_uniform(Z_rot, bits=bits)
+            ci_mean, ci_std = eval_cox_cv(Z_q)
+            rows.append({
+                'variant': variant, 'bits': int(bits),
+                'cindex_mean': ci_mean, 'cindex_std': ci_std,
+            })
+            log(f"  {variant} INT{bits}:     C-index {ci_mean:.4f} ± {ci_std:.4f}")
+ 
+    results_df = pd.DataFrame(rows)
+    results_df.to_csv(run_dir / "phase_7_turbolatent.csv", index=False)
+    return results_df
+ 
+ 
+# ============================================================
+# PHASE 8 — PROGNOSIS-PROC BENCHMARK (Cox vs Weibull on frozen Z)
+# ============================================================
+ 
+def phase_8_prognosis_benchmark(
+    df_features: pd.DataFrame,
+    df_targets: pd.DataFrame,
+    config: dict,
+    run_dir: Path,
+) -> Optional[pd.DataFrame]:
+    """
+    Benchmark multiple PROGNOSIS-PROC implementations on the frozen Z.
+    Default set: linear_cox vs weibull_head. Extend via config 'models' list.
+    """
+    phase_cfg = config.get('phase_8_prognosis_benchmark', {})
+    if not phase_cfg.get('enabled', False):
+        log("[PHASE 8] DISABLED")
+        return None
+ 
+    log("\n[PHASE 8] PROGNOSIS-PROC benchmark")
+ 
+    from core.registry import get_prognosis_proc
+    from sklearn.model_selection import StratifiedKFold
+ 
+    latent_path = resolve_artifact_path(
+        artifact_name='phase_6_latent_z.npz',
+        current_run_dir=run_dir,
+        phase_cfg=phase_cfg,
+        output_base_dir=Path(config['output']['base_dir']),
+    )
+    if latent_path is None:
+        log("[PHASE 8] SKIPPED — no Z artifact found.")
+        return None
+    log(f"  Z artifact: {latent_path}")
+ 
+    data = np.load(latent_path, allow_pickle=True)
+    Z = torch.tensor(data['Z'].astype(np.float32))
+    T = torch.tensor(data['T'].astype(np.float32))
+    E = torch.tensor(data['E'].astype(np.float32))
+    N, D = Z.shape
+ 
+    seeds = config['random']['seeds']
+    n_folds = config['random']['n_folds']
+    epochs = phase_cfg.get('epochs', 200)
+    patience = phase_cfg.get('patience', 20)
+    models_cfg = phase_cfg.get('models', [
+        {'name': 'prognosis_baseline_linear_cox'},
+        {'name': 'prognosis_weibull_head'},
+    ])
+ 
+    rows = []
+    for mcfg in models_cfg:
+        model_name = mcfg['name']
+        model_params = mcfg.get('params', {})
+        seed_means = []
+        for s in seeds:
+            skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=s)
+            fold_cis = []
+            for tr_idx, va_idx in skf.split(np.zeros(N), E.numpy()):
+                model = get_prognosis_proc(
+                    model_name, fused_dim=D, **model_params
+                )
+                res = model.fit(
+                    Z[tr_idx], T[tr_idx], E[tr_idx],
+                    Z[va_idx], T[va_idx], E[va_idx],
+                    epochs=epochs, patience=patience, verbose=False,
+                )
+                fold_cis.append(res['best_val_cindex'])
+            seed_means.append(float(np.mean(fold_cis)))
+            rows.append({
+                'model': model_name, 'seed': int(s),
+                'cindex_mean_folds': float(np.mean(fold_cis)),
+            })
+        m_arr = np.array(seed_means)
+        log(f"  {model_name:35s}  C-index {m_arr.mean():.4f} ± "
+            f"{m_arr.std():.4f}  (median {np.median(m_arr):.4f})")
+ 
+    results_df = pd.DataFrame(rows)
+    results_df.to_csv(run_dir / "phase_8_prognosis_benchmark.csv", index=False)
+    return results_df
+
+
+
+# ============================================================
 # MAIN ENTRY POINT
 # ============================================================
 
@@ -1101,6 +1630,31 @@ def run_experiment(config_input: Union[str, Path, dict] = "experiment_config.yam
     except Exception as e:
         summary['errors'].append({'phase': 5, 'error': str(e)})
         if fail_fast: raise
+
+    try:
+        ph6 = phase_6_fusion_proc(df_features, df_targets, config, run_dir, best_imp)
+        if ph6 is not None:
+            summary['phases']['phase_6'] = ph6.to_dict(orient='records')
+    except Exception as e:
+        summary['errors'].append({'phase': 6, 'error': str(e)})
+        if fail_fast: raise
+ 
+    try:
+        ph7 = phase_7_turbolatent(df_features, df_targets, config, run_dir)
+        if ph7 is not None:
+            summary['phases']['phase_7'] = ph7.to_dict(orient='records')
+    except Exception as e:
+        summary['errors'].append({'phase': 7, 'error': str(e)})
+        if fail_fast: raise
+ 
+    try:
+        ph8 = phase_8_prognosis_benchmark(df_features, df_targets, config, run_dir)
+        if ph8 is not None:
+            summary['phases']['phase_8'] = ph8.to_dict(orient='records')
+    except Exception as e:
+        summary['errors'].append({'phase': 8, 'error': str(e)})
+        if fail_fast: raise
+
 
     #     # --- NUEVO BLOQUE EXPLAINABILITY ---
     # try:

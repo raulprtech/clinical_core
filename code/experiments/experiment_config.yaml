@@ -224,3 +224,84 @@ runtime:
   
   # Maximum allowed runtime per phase in minutes (null = no limit)
   max_phase_minutes: null
+
+# ============================================================
+# PHASE 6 — FUSION-PROC (VAE generative, 2-stage)
+# ============================================================
+phase_6_fusion_proc:
+  enabled: true
+ 
+  fusion_proc: "fusion_vae_generative"
+  tabular_imputation: "auto"   # 'auto' = use Phase 1 winner; else explicit name
+  modalities:
+    - tabular
+    - text
+    - vision
+  modality_dim: 768
+  val_fraction: 0.15
+ 
+  model_params:
+    d_latent: 128
+    hidden_dims: [512, 256]
+    dropout: 0.1
+ 
+  training:
+    stage_a:
+      epochs: 100
+      lr: 1.0e-3
+      patience: 20
+      kl_anneal_epochs: 30
+    stage_b:
+      epochs: 60
+      lr: 3.0e-4
+      patience: 15
+      triplet_margin: 1.0
+      time_similar_window: 180.0
+    loss_weights:
+      alpha_recon: 1.0
+      beta_kl: 0.01
+      delta_contra: 0.5
+    train_with_masking: false
+    modality_dropout_prob: 0.3
+    weight_decay: 1.0e-4
+    batch_size: 64
+ 
+# ============================================================
+# PHASE 7 — TurboLatent (rotation + PTQ over frozen Z)
+# ============================================================
+phase_7_turbolatent:
+  enabled: true
+ 
+  # Resolves Z artifact in this order: current run → explicit path → most recent prior
+  source_artifact_path: null   # optional override (absolute path to .npz)
+ 
+  variants: ['hadamard', 'svd']
+  bit_widths: [8, 6, 4, 3]
+  include_baseline_no_rotation: true
+ 
+  prognosis_proc: "prognosis_baseline_linear_cox"
+  epochs: 200
+  patience: 20
+ 
+# ============================================================
+# PHASE 8 — PROGNOSIS-PROC benchmark (Cox vs Weibull)
+# ============================================================
+phase_8_prognosis_benchmark:
+  enabled: true
+ 
+  source_artifact_path: null
+ 
+  models:
+    - name: "prognosis_baseline_linear_cox"
+      params:
+        lr: 1.0e-3
+        weight_decay: 1.0e-3
+    - name: "prognosis_weibull_head"
+      params:
+        lr: 1.0e-3
+        weight_decay: 1.0e-3
+        init_scale: 1000.0
+        init_shape: 1.0
+ 
+  epochs: 200
+  patience: 20
