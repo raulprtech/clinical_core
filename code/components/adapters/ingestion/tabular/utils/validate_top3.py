@@ -33,7 +33,7 @@ from typing import List, Dict, Optional
 import pandas as pd
 import yaml
 
-sys.path.append(str(Path(__file__).resolve().parent.parent.parent.parent))
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent.parent.parent.parent))
 
 from core.experiment_runner import run_experiment
 
