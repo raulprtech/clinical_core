@@ -230,7 +230,7 @@ runtime:
 # ============================================================
 phase_6_fusion_proc:
   enabled: true
- 
+
   fusion_proc: "fusion_vae_generative"
   tabular_imputation: "auto"   # 'auto' = use Phase 1 winner; else explicit name
   modalities:
@@ -239,24 +239,26 @@ phase_6_fusion_proc:
     - vision
   modality_dim: 768
   val_fraction: 0.15
-  
+
+  # Hold-out split (BUG 5 fix): reserves a clean evaluation set BEFORE any
+  # data-dependent fitting. Imputer, encoder and VAE are fit only on the
+  # remaining 80% train pool.
+  holdout_fraction: 0.20
+
+  # Encoder hyperparameters validated by validate_top3.py (rank #1, 5 seeds).
   encoder_val_fraction: 0.15
-  encoder_params:           # <-- AGREGAR ESTO
+  encoder_params:
     hidden_dim: 64
     lr: 0.01
     weight_decay: 1.0e-5
     epochs: 200
     patience: 10
-  
-  # holdout_fraction lo agregue mi patch con default 0.20, pero lo puedes
-  # explicitar aqui si prefieres declarar la decision:
-  holdout_fraction: 0.20
- 
+
   model_params:
     d_latent: 128
     hidden_dims: [512, 256]
     dropout: 0.1
- 
+
   training:
     stage_a:
       epochs: 100
