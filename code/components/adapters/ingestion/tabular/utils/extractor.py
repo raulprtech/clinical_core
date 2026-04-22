@@ -33,9 +33,15 @@ class TCGAExtractor:
             for source in var_config['sources']:
                 self.tag_lookup[source.lower()] = (var_name, 'feature', var_config)
         
+        # FIX (Apr 2026, BUG 2): for survival_days, store EACH source separately
+        # under a synthetic key so _resolve_survival can apply clinical priority.
         for var_name, var_config in self.config['targets'].items():
             for source in var_config['sources']:
-                self.tag_lookup[source.lower()] = (var_name, 'target', var_config)
+                if var_name == 'survival_days':
+                    # Store under synthetic key 'target__source__<source_name>'
+                    self.tag_lookup[source.lower()] = ('source__' + source.lower(), 'target', var_config)
+                else:
+                    self.tag_lookup[source.lower()] = (var_name, 'target', var_config)
     
     def parse_single_xml(self, filepath: Path) -> Dict:
         """Parse one TCGA BCR XML file into a flat dictionary of extracted values."""
@@ -129,10 +135,19 @@ class TCGAExtractor:
                         return np.nan if val == -1 else float(val)
         
         # Default mapping for categorical_lab type
+        # FIX (Apr 2026, BUG 3): use exact match first, then substring as fallback,
+        # to avoid mismatches like "Low Normal" -> "Low" or "Below Normal" -> "Normal".
         if var_type == 'categorical_lab':
             lab_map = var_config.get('mapping', {})
+            raw_clean = raw_value.lower().strip()
+            # Pass 1: exact match (case- and whitespace-insensitive)
             for key, val in lab_map.items():
-                if key.lower() in raw_value.lower():
+                if key.lower().strip() == raw_clean:
+                    return float(val)
+            # Pass 2: substring match as fallback, longest key first to avoid
+            # "Normal" matching before "Low Normal" or "Below Normal"
+            for key, val in sorted(lab_map.items(), key=lambda kv: -len(kv[0])):
+                if key.lower().strip() in raw_clean:
                     return float(val)
         
         # Fallback: try float
@@ -144,14 +159,20 @@ class TCGAExtractor:
     def _resolve_survival(self, raw_values: dict) -> Tuple[float, int]:
         """
         Resolve survival time and censoring status.
-        CRITICAL: Use days_to_death if patient died, else days_to_last_followup.
+        FIX (Apr 2026, BUG 2): the original implementation took whichever
+        days_to_* tag appeared first in XML iter order, which is NOT necessarily
+        the clinically correct one. This version applies the clinical rule:
+            - vital_status == Dead  -> use days_to_death
+            - vital_status == Alive -> use days_to_last_followup
+        Falls back gracefully if the preferred source is missing.
         """
         vital_raw = raw_values.get('target__vital_status', None)
-        death_days_raw = raw_values.get('target__survival_days', None)
-        
+        days_to_death = raw_values.get('target__source__days_to_death', None)
+        days_to_followup = raw_values.get('target__source__days_to_last_followup', None)
+
         # Determine event indicator
         if vital_raw is not None:
-            vital_lower = vital_raw.lower().strip()
+            vital_lower = str(vital_raw).lower().strip()
             if vital_lower == 'dead':
                 event = 1
             elif vital_lower == 'alive':
@@ -160,19 +181,27 @@ class TCGAExtractor:
                 event = 0  # Default to censored if ambiguous
         else:
             event = 0
-        
-        # Resolve survival time
+
+        # Apply clinical priority based on event
         survival_days = np.nan
-        if death_days_raw is not None:
+        if event == 1:
+            # Dead: prefer days_to_death; fall back to days_to_last_followup if missing
+            preferred = days_to_death if days_to_death is not None else days_to_followup
+        else:
+            # Alive (or unknown): prefer days_to_last_followup
+            preferred = days_to_followup if days_to_followup is not None else days_to_death
+
+        if preferred is not None:
             try:
-                survival_days = float(death_days_raw)
+                survival_days = float(preferred)
             except (ValueError, TypeError):
                 pass
-        
-        # If days_to_death is empty but patient is dead, something is wrong
-        # If patient is alive, survival_days should come from days_to_last_followup
-        # The XML extraction handles this via source priority in config
-        
+
+        # FIX (Apr 2026, BUG 2-bis): drop clinically invalid times (negative or zero
+        # survival_days indicate XML date errors and should be treated as missing).
+        if survival_days is not None and not np.isnan(survival_days) and survival_days <= 0:
+            survival_days = np.nan
+
         return survival_days, event
     
     def extract_cohort(self, xml_dir: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
