@@ -32,12 +32,17 @@ features:
       MALE: 1
       FEMALE: 0
     
-  race:
-    sources:
-      - race
-    type: categorical
-    encoding: onehot
-    categories: ["WHITE", "BLACK OR AFRICAN AMERICAN", "ASIAN", "OTHER"]
+race:
+  sources:
+    - race
+  type: categorical
+  encoding: onehot
+  categories: ["WHITE", "BLACK OR AFRICAN AMERICAN", "ASIAN", "OTHER"]
+  mapping:
+    "WHITE": 0
+    "BLACK OR AFRICAN AMERICAN": 1
+    "ASIAN": 2
+    "OTHER": 3
     
   ethnicity:
     sources:

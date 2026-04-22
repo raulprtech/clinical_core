@@ -43,13 +43,17 @@ features:
       FEMALE: 0
     clinical_relevance: "Male sex associated with higher incidence (3:2 ratio, EAU 2025)"
     
-  race:
-    sources:
-      - race
-    type: categorical
-    encoding: onehot
-    categories: ["WHITE", "BLACK OR AFRICAN AMERICAN", "ASIAN", "OTHER"]
-    clinical_relevance: "Epidemiological covariate; potential confound"
+race:
+  sources:
+    - race
+  type: categorical
+  encoding: onehot
+  categories: ["WHITE", "BLACK OR AFRICAN AMERICAN", "ASIAN", "OTHER"]
+  mapping:
+    "WHITE": 0
+    "BLACK OR AFRICAN AMERICAN": 1
+    "ASIAN": 2
+    "OTHER": 3
     
   ethnicity:
     sources:
