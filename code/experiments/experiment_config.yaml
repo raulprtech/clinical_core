@@ -230,15 +230,19 @@ runtime:
 # ============================================================
 phase_6_fusion_proc:
   enabled: true
- 
-  fusion_proc: "fusion_vae_generative"
-  tabular_imputation: "auto"   # 'auto' = use Phase 1 winner; else explicit name
-  modalities:
-    - tabular
-    - text
-    - vision
-  modality_dim: 768
-  val_fraction: 0.15
+  # ... lo que ya tienes ...
+  
+  encoder_val_fraction: 0.15
+  encoder_params:           # <-- AGREGAR ESTO
+    hidden_dim: 64
+    lr: 0.01
+    weight_decay: 1.0e-5
+    epochs: 200
+    patience: 10
+  
+  # holdout_fraction lo agregue mi patch con default 0.20, pero lo puedes
+  # explicitar aqui si prefieres declarar la decision:
+  holdout_fraction: 0.20
  
   model_params:
     d_latent: 128
