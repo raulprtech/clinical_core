@@ -1591,7 +1591,25 @@ def phase_8_prognosis_benchmark(
     T = torch.tensor(data['T'].astype(np.float32))
     E = torch.tensor(data['E'].astype(np.float32))
     N, D = Z.shape
- 
+
+    # FIX (Apr 2026, BUG 5): load clean train/holdout partition produced by
+    # Phase 6. CV is restricted to the train pool; the held-out set is
+    # evaluated separately as a single clean number per model. Falls back to
+    # legacy behaviour if the artifact predates the fix.
+    if 'train_pool_idx' in data.files and 'holdout_idx' in data.files:
+        train_pool_idx = data['train_pool_idx']
+        holdout_idx = data['holdout_idx']
+        has_clean_partition = True
+        log(f"  Clean partition detected: pool={len(train_pool_idx)} | "
+            f"held-out={len(holdout_idx)}")
+    else:
+        train_pool_idx = np.arange(N)
+        holdout_idx = np.array([], dtype=int)
+        has_clean_partition = False
+        log("  WARN: artifact has no train_pool/holdout split. CV will run on "
+            "ALL cases and held-out C-index will not be reported. "
+            "Re-run Phase 6 to obtain a leakage-free evaluation.")
+
     seeds = config['random']['seeds']
     n_folds = config['random']['n_folds']
     epochs = phase_cfg.get('epochs', 200)
@@ -1600,16 +1618,23 @@ def phase_8_prognosis_benchmark(
         {'name': 'prognosis_baseline_linear_cox'},
         {'name': 'prognosis_weibull_head'},
     ])
- 
+
     rows = []
+    holdout_rows = []
     for mcfg in models_cfg:
         model_name = mcfg['name']
         model_params = mcfg.get('params', {})
+
+        # --- In-pool CV (BUG 5 fix: restricted to train pool only) ---
+        N_pool = len(train_pool_idx)
+        E_pool_np = E.numpy()[train_pool_idx]
         seed_means = []
         for s in seeds:
             skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=s)
             fold_cis = []
-            for tr_idx, va_idx in skf.split(np.zeros(N), E.numpy()):
+            for tr_local, va_local in skf.split(np.zeros(N_pool), E_pool_np):
+                tr_idx = train_pool_idx[tr_local]
+                va_idx = train_pool_idx[va_local]
                 model = get_prognosis_proc(
                     model_name, fused_dim=D, **model_params
                 )
@@ -1623,13 +1648,44 @@ def phase_8_prognosis_benchmark(
             rows.append({
                 'model': model_name, 'seed': int(s),
                 'cindex_mean_folds': float(np.mean(fold_cis)),
+                'evaluation': 'cv_in_pool',
             })
         m_arr = np.array(seed_means)
-        log(f"  {model_name:35s}  C-index {m_arr.mean():.4f} ± "
+        log(f"  {model_name:35s}  in-pool CV: {m_arr.mean():.4f} +/- "
             f"{m_arr.std():.4f}  (median {np.median(m_arr):.4f})")
- 
+
+        # --- Single held-out evaluation per seed (one model trained on full pool,
+        # evaluated on the untouched held-out set) ---
+        if has_clean_partition and len(holdout_idx) > 0:
+            ho_cis = []
+            for s in seeds:
+                torch.manual_seed(int(s))
+                np.random.seed(int(s))
+                model = get_prognosis_proc(
+                    model_name, fused_dim=D, **model_params
+                )
+                # Train on the ENTIRE train pool (no inner CV), single pass.
+                res = model.fit(
+                    Z[train_pool_idx], T[train_pool_idx], E[train_pool_idx],
+                    Z[holdout_idx],     T[holdout_idx],    E[holdout_idx],
+                    epochs=epochs, patience=patience, verbose=False,
+                )
+                ho_cis.append(float(res['best_val_cindex']))
+                holdout_rows.append({
+                    'model': model_name, 'seed': int(s),
+                    'cindex_holdout': float(res['best_val_cindex']),
+                })
+            ho_arr = np.array(ho_cis)
+            log(f"  {model_name:35s}  held-out : {ho_arr.mean():.4f} +/- "
+                f"{ho_arr.std():.4f}  (n_holdout={len(holdout_idx)})")
+
     results_df = pd.DataFrame(rows)
     results_df.to_csv(run_dir / "phase_8_prognosis_benchmark.csv", index=False)
+
+    if holdout_rows:
+        holdout_df = pd.DataFrame(holdout_rows)
+        holdout_df.to_csv(run_dir / "phase_8_prognosis_holdout.csv", index=False)
+
     return results_df
 
 

@@ -58,7 +58,7 @@ random:
 # PHASE 1 — IMPUTATION BENCHMARK
 # ============================================================
 phase_1_imputation:
-  enabled: true
+  enabled: false
   
   # Strategies to evaluate. Each name must exist in registry.IMPUTATION_REGISTRY.
   strategies:
@@ -74,7 +74,7 @@ phase_1_imputation:
 # PHASE 2 — VARIANT COMPARISON
 # ============================================================
 phase_2_variants:
-  enabled: true
+  enabled: false
   
   # Encoder variants to evaluate. Each name must exist in registry.VARIANT_REGISTRY.
   # Add a new variant by registering it in registry.py and adding its name here.
@@ -115,7 +115,7 @@ phase_2_variants:
 # PHASE 2 EXTERNAL — non-compliant SOTA baselines
 # ============================================================
 phase_2_external_baselines:
-  enabled: true
+  enabled: false
   baselines:
     tabpfn_external:
       enabled: true
@@ -133,7 +133,7 @@ phase_2_external_baselines:
 # PHASE 3 — EFFICIENCY BENCHMARK
 # ============================================================
 phase_3_efficiency:
-  enabled: true
+  enabled: false
   
   # Variants to benchmark for latency/memory/FLOPs
   variants:
@@ -147,7 +147,7 @@ phase_3_efficiency:
 # PHASE 4 — STRESS TEST
 # ============================================================
 phase_4_stress:
-  enabled: true
+  enabled: false
   
   # Fraction of values to artificially set to missing (MCAR)
   noise_fraction: 0.20
@@ -173,7 +173,7 @@ phase_4_stress:
 # If text_dir / vision_dir are null, those modalities are disabled
 # automatically and the pipeline falls back to whatever is available.
 phase_5_multimodal:
-  enabled: true
+  enabled: false
   
   # Which modalities to attempt to encode
   modalities:
@@ -229,7 +229,7 @@ runtime:
 # PHASE 6 — FUSION-PROC (VAE generative, 2-stage)
 # ============================================================
 phase_6_fusion_proc:
-  enabled: true
+  enabled: false
 
   fusion_proc: "fusion_vae_generative"
   tabular_imputation: "auto"   # 'auto' = use Phase 1 winner; else explicit name
