@@ -1110,14 +1110,44 @@ def phase_6_fusion_proc(
     X_raw = df_features.loc[valid].copy()
     y = df_targets.loc[valid].copy()
     case_ids = np.array(X_raw.index.tolist())
+    N = len(X_raw)
+ 
+    # --- FIX (Apr 2026, BUG 5): Hold-out split BEFORE any data-dependent
+    # fitting, to provide a clean evaluation set for Phase 7 and remove
+    # downstream imputation leakage between train pool and test set.
+    # The split is stratified by event and seed-controlled.
+    holdout_frac = phase_cfg.get('holdout_fraction', 0.20)
+    pool_idx, holdout_idx = train_test_split(
+        np.arange(N),
+        test_size=holdout_frac,
+        random_state=seed,
+        stratify=y['event'].values,
+    )
+    log(f"  Hold-out split: train pool = {len(pool_idx)} | held-out = {len(holdout_idx)}")
+    log(f"  Events in pool: {int(y['event'].iloc[pool_idx].sum())} | "
+        f"events in held-out: {int(y['event'].iloc[holdout_idx].sum())}")
+ 
+    X_raw_pool = X_raw.iloc[pool_idx]
+    X_raw_holdout = X_raw.iloc[holdout_idx]
  
     # --- Preprocess tabular with best imputation ---
+    # FIX (Apr 2026, BUG 5): fit imputer ONLY on train pool; transform held-out.
     imp_name = phase_cfg.get('tabular_imputation', 'auto')
     if imp_name == 'auto':
         imp_name = best_imputation
     prep = TabularPreprocessor()
-    X_tab, mask, conf_tab = prep.fit_transform(X_raw, get_imputation(imp_name))
-    N = X_tab.shape[0]
+    X_tab_pool, mask_pool, conf_tab_pool = prep.fit_transform(
+        X_raw_pool, get_imputation(imp_name))
+    X_tab_holdout, mask_holdout, conf_tab_holdout = prep.transform(X_raw_holdout)
+ 
+    # Reassemble in original order so downstream code can index by [0..N-1]
+    # but preserves train-pool-only fit semantics.
+    X_tab = pd.concat([X_tab_pool, X_tab_holdout]).iloc[
+        np.argsort(np.concatenate([pool_idx, holdout_idx]))
+    ]
+    mask = pd.concat([mask_pool, mask_holdout]).iloc[
+        np.argsort(np.concatenate([pool_idx, holdout_idx]))
+    ]
  
     log(f"  Cases: {N}  (events: {int(y['event'].sum())})")
     log(f"  Imputation: {imp_name}")
@@ -1136,12 +1166,18 @@ def phase_6_fusion_proc(
         log(f"  Training linear_compact embedder ({X_tab.shape[1]} → "
             f"{modality_dim}) on {N} cases...")
  
-        enc_train_idx, enc_val_idx = train_test_split(
-            np.arange(N),
+        # FIX (Apr 2026, BUG 5): encoder train/val split is taken FROM the
+        # train pool only -- the held-out set never participates in encoder
+        # training or its loss-driven Cox supervision.
+        pool_local = pool_idx
+        enc_train_local, enc_val_local = train_test_split(
+            np.arange(len(pool_local)),
             test_size=phase_cfg.get('encoder_val_fraction', 0.15),
             random_state=seed,
-            stratify=y['event'].values,
+            stratify=y['event'].iloc[pool_local].values,
         )
+        enc_train_idx = pool_local[enc_train_local]
+        enc_val_idx   = pool_local[enc_val_local]
  
         X_tab_t = torch.tensor(X_tab.values, dtype=torch.float32)
         M_tab_t = _build_mask_aligned(mask, X_tab)
@@ -1192,12 +1228,18 @@ def phase_6_fusion_proc(
     E = torch.tensor(y['event'].values, dtype=torch.float32)
  
     # --- Train/val split for the VAE (separate from the encoder split) ---
+    # FIX (Apr 2026, BUG 5): the VAE train/val split is taken from the train
+    # pool only -- held-out cases never see the VAE's gradient updates.
     val_frac = phase_cfg.get('val_fraction', 0.15)
-    idx_tr, idx_va = train_test_split(
-        np.arange(N), test_size=val_frac, random_state=seed,
-        stratify=E.numpy(),
+    pool_local_v = pool_idx
+    idx_tr_local, idx_va_local = train_test_split(
+        np.arange(len(pool_local_v)), test_size=val_frac, random_state=seed,
+        stratify=E.numpy()[pool_local_v],
     )
-    log(f"  VAE train/val: {len(idx_tr)}/{len(idx_va)}")
+    idx_tr = pool_local_v[idx_tr_local]
+    idx_va = pool_local_v[idx_va_local]
+    log(f"  VAE train/val (within train pool): {len(idx_tr)}/{len(idx_va)}")
+    log(f"  Held-out cases excluded from VAE training: {len(holdout_idx)}")
  
     # --- Instantiate VAE via registry ---
     model_params = phase_cfg.get('model_params', {})
@@ -1258,6 +1300,10 @@ def phase_6_fusion_proc(
     conf_full = conf_full.cpu().numpy()
  
     # --- Persist artifact ---
+    # FIX (Apr 2026, BUG 5): persist BOTH the train-pool/held-out partition
+    # used for clean evaluation AND the inner train/val split used for
+    # VAE training. Phase 7 must consume train_pool_idx for CV and
+    # holdout_idx for the single clean held-out evaluation.
     artifacts_dir = get_artifacts_dir(run_dir)
     latent_path = artifacts_dir / "phase_6_latent_z.npz"
     np.savez(
@@ -1265,9 +1311,14 @@ def phase_6_fusion_proc(
         Z=Z, conf=conf_full,
         T=T.numpy(), E=E.numpy(),
         case_ids=case_ids,
+        train_pool_idx=pool_idx,
+        holdout_idx=holdout_idx,
+        vae_train_idx=idx_tr,
+        vae_val_idx=idx_va,
         train_idx=idx_tr, val_idx=idx_va,
     )
     log(f"  Latent Z saved: {latent_path}  (shape: {Z.shape})")
+    log(f"  Train pool: {len(pool_idx)} cases | Held-out: {len(holdout_idx)} cases")
  
     # --- Persist checkpoint + history ---
     ckpt_path = artifacts_dir / "phase_6_vae_checkpoint.pt"
@@ -1349,6 +1400,24 @@ def phase_7_turbolatent(
     Z = data['Z'].astype(np.float32)
     T = data['T']; E = data['E']
     N, D = Z.shape
+
+    # FIX (Apr 2026, BUG 5): load clean train/holdout partition for
+    # leakage-free CV and held-out evaluation. Falls back to legacy
+    # behaviour (CV over all N, no held-out report) if the artifact
+    # was produced by a pre-fix runner.
+    if 'train_pool_idx' in data.files and 'holdout_idx' in data.files:
+        train_pool_idx = data['train_pool_idx']
+        holdout_idx = data['holdout_idx']
+        has_clean_partition = True
+        log(f"  Clean partition detected: pool={len(train_pool_idx)} | "
+            f"held-out={len(holdout_idx)}")
+    else:
+        train_pool_idx = np.arange(N)
+        holdout_idx = np.array([], dtype=int)
+        has_clean_partition = False
+        log("  WARN: artifact has no train_pool/holdout split. CV will run on "
+            "ALL cases and held-out C-index will not be reported. "
+            "Re-run Phase 6 to obtain a leakage-free evaluation.")
  
     variants = phase_cfg.get('variants', ['hadamard', 'svd'])
     bit_widths = phase_cfg.get('bit_widths', [8, 6, 4, 3])
@@ -1407,12 +1476,19 @@ def phase_7_turbolatent(
  
     # --- Evaluation harness ---
     def eval_cox_cv(X: np.ndarray) -> Tuple[float, float]:
-        """Return (mean C-index, std) across seeds × folds."""
+        """Return (mean C-index, std) across seeds x folds.
+        FIX (Apr 2026, BUG 5): CV is restricted to the train pool. The held-out
+        set is evaluated separately by eval_cox_holdout below.
+        """
+        N_pool = len(train_pool_idx)
+        E_pool = E[train_pool_idx]
         seed_means = []
         for s in seeds:
             skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=s)
             fold_cis = []
-            for tr_idx, va_idx in skf.split(np.zeros(N), E):
+            for tr_local, va_local in skf.split(np.zeros(N_pool), E_pool):
+                tr_idx = train_pool_idx[tr_local]
+                va_idx = train_pool_idx[va_local]
                 X_tr = torch.tensor(X[tr_idx], dtype=torch.float32)
                 X_va = torch.tensor(X[va_idx], dtype=torch.float32)
                 T_tr = torch.tensor(T[tr_idx], dtype=torch.float32)
