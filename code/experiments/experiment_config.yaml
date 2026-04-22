@@ -26,7 +26,7 @@ data:
   xml_dir: "/home/raulprtech/clinical_core/data/raw/clinicalsupplement"
   
   # Feature/target schema (tabular_mapping.yaml)
-  feature_config: "../components/adapters/ingestion/tabular/configs/tabular_mapping.yaml"
+  feature_config: "../components/adapters/ingestion/tabular/configs/tabular_mapping_no_leakage.yaml"
   
   # Optional: drug treatment TXT for future use (not used in this run)
   drug_file: null
