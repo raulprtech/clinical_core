@@ -1,0 +1,102 @@
+# ============================================================
+# CLINICAL-CORE / TABULAR-CONN — DIRECTED ABLATION: 19 + ECOG_SCORE
+# ============================================================
+# Purpose: identify if `ecog_score` is the primary driver of the historical
+# inflated C-index (~0.81) reported in v3 before the anti-leakage protocol.
+#
+# Why ecog_score in particular:
+# Mahootiha's ranking placed ecog_score at rank 9.5 of 22 (top half, but
+# not top quartile), while karnofsky_score and tumor_status ranked 13.5
+# and 16 respectively. Of the three excluded leakage variables, ecog_score
+# is the only one with non-trivial Spearman correlation (0.138) with
+# survival_time. Hence it is the most plausible single driver of the
+# inflated number.
+#
+# Comparison protocol — identical to the prior diagnostic runs:
+#   • Same imputation (knn_5)
+#   • Same seeds [42, 123] × 5 folds
+#   • Same three variants for direct comparison
+#
+# Reference numbers (19 features anti-leakage, from prior run wd=0):
+#   cox_baseline:    0.7960 ± 0.027
+#   ft_transformer:  0.7827 ± 0.038
+#   linear_compact:  0.7713 ± 0.040
+#
+# Decision rule (ex-ante):
+#   • cox_baseline ≥ 0.81 → ecog confirmed as PRIMARY driver of inflation.
+#     Conclude experiment, no need to test karnofsky/tumor individually.
+#   • cox_baseline ∈ [0.80, 0.81) → ecog is A driver but not the sole one.
+#     Run 19+karnofsky and 19+tumor next to identify additional sources.
+#   • cox_baseline < 0.80 → ecog is innocuous. The 0.81 historical came
+#     from a different cause (bug, protocol drift). Move on.
+# ============================================================
+
+experiment:
+  name: "directed_ablation_19_plus_ecog"
+  description: "Add ecog_score back to the 19 anti-leakage features and re-evaluate. Tests the hypothesis that ecog (rank 9.5 in Mahootiha ranking) was the primary driver of the v3 inflated C-index. cox_baseline / linear_compact / ft_transformer evaluated under identical CV protocol."
+  author: "Raul Pacheco"
+  protocol_version: "v8"
+
+data:
+  xml_dir: "/home/raulprtech/clinical_core/data/raw/clinicalsupplement"
+  # IMPORTANT: path to the ablation manifest. Place it next to the existing
+  # tabular_mapping_no_leakage.yaml in the same configs/ directory.
+  feature_config: "../configs/tabular_mapping_19_plus_ecog.yaml"
+  drug_file: null
+
+output:
+  base_dir: "/home/raulprtech/clinical_core/results"
+  save_raw_extraction: true
+  save_resolved_config: true
+  save_training_curves: true
+
+random:
+  seeds: [42, 123]
+  n_folds: 5
+
+phase_1_imputation:
+  enabled: false   # already characterized; reuse knn_5
+
+phase_2_variants:
+  enabled: true
+  variants:
+    - cox_baseline
+    - linear_compact
+    - ft_transformer
+  output_dim: 768
+
+  variant_params:
+
+    linear_compact:
+      hidden_dim: 128
+      epochs: 200
+      lr: 0.001
+      patience: 20
+      weight_decay: 0.0001
+
+    ft_transformer:
+      d_token: 192
+      n_blocks: 3
+      n_heads: 8
+      dropout: 0.1
+      epochs: 200
+      lr: 0.0001
+      patience: 20
+      weight_decay: 0.00001
+
+  imputation_for_variants: "knn_5"
+  imputation_for_baseline: "mean_median"
+
+phase_3_efficiency:
+  enabled: false
+
+phase_4_stress:
+  enabled: false
+
+phase_5_multimodal:
+  enabled: false
+
+runtime:
+  verbosity: "normal"
+  fail_fast: false
+  max_phase_minutes: null

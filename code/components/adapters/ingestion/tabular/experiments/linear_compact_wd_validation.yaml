@@ -1,0 +1,130 @@
+# ============================================================
+# CLINICAL-CORE / TABULAR-CONN — LINEAR_COMPACT WEIGHT-DECAY VALIDATION
+# ============================================================
+# Purpose: validate the hypothesis that the `weight_decay` bug-fix
+# (which now correctly propagates wd=1e-4 to linear_compact) is what
+# caused linear_compact to drop from 0.81 → 0.77.
+#
+# Test design:
+#   • Same protocol, same manifest (anti-leakage 19 features), same imputation,
+#     same seeds and folds as the prior diagnostic run.
+#   • ONLY change: linear_compact.weight_decay = 0 (was 1e-4).
+#   • cox_baseline and ft_transformer included as REGRESSION CONTROLS:
+#     their numbers should be unchanged (cox doesn't use wd, ft already had
+#     its own wd=1e-5). If their numbers drift, something else changed and
+#     we have to investigate.
+#
+# Decision rule (write ex-ante):
+#   • If linear_compact_wd0 ≥ 0.80 (±SD): hypothesis CONFIRMED. The bug-fix
+#     was the cause. We then have to decide if 0.81 (no wd, possibly mildly
+#     overfit) or 0.77 (wd=1e-4, possibly over-regularized) is the honest
+#     number. Recommend grid search wd ∈ {0, 1e-5, 5e-5, 1e-4} to find the
+#     sweet spot.
+#   • If linear_compact_wd0 stays around 0.77: hypothesis REJECTED.
+#     Something else changed (preprocessing, imputation, training loop,
+#     contract). We dig.
+#
+# Expected runtime: ~10-15 min (Phase 2 only, 5 folds × 2 seeds).
+# ============================================================
+
+experiment:
+  name: "linear_compact_wd_validation"
+  description: "Isolate the effect of weight_decay propagation bug-fix on linear_compact. Same protocol as ft_transformer_full_vs_linear_compact_anti_leakage; only change is linear_compact.weight_decay = 0. cox_baseline and ft_transformer act as regression controls."
+  author: "Raul Pacheco"
+  protocol_version: "v8"
+
+# ============================================================
+# DATA SOURCES — same anti-leakage manifest as prior run
+# ============================================================
+data:
+  xml_dir: "/home/raulprtech/clinical_core/data/raw/clinicalsupplement"
+  feature_config: "../configs/tabular_mapping_no_leakage.yaml"
+  drug_file: null
+
+# ============================================================
+# OUTPUT
+# ============================================================
+output:
+  base_dir: "/home/raulprtech/clinical_core/results"
+  save_raw_extraction: true
+  save_resolved_config: true
+  save_training_curves: true
+
+# ============================================================
+# REPRODUCIBILITY — identical seeds/folds to the prior run
+# ============================================================
+random:
+  seeds: [42, 123]
+  n_folds: 5
+
+# ============================================================
+# PHASE 1 — DISABLED (imputation already characterized; reuse knn_5)
+# ============================================================
+phase_1_imputation:
+  enabled: false
+
+# ============================================================
+# PHASE 2 — VARIANT COMPARISON (the only phase that matters here)
+# ============================================================
+phase_2_variants:
+  enabled: true
+  variants:
+    - cox_baseline      # regression control: should match prior run
+    - linear_compact    # the variant under test
+    - ft_transformer    # regression control: should match prior run
+  output_dim: 768
+
+  variant_params:
+
+    # ---- THE ONE CHANGE: weight_decay = 0 (was 0.0001) -------------------
+    linear_compact:
+      hidden_dim: 128
+      epochs: 200
+      lr: 0.001
+      patience: 20
+      weight_decay: 0.0       # ← bug-fix isolation test
+      # Note: previously the YAML said weight_decay=0.0001 but the runner
+      # was not propagating it. After the patch, wd is applied. Setting to
+      # 0 here recreates the OLD effective behavior, so we can verify whether
+      # 0.81 (no wd) vs 0.77 (wd=1e-4) is a real regularization effect or
+      # an unrelated drift.
+
+    # ---- ft_transformer (unchanged from prior run, regression control) ---
+    ft_transformer:
+      d_token: 192
+      n_blocks: 3
+      n_heads: 8
+      dropout: 0.1
+      epochs: 200
+      lr: 0.0001
+      patience: 20
+      weight_decay: 0.00001
+
+  imputation_for_variants: "knn_5"
+  imputation_for_baseline: "mean_median"
+
+# ============================================================
+# PHASE 3 — DISABLED (efficiency unchanged by weight_decay)
+# ============================================================
+phase_3_efficiency:
+  enabled: false
+
+# ============================================================
+# PHASE 4 — DISABLED
+# ============================================================
+phase_4_stress:
+  enabled: false
+
+# ============================================================
+# PHASE 5 — DISABLED (not testing fusion here)
+# ============================================================
+phase_5_multimodal:
+  enabled: false
+
+# ============================================================
+# RUNTIME CONTROLS
+# ============================================================
+runtime:
+  verbosity: "normal"
+  fail_fast: false
+  max_phase_minutes: null
