@@ -1,0 +1,92 @@
+{
+  "environment": {
+    "run_id": "20260422_184745",
+    "timestamp": "2026-04-22T18:47:45.641455",
+    "python": "3.12.3",
+    "platform": "Linux-5.15.153.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "numpy": "2.4.4",
+    "pandas": "2.3.3",
+    "scikit_learn": "1.6.1",
+    "lifelines": "0.30.3",
+    "args": {
+      "features": "/home/raulprtech/clinical_core/results/20260422_174513_5dbfc227/raw_features.csv",
+      "targets": "/home/raulprtech/clinical_core/results/20260422_174513_5dbfc227/raw_targets.csv",
+      "penalizer": 0.5,
+      "seeds": [
+        42,
+        123,
+        456,
+        789,
+        1024
+      ]
+    }
+  },
+  "cohort": {
+    "n_cases": 444,
+    "n_events": 139,
+    "censoring_rate": 0.6869369369369369,
+    "median_followup_days": 952.5,
+    "n_features_input": 19,
+    "feature_names": [
+      "age",
+      "gender",
+      "race",
+      "ethnicity",
+      "pathologic_stage",
+      "pathologic_T",
+      "pathologic_N",
+      "pathologic_M",
+      "histologic_grade",
+      "laterality",
+      "hemoglobin",
+      "serum_calcium",
+      "ldh",
+      "platelet_count",
+      "white_cell_count",
+      "erythrocyte_sedimentation_rate",
+      "neoadjuvant_treatment",
+      "lymph_nodes_examined",
+      "other_malignancy"
+    ]
+  },
+  "results": {
+    "cv_in_pool": {
+      "seed_means": [
+        0.8083377550571805,
+        0.803726989189746,
+        0.8053718373094412,
+        0.8028066130705895,
+        0.7973142506737713
+      ],
+      "aggregate_mean": 0.8035114890601458,
+      "aggregate_std": 0.003624990845970641,
+      "aggregate_median": 0.803726989189746
+    },
+    "holdout": {
+      "train_seed_cis": [
+        0.8173743116006396,
+        0.8323419744318182,
+        0.8175067506750675,
+        0.8201999476119793,
+        0.8047047970479705
+      ],
+      "holdout_seed_cis": [
+        0.8013595166163142,
+        0.7565938206480783,
+        0.7955523672883787,
+        0.8080065359477124,
+        0.8899082568807339
+      ],
+      "train_mean": 0.818425556273495,
+      "holdout_mean": 0.8102840994762435,
+      "holdout_std": 0.043645187343225825,
+      "holdout_median": 0.8013595166163142,
+      "gap_train_holdout": 0.008141456797251534
+    },
+    "pipeline_reference_for_comparison": {
+      "cv_in_pool": 0.8631,
+      "holdout": 0.6801,
+      "source": "phase_8_prognosis run 20260422_174513_5dbfc227"
+    }
+  }
+}

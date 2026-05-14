@@ -1,0 +1,178 @@
+# ============================================================
+# CLINICAL-CORE / TABULAR-CONN — FT-TRANSFORMER DIAGNOSTIC (FULL CONFIG)
+# ============================================================
+# Purpose: diagnose whether FT-Transformer is genuinely underperforming
+# `linear_compact` (0.8090) on RENAL-CORE tabular, or whether prior runs
+# were artifacts of an undertrained smoke configuration.
+#
+# Prior context (smoke test, results_test/20260416_154902_a7c4290b/):
+#   ft_transformer 0.7798 ± 0.0078  with d_token=32, n_blocks=1, epochs=5
+#   That configuration is NOT a valid evaluation of FT-Transformer:
+#     - d_token=32 (paper default: 192)
+#     - n_blocks=1 (paper default: 3)
+#     - epochs=5  (insufficient)
+#     - 1 seed, 2 folds (no statistical power)
+#
+# This config uses the official Gorishniy et al. 2021 (NeurIPS) defaults
+# and the same training protocol as `linear_compact` for fair comparison.
+#
+# Comparison axis (held-fixed):
+#   • Feature set: 19 anti-leakage features (tabular_mapping_no_leakage.yaml)
+#   • Loss: Cox partial likelihood
+#   • Imputation: knn_5 (best from prior Phase 1)
+#   • CV: 5 folds × 2 seeds (10 total runs per variant)
+#
+# Decision rule (write down BEFORE running, to avoid post-hoc reasoning):
+#   • If ft_transformer ≥ linear_compact - 0.01 (within ~1 SE):
+#       → Attention adds no value here; pick linear_compact (Pareto-optimal).
+#   • If ft_transformer < linear_compact - 0.02:
+#       → Check train/val curves. If train_loss << val_loss → overfitting.
+#         Apply regularization grid (dropout, weight_decay, depth) before
+#         declaring failure.
+#   • If train ≈ val and ft_transformer still loses:
+#       → Document as methodological finding: attention does not improve
+#         tabular prognosis on N<500 ccRCC cohorts.
+#
+# Expected runtime: 1-2 h CPU / ~20 min single GPU.
+# ============================================================
+
+experiment:
+  name: "ft_transformer_full_vs_linear_compact_anti_leakage"
+  description: "Honest evaluation of FT-Transformer (Gorishniy 2021 defaults) against linear_compact and cox_baseline on the 19-feature anti-leakage manifest. Replaces the prior smoke-test result (0.7798 with d_token=32, n_blocks=1, epochs=5). Same imputation, loss, and CV protocol as the ablation_anti_leakage run for direct comparability."
+  author: "Raul Pacheco"
+  protocol_version: "v8"
+
+# ============================================================
+# DATA SOURCES — anti-leakage manifest (19 features)
+# ============================================================
+data:
+  xml_dir: "/home/raulprtech/tesis/clinical_core/data/raw/clinicalsupplement"
+  feature_config: "../components/adapters/ingestion/tabular/configs/tabular_mapping_no_leakage.yaml"
+  drug_file: null
+
+# ============================================================
+# OUTPUT DESTINATION
+# ============================================================
+output:
+  base_dir: "/home/raulprtech/tesis/clinical_core/results"
+  save_raw_extraction: true
+  save_resolved_config: true
+  # CRITICAL: enable per-epoch loss logging so we can plot train/val curves
+  # and diagnose overfitting honestly.
+  save_training_curves: true
+
+# ============================================================
+# REPRODUCIBILITY — same as ablation_anti_leakage for comparability
+# ============================================================
+random:
+  seeds: [42, 123]
+  n_folds: 5
+
+# ============================================================
+# PHASE 1 — IMPUTATION BENCHMARK (ENABLED, same as ablation_anti_leakage)
+# ============================================================
+phase_1_imputation:
+  enabled: true
+  strategies:
+    - mean_median
+    - knn_5
+    - knn_10
+    - mice
+  cox_penalizer: 0.1
+
+# ============================================================
+# PHASE 2 — VARIANT COMPARISON
+# Three variants under identical CV / loss / imputation conditions.
+# ============================================================
+phase_2_variants:
+  enabled: true
+  variants:
+    - cox_baseline
+    - linear_compact
+    - ft_transformer
+  output_dim: 768
+
+  variant_params:
+
+    # ---- linear_compact (unchanged from ablation_anti_leakage baseline) ----
+    linear_compact:
+      hidden_dim: 128
+      epochs: 200
+      lr: 0.001
+      patience: 20
+      weight_decay: 0.0001
+
+    # ---- ft_transformer (Gorishniy et al. 2021 NeurIPS defaults) -----------
+    # Architectural hyperparameters (paper Section 3.1 + Table 12):
+    #   d_token = 192, n_blocks = 3, n_heads = 8, dropout = 0.1
+    #   d_ff implicitly = d_token * 4 = 768  (set by the encoder factory)
+    # Training hyperparameters (paper Section 4.1 Appendix):
+    #   AdamW, lr = 1e-4, weight_decay = 1e-5
+    # Patience = 20 to match linear_compact's early-stopping budget.
+    ft_transformer:
+      # Architecture
+      d_token: 192
+      n_blocks: 3
+      n_heads: 8
+      dropout: 0.1
+      # Training
+      epochs: 200
+      lr: 0.0001          # 1e-4 — transformers are sensitive to higher LRs
+      patience: 20
+      weight_decay: 0.00001  # 1e-5 per Gorishniy 2021
+      optimizer: "adamw"     # ignored if runner doesn't read it; harmless
+
+  imputation_for_variants: "knn_5"     # fix imputation across variants
+  imputation_for_baseline: "mean_median"
+
+# ============================================================
+# PHASE 3 — EFFICIENCY BENCHMARK (ENABLED, optional but cheap)
+# Confirms parameter count and inference latency for ft_transformer vs
+# linear_compact — feeds the Pareto-optimal argument directly.
+# ============================================================
+phase_3_efficiency:
+  enabled: true
+  variants:
+    - cox_baseline
+    - linear_compact
+    - ft_transformer
+  n_warmup: 10
+  n_runs: 100
+
+# ============================================================
+# PHASE 4 — STRESS TEST (DISABLED, not relevant for this diagnostic)
+# ============================================================
+phase_4_stress:
+  enabled: false
+  noise_fraction: 0.20
+  outlier_fraction: 0.05
+  seeds: [42, 123]
+
+# ============================================================
+# PHASE 5 — MULTIMODAL BASELINE (TABULAR ONLY)
+# ============================================================
+phase_5_multimodal:
+  enabled: true
+  modalities:
+    - tabular
+  modality_dim: 768
+  text_conn: "text_baseline_docling_clinicalbert"
+  vision_conn: "vision_baseline_stunet_radiomics"
+  fusion_proc: "fusion_baseline_concat"
+  prognosis_proc: "prognosis_baseline_linear_cox"
+  vision_backend: "mock"
+  tabular_imputation: "knn_5"
+  text_dir: null
+  vision_dir: null
+  ablations:
+    - [tabular]
+  prognosis_epochs: 200
+  prognosis_patience: 20
+
+# ============================================================
+# RUNTIME CONTROLS
+# ============================================================
+runtime:
+  verbosity: "normal"
+  fail_fast: false
+  max_phase_minutes: null
