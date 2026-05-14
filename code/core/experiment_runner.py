@@ -364,6 +364,12 @@ def phase_2_variants(
                     mask_tr=mask_tr_a, mask_va=mask_va_a,
                     conf_tr=conf_tr_a, conf_va=conf_va_use,
                     median_surv=median_surv,
+                    curves_ctx={                              # NEW
+                        'run_dir': run_dir,
+                        'seed': seed,
+                        'fold': fold_idx,
+                        'variant_name': variant_name,
+                    },
                 )
                 
                 rows.append({
@@ -392,27 +398,63 @@ def phase_2_variants(
     
     return df_results
 
+def _maybe_dump_curves(result: dict, curves_ctx: Optional[dict]) -> None:
+    """
+    If curves_ctx is provided with all required keys, dump the per-epoch
+    training and validation losses to a JSON file under
+    `<run_dir>/training_curves/seed{seed}_fold{fold}_{variant}.json`.
+
+    The dump is a no-op if curves_ctx is None or any required key is missing,
+    so existing call sites that pass `curves_ctx=None` (or omit it) remain
+    fully backward-compatible.
+    """
+    if not curves_ctx:
+        return
+    required = {'run_dir', 'seed', 'fold', 'variant_name'}
+    if not required.issubset(curves_ctx.keys()):
+        return
+    import json
+    out_dir = Path(curves_ctx['run_dir']) / 'training_curves'
+    out_dir.mkdir(parents=True, exist_ok=True)
+    fname = f"seed{curves_ctx['seed']}_fold{curves_ctx['fold']}_{curves_ctx['variant_name']}.json"
+    payload = {
+        'seed': curves_ctx['seed'],
+        'fold': curves_ctx['fold'],
+        'variant': curves_ctx['variant_name'],
+        'train_loss_history': result.get('train_loss_history', []),
+        'val_loss_history': result.get('val_loss_history', []),
+        'best_epoch': result.get('best_epoch', None),
+        'n_epochs_run': result.get('n_epochs_run', None),
+        'best_val_cindex': result.get('best_val_cindex', None),
+    }
+    with open(out_dir / fname, 'w') as f:
+        json.dump(payload, f, indent=2)
 
 def _evaluate_variant(
     variant_name, input_dim, output_dim, variant_params,
     X_tr, X_va, y_tr, y_va,
     mask_tr, mask_va, conf_tr, conf_va,
     median_surv,
+    curves_ctx: Optional[dict] = None,    # NEW
 ) -> Tuple[float, float, float, bool]:
     """Evaluate a single variant on a single fold. Returns (cindex, ece, brier, contract_ok)."""
     try:
         if variant_name == 'cox_baseline':
             return _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv)
         elif variant_name == 'linear_compact':
-            return _eval_linear_compact(X_tr, X_va, y_tr, y_va, mask_tr, mask_va, conf_va, output_dim, variant_params)
+            return _eval_linear_compact(
+                X_tr, X_va, y_tr, y_va, mask_tr, mask_va, conf_va,
+                output_dim, variant_params,
+                curves_ctx=curves_ctx,        # NEW
+            )
         elif variant_name == 'ft_transformer':
             return _eval_ft_transformer(
                 X_tr, X_va, y_tr, y_va,
                 mask_tr, mask_va, conf_va, output_dim,
                 variant_params.get(variant_name, {}),
+                curves_ctx=curves_ctx,        # NEW
             )
         else:
-            # Generic fallback for future-registered variants
             log(f"    {variant_name}: no evaluator registered, skipping", level="debug")
             return np.nan, np.nan, np.nan, False
     except Exception as e:
@@ -456,13 +498,48 @@ def _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv)
     return ci, ece, bs, contract.get('contract_satisfied', False)
 
 
-def _eval_linear_compact(X_tr, X_va, y_tr, y_va, mask_tr, mask_va, conf_va, output_dim, params):
+def _eval_linear_compact(X_tr, X_va, y_tr, y_va, mask_tr, mask_va, conf_va, output_dim, params,
+                         curves_ctx: Optional[dict] = None):
     encoder = get_variant(
         'linear_compact',
         input_dim=X_tr.shape[1],
         output_dim=output_dim,
         hidden_dim=params.get('hidden_dim', 128),
     )
+
+    X_tr_t = torch.tensor(X_tr.values, dtype=torch.float32)
+    X_va_t = torch.tensor(X_va.values, dtype=torch.float32)
+    M_tr = _build_mask_aligned(mask_tr, X_tr)
+    M_va = _build_mask_aligned(mask_va, X_va)
+    T_tr = torch.tensor(y_tr['survival_days'].values, dtype=torch.float32)
+    E_tr = torch.tensor(y_tr['event'].values, dtype=torch.float32)
+    T_va = torch.tensor(y_va['survival_days'].values, dtype=torch.float32)
+    E_va = torch.tensor(y_va['event'].values, dtype=torch.float32)
+
+    result = train_variant_c(
+        encoder, X_tr_t, M_tr, T_tr, E_tr, X_va_t, M_va, T_va, E_va,
+        epochs=params.get('epochs', 200),
+        lr=params.get('lr', 0.001),
+        patience=params.get('patience', 20),
+        weight_decay=params.get('weight_decay', 0.0001),
+        verbose=False,
+    )
+    ci = result['best_val_cindex']
+
+    # NEW: dump training curves to disk if context provided
+    _maybe_dump_curves(result, curves_ctx)
+
+    encoder.eval()
+    with torch.no_grad():
+        emb, conf_t = encoder(X_va_t, M_va)
+        risk = result['risk_head'](emb).squeeze(-1).numpy()
+    pred_probs = 1 / (1 + np.exp(-risk))
+    pred_probs = np.clip(pred_probs, 0.01, 0.99)
+    ece = expected_calibration_error(pred_probs, y_va['event'].values)
+    bs = brier_score(pred_probs, y_va['event'].values)
+
+    contract = verify_ingestion_contract(emb, conf_t, output_dim, verbose=False)
+    return ci, ece, bs, contract.get('contract_satisfied', False)
     
     X_tr_t = torch.tensor(X_tr.values, dtype=torch.float32)
     X_va_t = torch.tensor(X_va.values, dtype=torch.float32)
@@ -499,37 +576,8 @@ def _eval_ft_transformer(
     X_tr, X_va, y_tr, y_va,
     mask_tr, mask_va, conf_va,
     output_dim, params,
+    curves_ctx: Optional[dict] = None,    # NEW
 ):
-    """
-    Evaluate the FT-Transformer variant on one fold.
-
-    Mirrors _eval_linear_compact in structure so the two encoders are directly
-    comparable: identical training loop, identical loss, identical contract
-    verification. The only thing that changes is the encoder architecture
-    itself (registered under name 'ft_transformer' in the registry).
-
-    Parameters
-    ----------
-    X_tr, X_va : pd.DataFrame
-        Preprocessed training and validation features (advanced-variant
-        imputation, typically KNN k=5).
-    y_tr, y_va : pd.DataFrame
-        Targets with columns ['survival_days', 'event', 'risk_group'].
-    mask_tr, mask_va : pd.DataFrame
-        Missingness masks with `mask__<feature>` columns.
-    conf_va : pd.DataFrame
-        Per-case confidence columns used for the ingestion contract check.
-    output_dim : int
-        Contract-fixed embedding dim (typically 768).
-    params : dict
-        Variant-specific hyperparameters from the YAML.
-
-    Returns
-    -------
-    (cindex, ece, brier_score, contract_satisfied) : tuple
-        Same signature as the other _eval_* helpers in the runner.
-    """
-    # Encoder construction via registry — same pattern as linear_compact
     encoder = get_variant(
         'ft_transformer',
         input_dim=X_tr.shape[1],
@@ -541,7 +589,6 @@ def _eval_ft_transformer(
         dropout=params.get('dropout', 0.1),
     )
 
-    # Tensor conversion — identical to _eval_linear_compact
     X_tr_t = torch.tensor(X_tr.values, dtype=torch.float32)
     X_va_t = torch.tensor(X_va.values, dtype=torch.float32)
     M_tr = _build_mask_aligned(mask_tr, X_tr)
@@ -551,10 +598,6 @@ def _eval_ft_transformer(
     T_va = torch.tensor(y_va['survival_days'].values, dtype=torch.float32)
     E_va = torch.tensor(y_va['event'].values, dtype=torch.float32)
 
-    # Training — Cox partial-likelihood, same as linear_compact for fair
-    # architectural comparison. FT-Transformer benefits from slightly gentler
-    # learning rates than a linear MLP (Gorishniy 2021 reports lr≈3e-4 as
-    # a strong default for transformers of this size on small tabular data).
     result = train_variant_c(
         encoder, X_tr_t, M_tr, T_tr, E_tr,
         X_va_t, M_va, T_va, E_va,
@@ -566,7 +609,9 @@ def _eval_ft_transformer(
     )
     ci = result['best_val_cindex']
 
-    # Calibration & contract verification on validation set — same pattern
+    # NEW: dump training curves to disk if context provided
+    _maybe_dump_curves(result, curves_ctx)
+
     encoder.eval()
     with torch.no_grad():
         emb, conf_t = encoder(X_va_t, M_va)

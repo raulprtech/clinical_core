@@ -46,15 +46,15 @@ experiment:
 # DATA SOURCES — anti-leakage manifest (19 features)
 # ============================================================
 data:
-  xml_dir: "/home/raulprtech/tesis/clinical_core/data/raw/clinicalsupplement"
-  feature_config: "../components/adapters/ingestion/tabular/configs/tabular_mapping_no_leakage.yaml"
+  xml_dir: "/home/raulprtech/clinical_core/data/raw/clinicalsupplement"
+  feature_config: "../configs/tabular_mapping_no_leakage.yaml"
   drug_file: null
 
 # ============================================================
 # OUTPUT DESTINATION
 # ============================================================
 output:
-  base_dir: "/home/raulprtech/tesis/clinical_core/results"
+  base_dir: "/home/raulprtech/clinical_core/results"
   save_raw_extraction: true
   save_resolved_config: true
   # CRITICAL: enable per-epoch loss logging so we can plot train/val curves

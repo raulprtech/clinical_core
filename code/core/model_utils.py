@@ -25,20 +25,38 @@ def cox_partial_likelihood_loss(risk_scores: torch.Tensor, survival_times: torch
     return -uncensored[event_mask].mean()
 
 def train_variant_c(model, X_train, M_train, T_train, E_train, X_val, M_val, T_val, E_val, epochs=200, lr=0.001, patience=20, weight_decay=0.0, verbose=False) -> dict:
+    """
+    Train an encoder + risk head with Cox partial-likelihood loss.
+
+    Returns
+    -------
+    dict with keys:
+        best_val_cindex    : final C-index on validation set (uses best-state weights)
+        risk_head          : trained nn.Linear(output_dim, 1) for downstream prediction
+        train_loss_history : list[float], per-epoch training loss   (NEW)
+        val_loss_history   : list[float], per-epoch validation loss (NEW)
+        best_epoch         : int, epoch with lowest val_loss        (NEW)
+        n_epochs_run       : int, total epochs actually executed    (NEW)
+    """
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     risk_head = nn.Linear(model.output_dim, 1)
     optimizer.add_param_group({'params': risk_head.parameters()})
     best_loss = float('inf'); best_state = None; patience_cnt = 0
+    # NEW: per-epoch loss tracking for overfitting / underfitting diagnostics
+    train_losses = []
+    val_losses = []
     for epoch in range(epochs):
         model.train(); risk_head.train()
         optimizer.zero_grad()
         emb, _ = model(X_train, M_train); risk = risk_head(emb).squeeze(-1)
         loss = cox_partial_likelihood_loss(risk, T_train, E_train)
         loss.backward(); optimizer.step()
+        train_losses.append(float(loss.detach().item()))  # NEW
         model.eval(); risk_head.eval()
         with torch.no_grad():
             emb_v, _ = model(X_val, M_val); risk_v = risk_head(emb_v).squeeze(-1)
             val_loss = cox_partial_likelihood_loss(risk_v, T_val, E_val)
+        val_losses.append(float(val_loss.item()))  # NEW
         if val_loss < best_loss:
             best_loss = val_loss; best_state = model.state_dict(); patience_cnt = 0
         else:
@@ -48,8 +66,17 @@ def train_variant_c(model, X_train, M_train, T_train, E_train, X_val, M_val, T_v
     from lifelines.utils import concordance_index
     with torch.no_grad():
         emb_v, _ = model(X_val, M_val); risk_v = risk_head(emb_v).squeeze(-1).numpy()
-        ci = concordance_index(T_val.numpy(), -risk_v, E_va.numpy()) if 'E_va' in locals() else concordance_index(T_val.numpy(), -risk_v, E_val.numpy())
-    return {"best_val_cindex": ci, "risk_head": risk_head}
+        # Note: removed the dead `'E_va' in locals()` defensive branch (legacy bug).
+        ci = concordance_index(T_val.numpy(), -risk_v, E_val.numpy())
+    best_epoch = int(np.argmin(val_losses)) if val_losses else 0  # NEW
+    return {
+        "best_val_cindex": ci,
+        "risk_head": risk_head,
+        "train_loss_history": train_losses,    # NEW
+        "val_loss_history": val_losses,        # NEW
+        "best_epoch": best_epoch,              # NEW
+        "n_epochs_run": len(train_losses),     # NEW
+    }
 
 def benchmark_efficiency(model, sample_x, sample_m, n_warmup=10, n_runs=100) -> dict:
     model.eval()
