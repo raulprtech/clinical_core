@@ -47,6 +47,7 @@ import pandas as pd
 import torch
 import yaml
 from sklearn.model_selection import StratifiedKFold
+from sklearn.preprocessing import StandardScaler
 from lifelines import CoxPHFitter
 from lifelines.utils import concordance_index
 
@@ -463,36 +464,93 @@ def _evaluate_variant(
 
 
 def _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv):
-    cox_df = X_tr.copy()
-    cox_df['T'] = y_tr['survival_days'].values
-    cox_df['E'] = y_tr['event'].values
-    valid_cols = [c for c in cox_df.columns
-                  if c not in ['T', 'E'] and cox_df[c].std() > 1e-8]
-    cox_df = cox_df[valid_cols + ['T', 'E']].replace(
-        [np.inf, -np.inf], np.nan
-    ).dropna()
-    
-    cph = CoxPHFitter(penalizer=0.1)
-    cph.fit(cox_df, duration_col='T', event_col='E')
-    
-    X_va_cox = X_va[valid_cols].replace([np.inf, -np.inf], np.nan).fillna(0)
-    risk = cph.predict_partial_hazard(X_va_cox).values.ravel()
-    ci = concordance_index(y_va['survival_days'], -risk, y_va['event'])
-    
-    surv_func = cph.predict_survival_function(X_va_cox)
-    pred_probs = (1 - surv_func.loc[median_surv].values
-                  if median_surv in surv_func.index
-                  else np.full(len(X_va_cox), 0.5))
+    """
+    Cox baseline aligned with diagnostic_cox_raw.py protocol.
+ 
+    Pipeline applied per fold:
+      1. Drop columns with >90% missingness in train (high-missing defense).
+      2. Replace +/-inf with NaN; drop train rows with residual NaN
+         (TabularPreprocessor should have imputed these; defensive).
+      3. Drop columns with variance < 1e-8 post-imputation.
+      4. StandardScaler fit on train, applied to val.
+      5. CoxPHFitter with adaptive penalizer (escalates if Newton-Raphson
+         fails to converge).
+    """
+    # ---- 1. Drop high-missing columns based on train fold only ----
+    miss_frac = X_tr.isna().mean(axis=0)
+    keep_cols = miss_frac[miss_frac < 0.90].index.tolist()
+    X_tr_f = X_tr[keep_cols].copy()
+    X_va_f = X_va[keep_cols].copy()
+ 
+    # ---- 2. Sanitize inf/NaN ----
+    X_tr_f = X_tr_f.replace([np.inf, -np.inf], np.nan)
+    X_va_f = X_va_f.replace([np.inf, -np.inf], np.nan)
+ 
+    valid_rows = ~X_tr_f.isna().any(axis=1)
+    X_tr_f = X_tr_f.loc[valid_rows]
+    y_tr_f = y_tr.loc[valid_rows]
+    X_va_f = X_va_f.fillna(0)
+ 
+    # ---- 3. Drop near-constant columns post-imputation ----
+    var_cols = X_tr_f.var(axis=0)
+    keep_var = var_cols[var_cols > 1e-8].index.tolist()
+    X_tr_f = X_tr_f[keep_var]
+    X_va_f = X_va_f[keep_var]
+ 
+    if len(keep_var) == 0:
+        return np.nan, np.nan, np.nan, False
+ 
+    # ---- 4. Standardize: fit on train, transform on val ----
+    sc = StandardScaler()
+    X_tr_s = sc.fit_transform(X_tr_f.values)
+    X_va_s = sc.transform(X_va_f.values)
+ 
+    # ---- 5. Cox with adaptive penalizer ----
+    cox_df_tr = pd.DataFrame(X_tr_s, columns=keep_var)
+    cox_df_tr['T'] = y_tr_f['survival_days'].values
+    cox_df_tr['E'] = y_tr_f['event'].values
+    cox_df_va = pd.DataFrame(X_va_s, columns=keep_var)
+ 
+    cph = None
+    for pen_try in [0.5, 1.0, 5.0, 20.0]:
+        try:
+            cph = CoxPHFitter(penalizer=pen_try, l1_ratio=0.0)
+            cph.fit(
+                cox_df_tr, duration_col='T', event_col='E',
+                show_progress=False,
+            )
+            break
+        except Exception:
+            cph = None
+    if cph is None:
+        return np.nan, np.nan, np.nan, False
+ 
+    # ---- 6. Risk scores and C-index on validation ----
+    risk = cph.predict_partial_hazard(cox_df_va).values.ravel()
+    ci = concordance_index(
+        y_va['survival_days'].values, -risk, y_va['event'].values
+    )
+ 
+    # ---- 7. Calibration metrics (ECE, Brier) on validation ----
+    surv_func = cph.predict_survival_function(cox_df_va)
+    if median_surv in surv_func.index:
+        pred_probs = (1 - surv_func.loc[median_surv]).values
+    else:
+        pred_probs = np.full(len(cox_df_va), 0.5)
     pred_probs = np.clip(pred_probs, 0.01, 0.99)
-    
+ 
+    # Helpers from the existing runner (imported in real file)
+    from core.experiment_runner import expected_calibration_error, brier_score
     ece = expected_calibration_error(pred_probs, y_va['event'].values)
     bs = brier_score(pred_probs, y_va['event'].values)
-    
-    # Contract verification on a sample
+ 
+    # ---- 8. Contract verification (unchanged behavior) ----
+    from core.registry import get_variant
+    from core.model_utils import verify_ingestion_contract
     variant = get_variant('cox_baseline', X_va.shape[1], output_dim)
     emb, conf_t = variant.encode(
         X_va.values.astype(np.float32),
-        conf_va.values.astype(np.float32)
+        conf_va.values.astype(np.float32),
     )
     contract = verify_ingestion_contract(emb, conf_t, output_dim, verbose=False)
     return ci, ece, bs, contract.get('contract_satisfied', False)
