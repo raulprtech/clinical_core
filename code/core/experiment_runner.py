@@ -540,13 +540,10 @@ def _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv)
     pred_probs = np.clip(pred_probs, 0.01, 0.99)
  
     # Helpers from the existing runner (imported in real file)
-    from core.experiment_runner import expected_calibration_error, brier_score
     ece = expected_calibration_error(pred_probs, y_va['event'].values)
     bs = brier_score(pred_probs, y_va['event'].values)
  
     # ---- 8. Contract verification (unchanged behavior) ----
-    from core.registry import get_variant
-    from core.model_utils import verify_ingestion_contract
     variant = get_variant('cox_baseline', X_va.shape[1], output_dim)
     emb, conf_t = variant.encode(
         X_va.values.astype(np.float32),
