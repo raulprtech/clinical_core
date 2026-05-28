@@ -1,0 +1,70 @@
+# ============================================================
+# CLINICAL-CORE — Validar patch cox_baseline aligned
+# ============================================================
+# Corre solo Phase 2 sobre las 19 features anti-leakage con KNN k=5.
+# Expectativa: cox_baseline sube de 0.7981 → ~0.8035 tras el patch
+# (StandardScaler + penalizer adaptativo + l1_ratio=0).
+# linear_compact y ft_transformer deben mantener sus cifras previas.
+# ============================================================
+
+experiment:
+  name: "phase2_validate_cox_aligned"
+  description: "Validate cox_baseline patch alignment with diagnostic_cox_raw protocol."
+  author: "Raul Pacheco"
+  protocol_version: "v8.1"
+
+# >>> IMPORTANTE: copia tu xml_dir REAL de un config previo <<<
+# Suele ser algo como: /home/raulprtech/clinical_core/data/raw/clinicalsupplement
+data:
+  xml_dir: "/home/raulprtech/clinical_core/data/raw/clinicalsupplement"
+  feature_config: "../configs/tabular_mapping_no_leakage.yaml"
+  drug_file: null
+
+output:
+  base_dir: "/home/raulprtech/clinical_core/results"
+  save_raw_extraction: true
+  save_resolved_config: true
+
+random:
+  seeds: [42, 123, 456, 789, 1024]
+  n_folds: 5
+
+# Solo Phase 2 (todas las demás disabled)
+phase_1_imputation:          { enabled: false }
+phase_3_efficiency:          { enabled: false }
+phase_4_stress:              { enabled: false }
+phase_5_multimodal:          { enabled: false }
+phase_6_fusion_proc:         { enabled: false }
+phase_7_turbolatent:         { enabled: false }
+phase_8_prognosis_benchmark: { enabled: false }
+phase_2_external_baselines:  { enabled: false }
+
+phase_2_variants:
+  enabled: true
+  output_dim: 768
+  imputation_for_baseline: "knn_5"     # ← clave: misma imputación que advanced
+  imputation_for_variants: "knn_5"
+  variants:
+    - cox_baseline
+    - linear_compact
+    - ft_transformer
+  variant_params:
+    linear_compact:
+      hidden_dim: 128
+      epochs: 200
+      lr: 0.001
+      patience: 20
+      weight_decay: 0.0001
+    ft_transformer:
+      d_token: 192
+      n_blocks: 3
+      n_heads: 8
+      dropout: 0.1
+      epochs: 200
+      lr: 0.0003
+      patience: 20
+      weight_decay: 0.0001
+
+runtime:
+  verbosity: "normal"
+  fail_fast: false

@@ -1378,7 +1378,9 @@ def phase_6_fusion_proc(
         verbose             = False,
     )
  
-    # --- Train VAE ---
+    # --- Train VAE (on GPU if available; vae.fit reads device from model params) ---
+    vae_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    vae = vae.to(vae_device)
     t0 = time.time()
     result = vae.fit(
         X_train=X_flat[idx_tr],  conf_train=conf[idx_tr],
@@ -1391,7 +1393,10 @@ def phase_6_fusion_proc(
     log(f"  VAE training elapsed: {elapsed:.1f}s  "
         f"(Stage A: {len(result['stage_A_history'])}ep, "
         f"Stage B: {len(result['stage_B_history'])}ep)")
- 
+    # Return VAE to CPU so the downstream extract_latent_space call (which
+    # receives CPU tensors X_flat/conf) does not hit a device mismatch.
+    vae = vae.to('cpu')
+
     # --- Extract frozen Z for full cohort ---
     vae.eval()
     with torch.no_grad():

@@ -38,8 +38,13 @@ def train_variant_c(model, X_train, M_train, T_train, E_train, X_val, M_val, T_v
         best_epoch         : int, epoch with lowest val_loss        (NEW)
         n_epochs_run       : int, total epochs actually executed    (NEW)
     """
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = model.to(device)
+    X_train, M_train, T_train, E_train = X_train.to(device), M_train.to(device), T_train.to(device), E_train.to(device)
+    X_val, M_val, T_val, E_val = X_val.to(device), M_val.to(device), T_val.to(device), E_val.to(device)
+
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-    risk_head = nn.Linear(model.output_dim, 1)
+    risk_head = nn.Linear(model.output_dim, 1).to(device)
     optimizer.add_param_group({'params': risk_head.parameters()})
     best_loss = float('inf'); best_state = None; patience_cnt = 0
     # NEW: per-epoch loss tracking for overfitting / underfitting diagnostics
@@ -65,9 +70,11 @@ def train_variant_c(model, X_train, M_train, T_train, E_train, X_val, M_val, T_v
     if best_state: model.load_state_dict(best_state)
     from lifelines.utils import concordance_index
     with torch.no_grad():
-        emb_v, _ = model(X_val, M_val); risk_v = risk_head(emb_v).squeeze(-1).numpy()
-        # Note: removed the dead `'E_va' in locals()` defensive branch (legacy bug).
-        ci = concordance_index(T_val.numpy(), -risk_v, E_val.numpy())
+        emb_v, _ = model(X_val, M_val); risk_v = risk_head(emb_v).squeeze(-1).cpu().numpy()
+        ci = concordance_index(T_val.cpu().numpy(), -risk_v, E_val.cpu().numpy())
+    # Return model + risk_head on CPU so downstream eval code (which uses CPU
+    # tensors) keeps working without changes.
+    model.to('cpu'); risk_head.to('cpu')
     best_epoch = int(np.argmin(val_losses)) if val_losses else 0  # NEW
     return {
         "best_val_cindex": ci,
