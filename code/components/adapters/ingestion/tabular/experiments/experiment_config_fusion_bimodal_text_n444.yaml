@@ -1,0 +1,118 @@
+# ============================================================
+# CLINICAL-CORE — Bimodal fusion (tabular + REAL text), n=444
+# ============================================================
+# Primera corrida del pipeline con TEXT-IN REAL (Kefeli + Bio_ClinicalBERT
+# off-the-shelf, V1). Phase 6 (Stage A only, decisión §6.3.1) + Phase 7
+# (TurboLatent) + Phase 8 (Cox/Weibull on Z).
+#
+# Modalidades = ["tabular", "text"]. Sin visión todavía (VISION-IN es separado).
+# Esta es la primera medida del lift de TEXT-IN sobre el pipeline unimodal:
+# referencia unimodal linear_compact n=444 = 0.768 ± 0.026.
+# ============================================================
+
+experiment:
+  name: "fusion_bimodal_text_n444"
+  description: "Bimodal tabular + text (Kefeli+ClinicalBERT off-the-shelf) on n=444 cohort, Phase 6 Stage A only."
+  author: "Raul Pacheco"
+  protocol_version: "v8.1"
+
+data:
+  xml_dir: "/home/raulprtech/clinical_core/data/raw/clinicalsupplement"
+  feature_config: "../configs/tabular_mapping_no_leakage.yaml"
+  drug_file: null
+
+output:
+  base_dir: "/home/raulprtech/clinical_core/results"
+  save_raw_extraction: true
+  save_resolved_config: true
+
+random:
+  seed: 42
+  seeds: [42, 123, 456, 789, 1024]
+  n_folds: 5
+
+# Fases unimodales tabulares OFF (ya tenemos esas cifras)
+phase_1_imputation:          { enabled: false }
+phase_2_variants:            { enabled: false }
+phase_2_holdout:             { enabled: false }
+phase_2_external_baselines:  { enabled: false }
+phase_2_external_holdout:    { enabled: false }
+phase_2_mahootiha:           { enabled: false }
+phase_3_efficiency:          { enabled: false }
+phase_4_stress:              { enabled: false }
+phase_5_multimodal:          { enabled: false }
+
+# >>> Bimodal fusion con text embeddings reales <<<
+phase_6_fusion_proc:
+  enabled: true
+
+  modalities: ["tabular", "text"]
+  modality_dim: 768
+
+  # NEW: hooks para caches de embeddings precomputados (V1 TEXT-IN)
+  text_embeddings_cache: "/home/raulprtech/clinical_core/data/embeddings/text_embeddings_TCGA-KIRC_20260528.npz"
+  # vision_embeddings_cache: pendiente VISION-IN
+
+  tabular_imputation: "knn_5"
+  holdout_fraction: 0.20
+  val_fraction: 0.15
+  encoder_val_fraction: 0.15
+
+  encoder_params:
+    hidden_dim: 128
+    epochs: 200
+    lr: 0.001
+    patience: 20
+
+  fusion_proc: "fusion_vae_generative"
+
+  model_params:
+    d_latent: 64
+    hidden_dims: [256, 128]
+    dropout: 0.2
+
+  training:
+    stage_a:
+      epochs: 100
+      lr: 0.001
+      patience: 20
+      kl_anneal_epochs: 30
+
+    stage_b:
+      epochs: 0     # Stage B OUT per §6.3.1 decisión operativa
+      lr: 0.0003
+      patience: 15
+      triplet_margin: 1.0
+      time_similar_window: 180.0
+
+    loss_weights:
+      alpha_recon: 1.0
+      beta_kl: 0.1
+      delta_contra: 0.5
+
+    train_with_masking: false
+    modality_dropout_prob: 0.3
+    weight_decay: 0.0001
+    batch_size: 64
+
+phase_7_turbolatent:
+  enabled: true
+  variants: ["hadamard", "svd"]
+  bit_widths: [8, 6, 4, 3]
+  include_baseline_no_rotation: true
+  prognosis_proc: "prognosis_baseline_linear_cox"
+  epochs: 200
+  patience: 20
+
+phase_8_prognosis_benchmark:
+  enabled: true
+  epochs: 200
+  patience: 20
+  models:
+    - name: "prognosis_baseline_linear_cox"
+    - name: "prognosis_weibull_head"
+
+runtime:
+  verbosity: "normal"
+  fail_fast: false
+  max_phase_minutes: null

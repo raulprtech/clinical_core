@@ -1913,14 +1913,71 @@ def phase_6_fusion_proc(
         log(f"  Tabular embedding produced: shape={tab_emb.shape}  "
             f"range=[{tab_emb.min():.3f}, {tab_emb.max():.3f}]")
  
-    # --- Assemble flat input tensor for the VAE (trimodal with mocks) ---
+    # --- Load optional precomputed text / vision embedding caches ---
+    # These are produced offline by tools/build_text_embeddings.py and (future)
+    # tools/build_vision_embeddings.py. Each .npz must carry three arrays
+    # aligned by case_id: embeddings[M, modality_dim], confidence[M], case_ids[M].
+    # If the cache path is absent or the file is missing, the corresponding
+    # modality stays as zeros with confidence 0 (mock — backward-compatible).
+    def _load_modality_cache(cache_path: Optional[str], mod_label: str):
+        if not cache_path:
+            return None, None
+        p = Path(cache_path)
+        if not p.is_absolute():
+            p = Path.cwd() / p
+        if not p.exists():
+            log(f"  [{mod_label}] cache path configured but file not found: {p} — "
+                f"falling back to zeros.", level="warn")
+            return None, None
+        data = np.load(p, allow_pickle=True)
+        cache_ids = [str(c) for c in data['case_ids']]
+        cache_emb = data['embeddings']
+        cache_conf = data['confidence']
+        if cache_emb.shape[1] != modality_dim:
+            raise ValueError(
+                f"[{mod_label}] cache modality_dim {cache_emb.shape[1]} != configured "
+                f"modality_dim {modality_dim}: {p}"
+            )
+        # Reorder to current cohort case_ids; unknown cases get zeros + conf=0.
+        idx_map = {cid: j for j, cid in enumerate(cache_ids)}
+        aligned_emb = np.zeros((N, modality_dim), dtype=np.float32)
+        aligned_conf = np.zeros(N, dtype=np.float32)
+        n_found = 0
+        for k, cid in enumerate(case_ids):
+            j = idx_map.get(str(cid))
+            if j is not None:
+                aligned_emb[k] = cache_emb[j]
+                aligned_conf[k] = cache_conf[j]
+                if cache_conf[j] > 0:
+                    n_found += 1
+        log(f"  [{mod_label}] cache: {n_found}/{N} cases have data "
+            f"(mean conf when present = "
+            f"{aligned_conf[aligned_conf > 0].mean() if (aligned_conf > 0).any() else 0:.3f})  "
+            f"source={p.name}")
+        return aligned_emb, aligned_conf
+
+    text_emb_aligned, text_conf_aligned = _load_modality_cache(
+        phase_cfg.get('text_embeddings_cache'), 'text'
+    )
+    vision_emb_aligned, vision_conf_aligned = _load_modality_cache(
+        phase_cfg.get('vision_embeddings_cache'), 'vision'
+    )
+
+    # --- Assemble flat input tensor for the VAE ---
     X_flat = torch.zeros(N, modality_dim * n_mod, dtype=torch.float32)
     confs_matrix = np.zeros((N, n_mod), dtype=np.float32)
     for i, mod_name in enumerate(modalities):
+        slot = slice(i * modality_dim, (i + 1) * modality_dim)
         if mod_name == 'tabular':
-            X_flat[:, i * modality_dim:(i + 1) * modality_dim] = torch.tensor(tab_emb)
+            X_flat[:, slot] = torch.tensor(tab_emb)
             confs_matrix[:, i] = 1.0
-        # text/vision remain zeros with confidence 0
+        elif mod_name == 'text' and text_emb_aligned is not None:
+            X_flat[:, slot] = torch.tensor(text_emb_aligned)
+            confs_matrix[:, i] = text_conf_aligned
+        elif mod_name == 'vision' and vision_emb_aligned is not None:
+            X_flat[:, slot] = torch.tensor(vision_emb_aligned)
+            confs_matrix[:, i] = vision_conf_aligned
+        # Otherwise the modality remains zeros with confidence 0 (mock).
  
     conf = torch.tensor(confs_matrix, dtype=torch.float32)
     T = torch.tensor(y['survival_days'].values, dtype=torch.float32)
