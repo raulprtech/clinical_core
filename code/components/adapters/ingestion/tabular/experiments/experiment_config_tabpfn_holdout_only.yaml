@@ -1,0 +1,63 @@
+# ============================================================
+# CLINICAL-CORE / TABULAR-IN — TabPFN external baseline (held-out 80/20)
+# ============================================================
+# Corre TabPFN v8.x sobre el cohort completo (n=444 OS-valid) bajo el mismo
+# protocolo held-out 80/20 que phase_2_holdout. TabPFN NO satisface el contrato
+# CLINICAL-CORE (no produce embedding 768-dim) — entra explícitamente como
+# comparador SOTA tabular no-contractual.
+#
+# PREREQUISITO: TabPFN v8 requiere licencia + token. Antes de correr:
+#   1. Aceptar licencia en https://ux.priorlabs.ai
+#   2. Copiar API key
+#   3. Guardar en ~/.tabpfn_token (un solo line, chmod 600)
+#   4. Exportar: export TABPFN_TOKEN="$(cat ~/.tabpfn_token)"
+#   5. Lanzar: python3 -m core.experiment_runner <este yaml>
+# ============================================================
+
+experiment:
+  name: "tabpfn_holdout_only_n444"
+  description: "TabPFN v8 held-out 80/20 external baseline on full n=444 cohort."
+  author: "Raul Pacheco"
+  protocol_version: "v8.1"
+
+data:
+  xml_dir: "/home/raulprtech/clinical_core/data/raw/clinicalsupplement"
+  feature_config: "../configs/tabular_mapping_no_leakage.yaml"
+  drug_file: null
+
+output:
+  base_dir: "/home/raulprtech/clinical_core/results"
+  save_raw_extraction: true
+  save_resolved_config: true
+
+random:
+  seeds: [42, 123, 456, 789, 1024]
+  n_folds: 5
+
+# All compliant phases off
+phase_1_imputation:          { enabled: false }
+phase_2_variants:            { enabled: false }
+phase_2_holdout:             { enabled: false }
+phase_2_external_baselines:  { enabled: false }
+phase_3_efficiency:          { enabled: false }
+phase_4_stress:              { enabled: false }
+phase_5_multimodal:          { enabled: false }
+phase_6_fusion_proc:         { enabled: false }
+phase_7_turbolatent:         { enabled: false }
+phase_8_prognosis_benchmark: { enabled: false }
+
+# >>> Enabled: external held-out only <<<
+phase_2_external_holdout:
+  enabled: true
+  holdout_fraction: 0.20
+  seeds: [42, 123, 456, 789, 1024]
+  imputation: "knn_5"
+  baselines:
+    - name: tabpfn_external
+      params:
+        device: 'auto'      # auto-detects cuda
+        n_estimators: 4     # default in our wrapper; bigger = slower but typically a little better
+
+runtime:
+  verbosity: "normal"
+  fail_fast: false

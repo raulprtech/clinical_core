@@ -682,6 +682,605 @@ def _eval_ft_transformer(
 
 
 # ============================================================
+# COHORT FILTER — optional global filter applied after extraction
+# ============================================================
+
+def apply_cohort_filter(
+    df_features: pd.DataFrame,
+    df_targets: pd.DataFrame,
+    cohort_cfg: dict,
+    run_dir: Path,
+) -> Tuple[pd.DataFrame, pd.DataFrame, dict]:
+    """
+    Optional cohort filter applied after extraction and before any phase.
+
+    Filters (all optional, applied conjunctively):
+      - require_dfs_valid: keep only cases with df_targets['dfs_valid'] == True
+      - modality_manifest_path + require_modalities: keep only cases where the
+        manifest's has_<modality> flag is True for every requested modality.
+
+    YAML structure:
+      cohort_filter:
+        enabled: true
+        require_dfs_valid: true
+        modality_manifest_path: "data/manifests/gdc_modality_manifest_TCGA-KIRC_20260528.csv"
+        require_modalities: [wsi, mrna_seq, mirna_seq, methylation_450k]
+
+    Returns (df_features_filtered, df_targets_filtered, manifest_summary). Persists
+    `cohort_manifest.json` under run_dir with the full audit trail.
+    """
+    audit = {
+        'n_initial': int(len(df_features)),
+        'filters_applied': [],
+        'n_after_each_filter': [],
+        'dropped_examples': {},
+        'n_final': None,
+        'case_ids_final': [],
+    }
+
+    if not cohort_cfg.get('enabled', False):
+        log("[COHORT FILTER] DISABLED")
+        audit['n_final'] = audit['n_initial']
+        audit['case_ids_final'] = list(df_features.index)
+        return df_features, df_targets, audit
+
+    log(f"\n[COHORT FILTER] Initial n = {audit['n_initial']}")
+
+    keep_mask = pd.Series(True, index=df_features.index)
+
+    # Filter 1: DFS validity
+    if cohort_cfg.get('require_dfs_valid', False):
+        if 'dfs_valid' not in df_targets.columns:
+            raise KeyError(
+                "cohort_filter.require_dfs_valid=True but df_targets has no 'dfs_valid' "
+                "column. Make sure the feature_config YAML includes the DFS targets and "
+                "the extractor has been updated."
+            )
+        dfs_mask = df_targets.reindex(df_features.index)['dfs_valid'].fillna(False).astype(bool)
+        n_dropped = int((~dfs_mask).sum())
+        keep_mask &= dfs_mask
+        n_after = int(keep_mask.sum())
+        audit['filters_applied'].append('require_dfs_valid')
+        audit['n_after_each_filter'].append(n_after)
+        audit['dropped_examples']['require_dfs_valid'] = (
+            df_features.index[~dfs_mask].tolist()[:10]
+        )
+        log(f"  After require_dfs_valid: {n_after} (dropped {n_dropped})")
+
+    # Filter 2: modality availability via GDC manifest
+    manifest_path = cohort_cfg.get('modality_manifest_path')
+    required_modalities = cohort_cfg.get('require_modalities', [])
+    if manifest_path and required_modalities:
+        manifest_path = Path(manifest_path)
+        if not manifest_path.is_absolute():
+            manifest_path = Path.cwd() / manifest_path
+        if not manifest_path.exists():
+            raise FileNotFoundError(
+                f"cohort_filter.modality_manifest_path not found: {manifest_path}. "
+                f"Build it first with `python3 tools/build_modality_manifest.py`."
+            )
+        manifest_df = pd.read_csv(manifest_path).set_index('case_id')
+        log(f"  Loaded modality manifest: {manifest_path.name} ({len(manifest_df)} cases)")
+
+        missing_cols = [f'has_{m}' for m in required_modalities if f'has_{m}' not in manifest_df.columns]
+        if missing_cols:
+            raise KeyError(
+                f"Modality manifest is missing columns: {missing_cols}. "
+                f"Available columns: {list(manifest_df.columns)}"
+            )
+
+        # A case is kept only if it's in the manifest AND every required has_<m> is True
+        in_manifest = df_features.index.isin(manifest_df.index)
+        per_case_pass = pd.Series(False, index=df_features.index)
+        for cid in df_features.index[in_manifest]:
+            row = manifest_df.loc[cid]
+            per_case_pass.loc[cid] = bool(
+                all(row.get(f'has_{m}', False) for m in required_modalities)
+            )
+        # cases NOT in manifest are treated as missing modalities (strict policy)
+        n_dropped = int((~per_case_pass).sum())
+        keep_mask &= per_case_pass
+        n_after = int(keep_mask.sum())
+        audit['filters_applied'].append(
+            f"modalities:{','.join(required_modalities)}"
+        )
+        audit['n_after_each_filter'].append(n_after)
+        audit['dropped_examples']['modalities'] = (
+            df_features.index[~per_case_pass].tolist()[:10]
+        )
+        audit['modality_manifest_path'] = str(manifest_path)
+        log(f"  After modality intersection: {n_after} (dropped {n_dropped})")
+
+    df_features_f = df_features.loc[keep_mask].copy()
+    df_targets_f = df_targets.reindex(df_features_f.index).copy()
+
+    audit['n_final'] = int(len(df_features_f))
+    audit['case_ids_final'] = list(df_features_f.index)
+
+    out_path = run_dir / "cohort_manifest.json"
+    with open(out_path, 'w') as f:
+        json.dump(audit, f, indent=2, default=str)
+    log(f"  Final n = {audit['n_final']}. Manifest: {out_path}")
+
+    return df_features_f, df_targets_f, audit
+
+
+# ============================================================
+# PHASE 2 HOLDOUT — single train/holdout 80/20 per seed
+# ============================================================
+
+def phase_2_holdout(
+    df_features: pd.DataFrame,
+    df_targets: pd.DataFrame,
+    config: dict,
+    run_dir: Path,
+    best_imputation: str,
+) -> Optional[pd.DataFrame]:
+    """
+    Held-out 80/20 evaluation of TABULAR-IN variants under the same
+    preprocessing protocol as phase_2_variants, but with a single stratified
+    train/holdout split per seed instead of K-fold CV.
+
+    Replicates the protocol of diagnostic_cox_raw.py inside the formal runner
+    so the defendable cifra (cox_baseline ≈ 0.8103 ± 0.044 on 5 seeds) becomes
+    reproducible without an external script.
+    """
+    from sklearn.model_selection import train_test_split
+
+    phase_cfg = config.get('phase_2_holdout', {})
+    if not phase_cfg.get('enabled', False):
+        log("[PHASE 2 HOLDOUT] DISABLED")
+        return None
+
+    log("\n[PHASE 2 HOLDOUT] Single train/holdout 80/20 per seed")
+
+    valid = df_targets['survival_days'].notna() & (df_targets['survival_days'] > 0)
+    X = df_features.loc[valid].copy()
+    y = df_targets.loc[valid].copy()
+
+    median_surv = y['survival_days'].median()
+    y['risk_group'] = (y['survival_days'] < median_surv).astype(int)
+
+    seeds = phase_cfg.get('seeds', config['random']['seeds'])
+    holdout_fraction = phase_cfg.get('holdout_fraction', 0.20)
+    output_dim = phase_cfg.get('output_dim',
+                                config.get('phase_2_variants', {}).get('output_dim', 768))
+    variants = phase_cfg.get('variants',
+                              config.get('phase_2_variants', {}).get('variants',
+                                                                      ['cox_baseline']))
+    variant_params = phase_cfg.get('variant_params',
+                                    config.get('phase_2_variants', {}).get('variant_params', {}))
+
+    imp_for_variants = phase_cfg.get('imputation_for_variants',
+                                      config.get('phase_2_variants', {}).get('imputation_for_variants', 'knn_5'))
+    if imp_for_variants == "auto":
+        imp_for_variants = best_imputation
+    imp_for_baseline = phase_cfg.get('imputation_for_baseline',
+                                      config.get('phase_2_variants', {}).get('imputation_for_baseline', 'knn_5'))
+
+    log(f"  Cases: {len(X)}, output_dim: {output_dim}")
+    log(f"  Holdout fraction: {holdout_fraction}, seeds: {list(seeds)}")
+    log(f"  Variants: {variants}")
+    log(f"  Imputation for baseline: {imp_for_baseline}")
+    log(f"  Imputation for advanced variants: {imp_for_variants}")
+
+    rows = []
+    holdout_rows_aux = []
+
+    for seed in seeds:
+        log(f"  Seed {seed}")
+        idx_all = np.arange(len(X))
+        tr_idx, ho_idx = train_test_split(
+            idx_all,
+            test_size=holdout_fraction,
+            stratify=y['event'].values,
+            random_state=int(seed),
+        )
+
+        X_tr_raw, X_ho_raw = X.iloc[tr_idx].copy(), X.iloc[ho_idx].copy()
+        y_tr, y_ho = y.iloc[tr_idx].copy(), y.iloc[ho_idx].copy()
+
+        # Two preprocessing passes mirroring phase_2_variants: baseline and advanced.
+        prep_base = TabularPreprocessor()
+        X_tr_b, mask_tr_b, conf_tr_b = prep_base.fit_transform(
+            X_tr_raw, get_imputation(imp_for_baseline)
+        )
+        X_ho_b, mask_ho_b, conf_ho_b = prep_base.transform(X_ho_raw)
+
+        prep_adv = TabularPreprocessor()
+        X_tr_a, mask_tr_a, conf_tr_a = prep_adv.fit_transform(
+            X_tr_raw, get_imputation(imp_for_variants)
+        )
+        X_ho_a, mask_ho_a, conf_ho_a = prep_adv.transform(X_ho_raw)
+
+        input_dim = X_tr_a.shape[1]
+        n_events_ho = int(y_ho['event'].sum())
+        log(f"    n_train={len(tr_idx)}, n_holdout={len(ho_idx)}, events_holdout={n_events_ho}")
+
+        for variant_name in variants:
+            if variant_name == 'cox_baseline':
+                X_tr_use, X_ho_use = X_tr_b, X_ho_b
+                conf_ho_use = conf_ho_b
+            else:
+                X_tr_use, X_ho_use = X_tr_a, X_ho_a
+                conf_ho_use = conf_ho_a
+
+            ci, ece, bs, contract_ok = _evaluate_variant(
+                variant_name=variant_name,
+                input_dim=input_dim,
+                output_dim=output_dim,
+                variant_params=variant_params.get(variant_name, {}),
+                X_tr=X_tr_use, X_va=X_ho_use,
+                y_tr=y_tr, y_va=y_ho,
+                mask_tr=mask_tr_a, mask_va=mask_ho_a,
+                conf_tr=conf_tr_a, conf_va=conf_ho_use,
+                median_surv=median_surv,
+                curves_ctx={
+                    'run_dir': run_dir,
+                    'seed': seed,
+                    'fold': 'holdout',
+                    'variant_name': variant_name,
+                },
+            )
+
+            rows.append({
+                'seed': int(seed),
+                'variant': variant_name,
+                'cindex_holdout': float(ci),
+                'ece': float(ece) if ece == ece else float('nan'),
+                'brier_score': float(bs) if bs == bs else float('nan'),
+                'contract_satisfied': bool(contract_ok),
+                'n_train': int(len(tr_idx)),
+                'n_holdout': int(len(ho_idx)),
+                'events_holdout': n_events_ho,
+            })
+
+    df_results = pd.DataFrame(rows)
+    df_results.to_csv(run_dir / "phase2_holdout.csv", index=False)
+
+    summary = (
+        df_results
+        .groupby('variant')
+        .agg(
+            cindex_mean=('cindex_holdout', 'mean'),
+            cindex_std=('cindex_holdout', 'std'),
+            cindex_median=('cindex_holdout', 'median'),
+            ece_mean=('ece', 'mean'),
+            brier_mean=('brier_score', 'mean'),
+            contract_satisfied=('contract_satisfied', 'all'),
+            n_seeds=('cindex_holdout', 'count'),
+        )
+        .round(4)
+    )
+    summary.to_csv(run_dir / "phase2_holdout_summary.csv")
+    log("\n  HOLDOUT SUMMARY:")
+    log(summary.to_string())
+
+    return df_results
+
+
+# ============================================================
+# PHASE 2 EXTERNAL HOLDOUT — single train/holdout 80/20 per seed for externals
+# ============================================================
+
+def phase_2_external_holdout(
+    df_features: pd.DataFrame,
+    df_targets: pd.DataFrame,
+    config: dict,
+    run_dir: Path,
+    best_imputation: str,
+) -> Optional[pd.DataFrame]:
+    """
+    Held-out 80/20 evaluation of non-contractual SOTA baselines (TabPFN, RSF).
+
+    Mirrors phase_2_holdout (stratified single split per seed) but uses the
+    existing _eval_tabpfn_external / _eval_rsf_external helpers. Preprocessing
+    is identical to the advanced variants of phase_2_holdout (KNN imputation
+    fit on the train fold only).
+
+    YAML structure:
+      phase_2_external_holdout:
+        enabled: true
+        holdout_fraction: 0.20
+        seeds: [42, 123, 456, 789, 1024]
+        imputation: knn_5
+        baselines:
+          - name: tabpfn_external
+            params: {device: 'auto', n_estimators: 4}
+          - name: rsf_external
+            params: {n_estimators: 100, min_samples_split: 10, min_samples_leaf: 15}
+    """
+    from sklearn.model_selection import train_test_split
+
+    phase_cfg = config.get('phase_2_external_holdout', {})
+    if not phase_cfg.get('enabled', False):
+        log("[PHASE 2 EXTERNAL HOLDOUT] DISABLED")
+        return None
+
+    log("\n[PHASE 2 EXTERNAL HOLDOUT] Single train/holdout 80/20 per seed (TabPFN / RSF / ...)")
+
+    valid = df_targets['survival_days'].notna() & (df_targets['survival_days'] > 0)
+    X = df_features.loc[valid].copy()
+    y = df_targets.loc[valid].copy()
+
+    seeds = phase_cfg.get('seeds', config['random']['seeds'])
+    holdout_fraction = phase_cfg.get('holdout_fraction', 0.20)
+    imp_for_variants = phase_cfg.get('imputation',
+                                      config.get('phase_2_variants', {}).get('imputation_for_variants', 'knn_5'))
+    if imp_for_variants == "auto":
+        imp_for_variants = best_imputation
+
+    baselines = phase_cfg.get('baselines', [
+        {'name': 'tabpfn_external', 'params': {'device': 'auto', 'n_estimators': 4}},
+        {'name': 'rsf_external', 'params': {'n_estimators': 100, 'min_samples_split': 10, 'min_samples_leaf': 15}},
+    ])
+
+    log(f"  Cases: {len(X)}")
+    log(f"  Holdout fraction: {holdout_fraction}, seeds: {list(seeds)}")
+    log(f"  Imputation: {imp_for_variants}")
+    log(f"  Baselines: {[b['name'] for b in baselines]}")
+
+    rows = []
+
+    for seed in seeds:
+        log(f"  Seed {seed}")
+        idx_all = np.arange(len(X))
+        tr_idx, ho_idx = train_test_split(
+            idx_all,
+            test_size=holdout_fraction,
+            stratify=y['event'].values,
+            random_state=int(seed),
+        )
+
+        X_tr_raw, X_ho_raw = X.iloc[tr_idx].copy(), X.iloc[ho_idx].copy()
+        y_tr, y_ho = y.iloc[tr_idx].copy(), y.iloc[ho_idx].copy()
+
+        prep = TabularPreprocessor()
+        X_tr, mask_tr, conf_tr = prep.fit_transform(X_tr_raw, get_imputation(imp_for_variants))
+        X_ho, mask_ho, conf_ho = prep.transform(X_ho_raw)
+
+        n_events_ho = int(y_ho['event'].sum())
+        log(f"    n_train={len(tr_idx)}, n_holdout={len(ho_idx)}, events_holdout={n_events_ho}")
+
+        for bcfg in baselines:
+            name = bcfg['name']
+            params = bcfg.get('params', {})
+
+            if name == 'tabpfn_external':
+                result = _eval_tabpfn_external(X_tr, X_ho, y_tr, y_ho, params, seed, fold='holdout')
+            elif name == 'rsf_external':
+                result = _eval_rsf_external(X_tr, X_ho, y_tr, y_ho, params, seed, fold='holdout')
+            else:
+                log(f"    UNKNOWN external baseline: {name}, skipping", level="warn")
+                continue
+
+            rows.append({
+                'seed': int(seed),
+                'baseline': name,
+                'cindex_holdout': float(result['cindex']),
+                'contract_compliant': bool(result.get('contract_compliant', False)),
+                'n_train': int(len(tr_idx)),
+                'n_holdout': int(len(ho_idx)),
+                'events_holdout': n_events_ho,
+                'model_summary': result.get('model_summary', {}),
+            })
+
+    if not rows:
+        log("  No external baselines were successfully evaluated.")
+        return None
+
+    df_results = pd.DataFrame(rows)
+    # Drop nested model_summary from the CSV for cleanliness; keep it in summary.json
+    df_results.drop(columns=['model_summary'], errors='ignore').to_csv(
+        run_dir / "phase2_external_holdout.csv", index=False
+    )
+
+    summary = (
+        df_results
+        .groupby('baseline')
+        .agg(
+            cindex_mean=('cindex_holdout', 'mean'),
+            cindex_std=('cindex_holdout', 'std'),
+            cindex_median=('cindex_holdout', 'median'),
+            n_seeds=('cindex_holdout', 'count'),
+        )
+        .round(4)
+    )
+    summary.to_csv(run_dir / "phase2_external_holdout_summary.csv")
+    log("\n  EXTERNAL HOLDOUT SUMMARY:")
+    log(summary.to_string())
+
+    return df_results
+
+
+# ============================================================
+# PHASE 2 MAHOOTIHA — Spearman + RF feature ranking, Cox over top-K
+# ============================================================
+
+def phase_2_mahootiha(
+    df_features: pd.DataFrame,
+    df_targets: pd.DataFrame,
+    config: dict,
+    run_dir: Path,
+    best_imputation: str,
+) -> Optional[pd.DataFrame]:
+    """
+    Replicate the Mahootiha 2024-style feature ranking method on our cohort.
+
+    Method:
+      1. Per seed, stratified train/holdout 80/20 split.
+      2. On the TRAIN fold only:
+         - Spearman correlation of each feature vs survival_days (abs value).
+         - Random Forest classifier (binary-at-median target) feature importance.
+         - Combined rank = average of (Spearman rank, RF rank), lower = better.
+      3. For each K in the configured `k_values` (default [5, 10, 15, all]):
+         - Select top-K features by combined rank.
+         - Train cox_baseline on top-K (same protocol as phase_2_holdout).
+         - Evaluate held-out C-index.
+      4. Aggregate per K across seeds.
+      5. Persist the per-seed combined rank for every feature so the §5.3 table
+         (where ecog/karnofsky/tumor_status would appear) becomes reproducible.
+
+    YAML structure:
+      phase_2_mahootiha:
+        enabled: true
+        holdout_fraction: 0.20
+        seeds: [42, 123, 456, 789, 1024]
+        k_values: [5, 10, 15, null]    # null → use all features
+        imputation: knn_5
+        rf_n_estimators: 200
+
+    Per the user's choice (2026-05-27), this phase is intended to be run twice:
+      - on the 19 anti-leakage features (to validate Mahootiha's 0.84 under our protocol),
+      - on the 22 with-leakage features (to replicate their original setup).
+    The relevant comparison is K=10 (Mahootiha's typical cutoff) on both feature sets.
+    """
+    from sklearn.model_selection import train_test_split
+    from sklearn.ensemble import RandomForestClassifier
+    from scipy.stats import spearmanr
+
+    phase_cfg = config.get('phase_2_mahootiha', {})
+    if not phase_cfg.get('enabled', False):
+        log("[PHASE 2 MAHOOTIHA] DISABLED")
+        return None
+
+    log("\n[PHASE 2 MAHOOTIHA] Spearman + RF ranking + Cox per top-K, held-out 80/20 per seed")
+
+    valid = df_targets['survival_days'].notna() & (df_targets['survival_days'] > 0)
+    X = df_features.loc[valid].copy()
+    y = df_targets.loc[valid].copy()
+    median_surv = float(y['survival_days'].median())
+
+    seeds = phase_cfg.get('seeds', config['random']['seeds'])
+    holdout_fraction = phase_cfg.get('holdout_fraction', 0.20)
+    n_total_features = X.shape[1]
+
+    # k_values: allow None as a sentinel for "all features".
+    k_raw = phase_cfg.get('k_values', [5, 10, 15, None])
+    k_values = sorted(set(
+        n_total_features if k is None else min(int(k), n_total_features) for k in k_raw
+    ))
+
+    rf_n_estimators = phase_cfg.get('rf_n_estimators', 200)
+    imp_name = phase_cfg.get('imputation', 'knn_5')
+    if imp_name == 'auto':
+        imp_name = best_imputation
+    output_dim = phase_cfg.get('output_dim',
+                                config.get('phase_2_variants', {}).get('output_dim', 768))
+
+    log(f"  Cases: {len(X)}, total features: {n_total_features}")
+    log(f"  Seeds: {list(seeds)}, K values: {k_values}")
+    log(f"  RF n_estimators: {rf_n_estimators}, imputation: {imp_name}")
+
+    rows = []
+    rankings_per_seed: Dict[int, pd.DataFrame] = {}
+
+    for seed in seeds:
+        log(f"  Seed {seed}")
+        tr_idx, ho_idx = train_test_split(
+            np.arange(len(X)),
+            test_size=holdout_fraction,
+            stratify=y['event'].values,
+            random_state=int(seed),
+        )
+        X_tr_raw, X_ho_raw = X.iloc[tr_idx].copy(), X.iloc[ho_idx].copy()
+        y_tr, y_ho = y.iloc[tr_idx].copy(), y.iloc[ho_idx].copy()
+
+        # Impute with the same KNN strategy as phase_2_holdout (fit on train only)
+        prep = TabularPreprocessor()
+        X_tr_imp, _, _ = prep.fit_transform(X_tr_raw, get_imputation(imp_name))
+        X_ho_imp, _, conf_ho = prep.transform(X_ho_raw)
+
+        # 1. Spearman correlation (abs value) of each feature vs survival_days
+        spearman_corrs = {}
+        for col in X_tr_imp.columns:
+            try:
+                corr, _ = spearmanr(X_tr_imp[col].values, y_tr['survival_days'].values)
+                spearman_corrs[col] = abs(corr) if not np.isnan(corr) else 0.0
+            except Exception:
+                spearman_corrs[col] = 0.0
+
+        # 2. RF feature importance via binary-at-median classifier (Kim et al. 2026 framing),
+        # with the same informative-censoring guard as the TabPFN wrapper.
+        survival_arr = y_tr['survival_days'].values
+        event_arr = y_tr['event'].values
+        y_bin = (survival_arr < median_surv).astype(int)
+        keep_for_rf = ~((event_arr == 0) & (survival_arr < median_surv))
+        rf = RandomForestClassifier(
+            n_estimators=rf_n_estimators,
+            random_state=int(seed),
+            n_jobs=-1,
+        )
+        rf.fit(X_tr_imp.values[keep_for_rf], y_bin[keep_for_rf])
+        rf_imp = dict(zip(X_tr_imp.columns, rf.feature_importances_))
+
+        # 3. Combined rank (lower = more important)
+        spearman_rank = pd.Series(spearman_corrs).rank(ascending=False, method='average')
+        rf_rank = pd.Series(rf_imp).rank(ascending=False, method='average')
+        combined_rank = ((spearman_rank + rf_rank) / 2).sort_values()
+        rankings_per_seed[int(seed)] = pd.DataFrame({
+            'spearman_corr_abs': pd.Series(spearman_corrs),
+            'rf_importance': pd.Series(rf_imp),
+            'spearman_rank': spearman_rank,
+            'rf_rank': rf_rank,
+            'combined_rank': combined_rank,
+        }).reindex(combined_rank.index)
+
+        # 4. Train Cox over top-K features for each K
+        for K in k_values:
+            top_features = combined_rank.head(K).index.tolist()
+            X_tr_K = X_tr_imp[top_features]
+            X_ho_K = X_ho_imp[top_features]
+            try:
+                ci, ece, bs, _ = _eval_cox_baseline(
+                    X_tr_K, X_ho_K, y_tr, y_ho,
+                    conf_va=conf_ho,
+                    output_dim=output_dim,
+                    median_surv=median_surv,
+                )
+            except Exception as e:
+                log(f"    K={K} seed={seed} cox FAILED: {e}", level="warn")
+                ci, ece, bs = float('nan'), float('nan'), float('nan')
+
+            rows.append({
+                'seed': int(seed),
+                'K': int(K),
+                'cindex_holdout': float(ci) if ci == ci else float('nan'),
+                'ece': float(ece) if ece == ece else float('nan'),
+                'brier_score': float(bs) if bs == bs else float('nan'),
+                'n_train': int(len(tr_idx)),
+                'n_holdout': int(len(ho_idx)),
+                'top_features': ','.join(top_features),
+            })
+
+    df_results = pd.DataFrame(rows)
+    df_results.to_csv(run_dir / "phase2_mahootiha.csv", index=False)
+
+    summary = (
+        df_results
+        .groupby('K')['cindex_holdout']
+        .agg(cindex_mean='mean', cindex_std='std', cindex_median='median', n_seeds='count')
+        .round(4)
+    )
+    summary.to_csv(run_dir / "phase2_mahootiha_summary.csv")
+    log("\n  MAHOOTIHA top-K HOLDOUT SUMMARY:")
+    log(summary.to_string())
+
+    # Aggregated feature ranking across seeds
+    rank_matrix = pd.DataFrame({
+        f'rank_seed{s}': r['combined_rank'] for s, r in rankings_per_seed.items()
+    })
+    rank_matrix['mean_combined_rank'] = rank_matrix.mean(axis=1)
+    rank_matrix['std_combined_rank'] = rank_matrix.std(axis=1)
+    rank_matrix = rank_matrix.sort_values('mean_combined_rank')
+    rank_matrix.to_csv(run_dir / "phase2_mahootiha_feature_ranking.csv")
+    log("\n  TOP 10 FEATURES BY MEAN COMBINED RANK (across seeds):")
+    log(rank_matrix[['mean_combined_rank', 'std_combined_rank']].head(10).to_string())
+
+    return df_results
+
+
+# ============================================================
 # PHASE 2 EXTERNAL — non-compliant SOTA baselines
 # ============================================================
 
@@ -1847,7 +2446,20 @@ def run_experiment(config_input: Union[str, Path, dict] = "experiment_config.yam
     if config['output'].get('save_raw_extraction', True):
         df_features.to_csv(run_dir / "raw_features.csv")
         df_targets.to_csv(run_dir / "raw_targets.csv")
-    
+
+    # ---- Step 0.5: optional cohort filter (DFS validity + GDC modality availability) ----
+    cohort_cfg = config.get('cohort_filter', {})
+    if cohort_cfg:
+        df_features, df_targets, cohort_audit = apply_cohort_filter(
+            df_features, df_targets, cohort_cfg, run_dir,
+        )
+        summary['cohort_filter'] = {
+            'n_initial': cohort_audit['n_initial'],
+            'n_final': cohort_audit['n_final'],
+            'filters_applied': cohort_audit['filters_applied'],
+            'n_after_each_filter': cohort_audit['n_after_each_filter'],
+        }
+
     summary['n_cases'] = int(len(df_features))
     summary['n_features'] = int(df_features.shape[1])
     summary['n_events'] = int(df_targets['event'].sum())
@@ -1872,7 +2484,16 @@ def run_experiment(config_input: Union[str, Path, dict] = "experiment_config.yam
         if ph2 is not None:
             ph2_summary = ph2.groupby('variant')['cindex'].agg(['mean', 'std']).round(4)
             summary['phases']['phase_2'] = ph2_summary.to_dict()
-        
+
+        ph2_ho = phase_2_holdout(df_features, df_targets, config, run_dir, best_imp)
+        if ph2_ho is not None:
+            ph2_ho_summary = (
+                ph2_ho.groupby('variant')['cindex_holdout']
+                .agg(['mean', 'std', 'median'])
+                .round(4)
+            )
+            summary['phases']['phase_2_holdout'] = ph2_ho_summary.to_dict()
+
         # New Phase 2 External Baselines
         ph2_ext = phase_2_external_baselines(df_features, df_targets, config, run_dir, best_imp)
         if ph2_ext is not None:
@@ -1893,6 +2514,24 @@ def run_experiment(config_input: Union[str, Path, dict] = "experiment_config.yam
                     .to_dict()
                 ),
             }
+
+        ph2_ext_ho = phase_2_external_holdout(df_features, df_targets, config, run_dir, best_imp)
+        if ph2_ext_ho is not None:
+            ph2_ext_ho_summary = (
+                ph2_ext_ho.groupby('baseline')['cindex_holdout']
+                .agg(['mean', 'std', 'median'])
+                .round(4)
+            )
+            summary['phases']['phase_2_external_holdout'] = ph2_ext_ho_summary.to_dict()
+
+        ph2_mah = phase_2_mahootiha(df_features, df_targets, config, run_dir, best_imp)
+        if ph2_mah is not None:
+            ph2_mah_summary = (
+                ph2_mah.groupby('K')['cindex_holdout']
+                .agg(['mean', 'std', 'median', 'count'])
+                .round(4)
+            )
+            summary['phases']['phase_2_mahootiha'] = ph2_mah_summary.to_dict()
     except Exception as e:
         summary['errors'].append({'phase': '2_external', 'error': str(e)})
         if fail_fast: raise

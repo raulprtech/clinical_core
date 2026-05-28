@@ -1,6 +1,10 @@
-# CLINICAL-CORE / TABULAR-CONN Configuration v2 — ANTI-LEAKAGE ABLATION
-# Excludes post-surgical/leakage-prone variables to validate enrichment.
-# Excluded: tumor_status, karnofsky_score, ecog_score.
+# CLINICAL-CORE / TABULAR-CONN Configuration — 22 FEATURES (WITH LEAKAGE)
+# Equivalent to tabular_mapping_no_leakage.yaml + 3 post-event leakage
+# variables (karnofsky_score, ecog_score, tumor_status). Used EXCLUSIVELY for
+# the Mahootiha 2024 replication ablation in phase_2_mahootiha: we apply the
+# Spearman+RF feature ranking on this full set to check whether their method
+# detects the leakage variables. Do NOT use this YAML as the production
+# feature_config — it intentionally re-enables the leakage variables.
 
 targets:
   survival_days:
@@ -221,6 +225,36 @@ features:
       "No": 0
       "Yes, History of Prior Malignancy": 1
       "Yes, History of Synchronous and or Bilateral Malignancy": 1
+
+  # ============================================================
+  # LEAKAGE VARIABLES — included ONLY for Mahootiha replication.
+  # These are post-event/post-treatment fields that contaminate the
+  # pre-operative survival prediction task. See report §2.3 and §5.3.
+  # ============================================================
+  karnofsky_score:
+    sources:
+      - karnofsky_score
+      - karnofsky_performance_score
+    type: continuous
+    normalization: zscore
+    clinical_relevance: "IMDC/MSKCC criterion: KPS < 80% (LEAKAGE: measured post-diagnosis)"
+
+  ecog_score:
+    sources:
+      - ecog_score
+      - eastern_cancer_oncology_group
+    type: continuous
+    normalization: zscore
+    clinical_relevance: "Alternative performance status to Karnofsky (LEAKAGE: post-diagnosis)"
+
+  tumor_status:
+    sources:
+      - person_neoplasm_cancer_status
+    type: categorical
+    mapping:
+      "TUMOR FREE": 0
+      "WITH TUMOR": 1
+    clinical_relevance: "Post-surgical tumor burden status (LEAKAGE: post-treatment)"
 
 embedding:
   output_dim: 768

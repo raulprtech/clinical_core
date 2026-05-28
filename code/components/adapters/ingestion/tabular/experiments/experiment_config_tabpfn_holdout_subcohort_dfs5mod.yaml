@@ -1,0 +1,66 @@
+# ============================================================
+# CLINICAL-CORE / TABULAR-IN — TabPFN sobre subcohorte MMEM-comparable (n≈224)
+# ============================================================
+# Mismo TabPFN held-out 80/20 que experiment_config_tabpfn_holdout_only.yaml,
+# pero con cohort_filter activo: DFS válido + 4 modalidades en GDC.
+#
+# Esta es la cifra que va al Paper 2 como comparador directo contra MMEM
+# Clinical-only (0.785, n=226). Para la cifra n=444 de máxima potencia,
+# correr el YAML hermano `experiment_config_tabpfn_holdout_only.yaml`.
+#
+# PREREQUISITO: ver header del YAML hermano sobre TABPFN_TOKEN.
+# ============================================================
+
+experiment:
+  name: "tabpfn_holdout_subcohort_dfs5mod"
+  description: "TabPFN v8 held-out 80/20 on MMEM-comparable subcohort (DFS valid + 5 modalities)."
+  author: "Raul Pacheco"
+  protocol_version: "v8.1"
+
+data:
+  xml_dir: "/home/raulprtech/clinical_core/data/raw/clinicalsupplement"
+  feature_config: "../configs/tabular_mapping_no_leakage.yaml"
+  drug_file: null
+
+output:
+  base_dir: "/home/raulprtech/clinical_core/results"
+  save_raw_extraction: true
+  save_resolved_config: true
+
+random:
+  seeds: [42, 123, 456, 789, 1024]
+  n_folds: 5
+
+# Subcohort filter: same as experiment_config_tabular_holdout_subcohort_dfs5mod.yaml
+cohort_filter:
+  enabled: true
+  require_dfs_valid: true
+  modality_manifest_path: "/home/raulprtech/clinical_core/data/manifests/gdc_modality_manifest_TCGA-KIRC_20260528.csv"
+  require_modalities: [wsi, mrna_seq, mirna_seq, methylation_450k]
+
+# All compliant phases off
+phase_1_imputation:          { enabled: false }
+phase_2_variants:            { enabled: false }
+phase_2_holdout:             { enabled: false }
+phase_2_external_baselines:  { enabled: false }
+phase_3_efficiency:          { enabled: false }
+phase_4_stress:              { enabled: false }
+phase_5_multimodal:          { enabled: false }
+phase_6_fusion_proc:         { enabled: false }
+phase_7_turbolatent:         { enabled: false }
+phase_8_prognosis_benchmark: { enabled: false }
+
+phase_2_external_holdout:
+  enabled: true
+  holdout_fraction: 0.20
+  seeds: [42, 123, 456, 789, 1024]
+  imputation: "knn_5"
+  baselines:
+    - name: tabpfn_external
+      params:
+        device: 'auto'
+        n_estimators: 4
+
+runtime:
+  verbosity: "normal"
+  fail_fast: false

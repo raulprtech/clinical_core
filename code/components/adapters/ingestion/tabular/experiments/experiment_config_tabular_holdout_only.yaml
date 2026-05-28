@@ -1,0 +1,74 @@
+# ============================================================
+# CLINICAL-CORE / TABULAR-IN — Held-out 80/20 inside the formal runner
+# ============================================================
+# Replicates the protocol of diagnostic_cox_raw.py inside core/experiment_runner.py
+# so the defendable Paper 2 cifra (cox_baseline ≈ 0.8103 ± 0.044 on 5 seeds,
+# held-out 80/20 stratified by event) is reproducible without an external script.
+#
+# Runs all three TABULAR-IN variants on the same train/holdout split per seed.
+# All other phases disabled so this runs fast (~1-2 min on GPU).
+# ============================================================
+
+experiment:
+  name: "tabular_holdout_only"
+  description: "Held-out 80/20 evaluation of TABULAR-IN variants inside the formal runner."
+  author: "Raul Pacheco"
+  protocol_version: "v8.1"
+
+data:
+  xml_dir: "/home/raulprtech/clinical_core/data/raw/clinicalsupplement"
+  feature_config: "../configs/tabular_mapping_no_leakage.yaml"
+  drug_file: null
+
+output:
+  base_dir: "/home/raulprtech/clinical_core/results"
+  save_raw_extraction: true
+  save_resolved_config: true
+
+random:
+  seeds: [42, 123, 456, 789, 1024]
+  n_folds: 5
+
+# All non-holdout phases disabled
+phase_1_imputation:          { enabled: false }
+phase_2_variants:            { enabled: false }
+phase_2_external_baselines:  { enabled: false }
+phase_3_efficiency:          { enabled: false }
+phase_4_stress:              { enabled: false }
+phase_5_multimodal:          { enabled: false }
+phase_6_fusion_proc:         { enabled: false }
+phase_7_turbolatent:         { enabled: false }
+phase_8_prognosis_benchmark: { enabled: false }
+
+# >>> The only enabled phase <<<
+phase_2_holdout:
+  enabled: true
+  holdout_fraction: 0.20
+  seeds: [42, 123, 456, 789, 1024]
+  output_dim: 768
+  imputation_for_baseline: "knn_5"
+  imputation_for_variants: "knn_5"
+  variants:
+    - cox_baseline
+    - linear_compact
+    - ft_transformer
+  variant_params:
+    linear_compact:
+      hidden_dim: 128
+      epochs: 200
+      lr: 0.001
+      patience: 20
+      weight_decay: 0.0001
+    ft_transformer:
+      d_token: 192
+      n_blocks: 3
+      n_heads: 8
+      dropout: 0.1
+      epochs: 200
+      lr: 0.0003
+      patience: 20
+      weight_decay: 0.0001
+
+runtime:
+  verbosity: "normal"
+  fail_fast: false

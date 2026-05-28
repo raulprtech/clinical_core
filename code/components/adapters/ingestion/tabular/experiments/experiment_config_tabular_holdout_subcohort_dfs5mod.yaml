@@ -1,0 +1,90 @@
+# ============================================================
+# CLINICAL-CORE / TABULAR-IN — Held-out 80/20 sobre subcohorte DFS+5mod
+# ============================================================
+# Réplica del experimento `experiment_config_tabular_holdout_only.yaml`,
+# pero con el filtro de cohort activo:
+#   - require_dfs_valid: only cases with DFS clinically valid
+#   - require_modalities: only cases con WSI Diagnostic + mRNA-Seq + miRNA-Seq + methylation 450K
+#                         (verificación de existencia en GDC, NO descarga)
+#
+# Propósito: producir la cifra held-out comparable apples-to-apples con MMEM
+# Clinical-only (n=226, C=0.785). El cohort filtrado se espera ~220-250 (no
+# será exactamente 226 — GDC actualiza releases). Reporta ambas cifras
+# (n=444 OS y n≈226 subcohort) en paralelo en el Paper 2.
+#
+# Antes de correr este experimento, genera el manifest GDC:
+#   python3 tools/build_modality_manifest.py \
+#       --case-ids-from /home/raulprtech/clinical_core/results/<some_run>/raw_targets.csv
+# Y actualiza `modality_manifest_path` abajo a la fecha del manifest generado.
+# ============================================================
+
+experiment:
+  name: "tabular_holdout_subcohort_dfs5mod"
+  description: "Held-out 80/20 on MMEM-style subcohort (DFS valid + 5 modalities available)."
+  author: "Raul Pacheco"
+  protocol_version: "v8.1"
+
+data:
+  xml_dir: "/home/raulprtech/clinical_core/data/raw/clinicalsupplement"
+  feature_config: "../configs/tabular_mapping_no_leakage.yaml"
+  drug_file: null
+
+output:
+  base_dir: "/home/raulprtech/clinical_core/results"
+  save_raw_extraction: true
+  save_resolved_config: true
+
+random:
+  seeds: [42, 123, 456, 789, 1024]
+  n_folds: 5
+
+# >>> Filtro de cohort: aplicado ANTES de todas las fases <<<
+cohort_filter:
+  enabled: true
+  require_dfs_valid: true
+  modality_manifest_path: "/home/raulprtech/clinical_core/data/manifests/gdc_modality_manifest_TCGA-KIRC_20260528.csv"
+  require_modalities: [wsi, mrna_seq, mirna_seq, methylation_450k]
+
+# Resto de fases off
+phase_1_imputation:          { enabled: false }
+phase_2_variants:            { enabled: false }
+phase_2_external_baselines:  { enabled: false }
+phase_3_efficiency:          { enabled: false }
+phase_4_stress:              { enabled: false }
+phase_5_multimodal:          { enabled: false }
+phase_6_fusion_proc:         { enabled: false }
+phase_7_turbolatent:         { enabled: false }
+phase_8_prognosis_benchmark: { enabled: false }
+
+# Held-out 80/20 sobre el subcohort filtrado
+phase_2_holdout:
+  enabled: true
+  holdout_fraction: 0.20
+  seeds: [42, 123, 456, 789, 1024]
+  output_dim: 768
+  imputation_for_baseline: "knn_5"
+  imputation_for_variants: "knn_5"
+  variants:
+    - cox_baseline
+    - linear_compact
+    - ft_transformer
+  variant_params:
+    linear_compact:
+      hidden_dim: 128
+      epochs: 200
+      lr: 0.001
+      patience: 20
+      weight_decay: 0.0001
+    ft_transformer:
+      d_token: 192
+      n_blocks: 3
+      n_heads: 8
+      dropout: 0.1
+      epochs: 200
+      lr: 0.0003
+      patience: 20
+      weight_decay: 0.0001
+
+runtime:
+  verbosity: "normal"
+  fail_fast: false

@@ -22,17 +22,29 @@ class GDCDataFetcher:
         data_types: List[str],
         data_formats: Optional[List[str]] = None,
         limit: int = 10000,
-        target_case_ids: Optional[List[str]] = None
+        target_case_ids: Optional[List[str]] = None,
+        target_submitter_ids: Optional[List[str]] = None,
+        experimental_strategy: Optional[List[str]] = None,
+        platform: Optional[List[str]] = None,
+        match_field: str = 'case_id',
     ) -> List[Dict]:
         """
         Searches the GDC API for files matching the specified data types for the target project.
-        
+
         Args:
             data_types: List of GDC data types (e.g. ['Slide Image', 'Clinical Supplement'])
             data_formats: List of specific data formats to restrict (e.g. ['BCR XML', 'SVS', 'TSV'])
             limit: Maximum number of files to return from the API endpoint.
-            target_case_ids: Optional list of case_ids (cohort intersection constraint). If provided,
-                             the API will only return results for these exact patients.
+            target_case_ids: Optional list of case UUIDs (cohort intersection constraint).
+            target_submitter_ids: Optional list of submitter_ids (e.g. ['TCGA-GK-A6C7']).
+                                  Use this when you have human-readable barcodes instead of UUIDs.
+            experimental_strategy: Optional list of experimental strategies (e.g. ['Diagnostic Slide',
+                                   'RNA-Seq', 'Methylation Array']). Required to disambiguate WSI
+                                   between Diagnostic and Tissue slides.
+            platform: Optional list of platforms (e.g. ['Illumina Human Methylation 450']). Required
+                      to restrict methylation to 450K only.
+            match_field: 'case_id' (UUID, default — backward compatible) or 'submitter_id'.
+                         Controls which field is used to index hits in _filter_cases_by_intersection.
 
         Returns:
             A list of dictionary objects representing metadata for matching files.
@@ -42,7 +54,7 @@ class GDCDataFetcher:
             return []
 
         logger.info(f"Searching GDC files for project {self.project_id} and types: {data_types}")
-        
+
         content_filters = [
             {"op": "in", "content": {"field": "cases.project.project_id", "value": [self.project_id]}},
             {"op": "in", "content": {"field": "data_type", "value": data_types}}
@@ -50,18 +62,28 @@ class GDCDataFetcher:
 
         if data_formats:
             content_filters.append({"op": "in", "content": {"field": "data_format", "value": data_formats}})
-            
+
+        if experimental_strategy:
+            content_filters.append({"op": "in", "content": {"field": "experimental_strategy", "value": experimental_strategy}})
+
+        if platform:
+            content_filters.append({"op": "in", "content": {"field": "platform", "value": platform}})
+
         if target_case_ids:
             content_filters.append({"op": "in", "content": {"field": "cases.case_id", "value": target_case_ids}})
+
+        if target_submitter_ids:
+            content_filters.append({"op": "in", "content": {"field": "cases.submitter_id", "value": target_submitter_ids}})
 
         filtros = {
             "op": "and",
             "content": content_filters
         }
 
+        # Always request both case_id and submitter_id so the caller can decide which to use.
         parametros = {
             "filters": json.dumps(filtros),
-            "fields": "file_id,cases.case_id,data_type,data_format,file_name",
+            "fields": "file_id,cases.case_id,cases.submitter_id,data_type,data_format,experimental_strategy,platform,file_name",
             "format": "JSON",
             "size": str(limit)
         }
@@ -69,46 +91,61 @@ class GDCDataFetcher:
         try:
             response = requests.get(self.API_FILES_ENDPOINT, params=parametros)
             response.raise_for_status()
-            
+
             data = response.json()
             hits = data.get("data", {}).get("hits", [])
-            
-            # We must group by case_id and filter cases that possess ALL requested data_types
-            grouped = self._filter_cases_by_intersection(hits, set(data_types))
-            
+
+            # We must group by case identifier and filter cases that possess ALL requested data_types
+            grouped = self._filter_cases_by_intersection(hits, set(data_types), match_field=match_field)
+
             logger.info(f"Found {len(grouped)} valid files crossing required constraints.")
             return grouped
-            
+
         except Exception as e:
             logger.error(f"Failed to query GDC API: {e}")
             raise
 
-    def _filter_cases_by_intersection(self, hits: List[Dict], target_types: Set[str]) -> List[Dict]:
+    def _filter_cases_by_intersection(
+        self,
+        hits: List[Dict],
+        target_types: Set[str],
+        match_field: str = 'case_id',
+    ) -> List[Dict]:
         """
-        Ensures a patient (case_id) contains all specified data_types, dropping incomplete sets.
+        Ensures a patient (case_id or submitter_id) contains all specified data_types, dropping
+        incomplete sets.
+
+        Args:
+            hits: list of file metadata dicts returned by the GDC API.
+            target_types: set of data_types that each retained case must cover entirely.
+            match_field: 'case_id' (UUID, default) or 'submitter_id' (TCGA-XX-XXXX). Selects which
+                         field on cases[0] is used to group files.
         """
+        if match_field not in ('case_id', 'submitter_id'):
+            raise ValueError(f"match_field must be 'case_id' or 'submitter_id', got {match_field!r}")
+
         pacientes = {}
         for archivo in hits:
             cases = archivo.get("cases", [{}])
             if not cases:
                 continue
-            case_id = cases[0].get("case_id")
-            if not case_id:
+            patient_key = cases[0].get(match_field)
+            if not patient_key:
                 continue
 
-            if case_id not in pacientes:
-                pacientes[case_id] = {"tipos_disponibles": set(), "archivos": []}
+            if patient_key not in pacientes:
+                pacientes[patient_key] = {"tipos_disponibles": set(), "archivos": []}
 
             dt = archivo.get("data_type")
-            pacientes[case_id]["tipos_disponibles"].add(dt)
+            pacientes[patient_key]["tipos_disponibles"].add(dt)
             if dt in target_types:
-                pacientes[case_id]["archivos"].append(archivo)
+                pacientes[patient_key]["archivos"].append(archivo)
 
         archivos_finales = []
-        for case_id, datos in pacientes.items():
+        for patient_key, datos in pacientes.items():
             if target_types.issubset(datos["tipos_disponibles"]):
                 archivos_finales.extend(datos["archivos"])
-                
+
         return archivos_finales
 
     def download_files(self, files_metadata: List[Dict], base_output_dir: str) -> None:

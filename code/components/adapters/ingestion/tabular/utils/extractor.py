@@ -26,22 +26,29 @@ class TCGAExtractor:
     def __init__(self, config_path: str = "components/adapters/ingestion/tabular/configs/tabular_mapping.yaml"):
         with open(config_path, 'r') as f:
             self.config = yaml.safe_load(f)
-        
-        # Build reverse lookup: xml_tag -> (variable_name, section)
-        self.tag_lookup = {}
+
+        # Build reverse lookup: xml_tag -> list[(variable_name, section, var_config)].
+        # NOTE: a single XML field can map to multiple project variables (e.g.
+        # `person_neoplasm_cancer_status` is consumed both as the `tumor_status`
+        # feature in the 22-feature mapping AND as a raw source for the
+        # `dfs_event` resolver). The lookup was previously a 1:1 dict and
+        # silently dropped one of the mappings when there was a collision.
+        from collections import defaultdict
+        self.tag_lookup: Dict[str, List[Tuple[str, str, dict]]] = defaultdict(list)
         for var_name, var_config in self.config['features'].items():
             for source in var_config['sources']:
-                self.tag_lookup[source.lower()] = (var_name, 'feature', var_config)
-        
+                self.tag_lookup[source.lower()].append((var_name, 'feature', var_config))
+
         # FIX (Apr 2026, BUG 2): for survival_days, store EACH source separately
         # under a synthetic key so _resolve_survival can apply clinical priority.
+        # Extended for DFS (dfs_days, dfs_event) which also need raw-source access.
+        _SOURCE_STASH_VARS = {'survival_days', 'dfs_days', 'dfs_event'}
         for var_name, var_config in self.config['targets'].items():
             for source in var_config['sources']:
-                if var_name == 'survival_days':
-                    # Store under synthetic key 'target__source__<source_name>'
-                    self.tag_lookup[source.lower()] = ('source__' + source.lower(), 'target', var_config)
+                if var_name in _SOURCE_STASH_VARS:
+                    self.tag_lookup[source.lower()].append(('source__' + source.lower(), 'target', var_config))
                 else:
-                    self.tag_lookup[source.lower()] = (var_name, 'target', var_config)
+                    self.tag_lookup[source.lower()].append((var_name, 'target', var_config))
     
     def parse_single_xml(self, filepath: Path) -> Dict:
         """Parse one TCGA BCR XML file into a flat dictionary of extracted values."""
@@ -78,20 +85,20 @@ class TCGAExtractor:
                     continue
                 continue
             
-            # Match by tag name
+            # Match by tag name — populate ALL mappings (a single source can
+            # belong to multiple variables, e.g. tumor_status + dfs_event).
             if tag in self.tag_lookup:
-                var_name, section, var_config = self.tag_lookup[tag]
-                # Don't overwrite if already found (first match wins)
-                key = f"{section}__{var_name}"
-                if key not in raw_values:
-                    raw_values[key] = text
-            
+                for var_name, section, var_config in self.tag_lookup[tag]:
+                    key = f"{section}__{var_name}"
+                    if key not in raw_values:
+                        raw_values[key] = text
+
             # Match by preferred_name
             if preferred_name and preferred_name in self.tag_lookup:
-                var_name, section, var_config = self.tag_lookup[preferred_name]
-                key = f"{section}__{var_name}"
-                if key not in raw_values:
-                    raw_values[key] = text
+                for var_name, section, var_config in self.tag_lookup[preferred_name]:
+                    key = f"{section}__{var_name}"
+                    if key not in raw_values:
+                        raw_values[key] = text
         
         if case_id is None:
             # Try filename
@@ -203,7 +210,68 @@ class TCGAExtractor:
             survival_days = np.nan
 
         return survival_days, event
-    
+
+    def _resolve_dfs(self, raw_values: dict) -> Tuple[float, int, bool]:
+        """
+        Resolve disease-free-survival (DFS) time, event, and validity.
+
+        TCGA-standard operationalization (Liu et al. 2018 + KIRC convention):
+            event = 1 if  new_tumor_event_after_initial_treatment == 'YES'
+                       OR (vital_status == 'Dead' AND person_neoplasm_cancer_status == 'WITH TUMOR')
+            time  = days_to_new_tumor_event_after_initial_treatment if NTE event,
+                    elif cancer-death:                               days_to_death,
+                    else (censored):                                 days_to_last_followup
+
+        valid = the case has enough fields populated to support a meaningful
+                DFS classification:
+                    - some kind of event indicator (NTE field or vital_status)
+                    - a usable positive time
+                Cases failing this drop out of any DFS-filtered subcohort.
+
+        Returns (dfs_days, dfs_event, dfs_valid). Used only as cohort metadata —
+        never as a training target.
+        """
+        nte_indicator = raw_values.get('target__source__new_tumor_event_after_initial_treatment')
+        nte_days = raw_values.get('target__source__days_to_new_tumor_event_after_initial_treatment')
+        tumor_status = raw_values.get('target__source__person_neoplasm_cancer_status')
+        days_to_death = raw_values.get('target__source__days_to_death')
+        days_to_followup = raw_values.get('target__source__days_to_last_followup')
+        vital_raw = raw_values.get('target__vital_status')
+
+        nte_yes = isinstance(nte_indicator, str) and nte_indicator.strip().lower() == 'yes'
+        is_dead = isinstance(vital_raw, str) and vital_raw.strip().lower() == 'dead'
+        with_tumor = isinstance(tumor_status, str) and tumor_status.strip().upper() == 'WITH TUMOR'
+
+        cancer_death = is_dead and with_tumor
+        event = 1 if (nte_yes or cancer_death) else 0
+
+        def _to_float(v):
+            if v is None:
+                return None
+            try:
+                return float(v)
+            except (ValueError, TypeError):
+                return None
+
+        nte_days_f = _to_float(nte_days)
+        death_days_f = _to_float(days_to_death)
+        followup_days_f = _to_float(days_to_followup)
+
+        if nte_yes and nte_days_f is not None:
+            days = nte_days_f
+        elif cancer_death and death_days_f is not None:
+            days = death_days_f
+        else:
+            days = followup_days_f
+
+        if days is not None and days <= 0:
+            days = None
+
+        has_indicator = (nte_indicator is not None) or (vital_raw is not None)
+        valid = bool(has_indicator and days is not None)
+
+        return (float(days) if days is not None else np.nan, int(event), valid)
+
     def extract_cohort(self, xml_dir: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         Extract all XMLs in directory. Returns (features_df, targets_df).
@@ -252,10 +320,14 @@ class TCGAExtractor:
             
             # Extract targets
             survival_days, event = self._resolve_survival(raw)
+            dfs_days, dfs_event, dfs_valid = self._resolve_dfs(raw)
             target_rows.append({
                 'case_id': case_id,
                 'survival_days': survival_days,
-                'event': event
+                'event': event,
+                'dfs_days': dfs_days,
+                'dfs_event': dfs_event,
+                'dfs_valid': dfs_valid,
             })
         
         if not feature_rows:
