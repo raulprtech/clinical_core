@@ -1,0 +1,68 @@
+# ============================================================
+# CLINICAL-CORE — DIAGNÓSTICO: Late fusion (skip VAE), subcohort n=224
+# ============================================================
+# Misma diagnóstica que late_fusion_text_n444.yaml, sobre el subcohort
+# MMEM-comparable. Referencia unimodal linear_compact n=224 = 0.7533.
+# Referencia MMEM Clinical-only = 0.785.
+# ============================================================
+
+experiment:
+  name: "late_fusion_text_subcohort_dfs5mod"
+  description: "Diagnostic: late fusion (concat tab + text → Cox), MMEM-comparable subcohort n=224."
+  author: "Raul Pacheco"
+  protocol_version: "v8.1"
+
+data:
+  xml_dir: "/home/raulprtech/clinical_core/data/raw/clinicalsupplement"
+  feature_config: "../configs/tabular_mapping_no_leakage.yaml"
+  drug_file: null
+
+output:
+  base_dir: "/home/raulprtech/clinical_core/results"
+  save_raw_extraction: true
+  save_resolved_config: true
+
+random:
+  seeds: [42, 123, 456, 789, 1024]
+  n_folds: 5
+
+cohort_filter:
+  enabled: true
+  require_dfs_valid: true
+  modality_manifest_path: "/home/raulprtech/clinical_core/data/manifests/gdc_modality_manifest_TCGA-KIRC_20260528.csv"
+  require_modalities: [wsi, mrna_seq, mirna_seq, methylation_450k]
+
+phase_1_imputation:           { enabled: false }
+phase_2_variants:             { enabled: false }
+phase_2_holdout:              { enabled: false }
+phase_2_external_baselines:   { enabled: false }
+phase_2_external_holdout:     { enabled: false }
+phase_2_mahootiha:            { enabled: false }
+phase_3_efficiency:           { enabled: false }
+phase_4_stress:               { enabled: false }
+phase_5_multimodal:           { enabled: false }
+phase_6_fusion_proc:          { enabled: false }
+phase_7_turbolatent:          { enabled: false }
+phase_8_prognosis_benchmark:  { enabled: false }
+
+phase_2_late_fusion_holdout:
+  enabled: true
+  holdout_fraction: 0.20
+  seeds: [42, 123, 456, 789, 1024]
+  imputation: "knn_5"
+  text_embeddings_cache: "/home/raulprtech/clinical_core/data/embeddings/text_embeddings_TCGA-KIRC_20260528.npz"
+  encoder_params:
+    hidden_dim: 128
+    epochs: 200
+    lr: 0.001
+    patience: 20
+    weight_decay: 0.0001
+  cox_head:
+    epochs: 200
+    patience: 20
+    lr: 0.001
+    weight_decay: 0.001
+
+runtime:
+  verbosity: "normal"
+  fail_fast: false

@@ -1281,6 +1281,228 @@ def phase_2_mahootiha(
 
 
 # ============================================================
+# PHASE 2 LATE FUSION HOLDOUT — diagnostic: skip the VAE
+# ============================================================
+
+def phase_2_late_fusion_holdout(
+    df_features: pd.DataFrame,
+    df_targets: pd.DataFrame,
+    config: dict,
+    run_dir: Path,
+    best_imputation: str,
+) -> Optional[pd.DataFrame]:
+    """
+    Diagnostic experiment: skip the VAE entirely and train a single linear
+    Cox head on raw concatenated embeddings (late fusion).
+
+    For each seed:
+      1. Stratified train/holdout 80/20 split.
+      2. Train linear_compact encoder on train pool ONLY → tab_emb (768).
+      3. Load text_emb (768) from the precomputed cache, aligned to cohort.
+      4. Train three Cox heads (PrognosisProc_LinearCox) and report held-out
+         C-index for each:
+            - tab_only:  fused_dim = 768, input = tab_emb
+            - text_only: fused_dim = 768, input = text_emb
+            - concat:    fused_dim = 1536, input = [tab_emb ‖ text_emb]
+
+    Diagnostic interpretation:
+      - If concat > tab_only:        VAE was diluting good text signal.
+        Action: redesign FUSION-PROC (gating / attention / confidence weights).
+      - If concat ≈ tab_only:        Text adds little under off-the-shelf BERT.
+        Action: V2 fine-tune the text encoder.
+      - If concat < tab_only:        Late fusion has its own overfitting,
+        but the VAE result was likely upper-bounded by the same issue.
+
+    YAML structure:
+      phase_2_late_fusion_holdout:
+        enabled: true
+        holdout_fraction: 0.20
+        seeds: [42, 123, 456, 789, 1024]
+        text_embeddings_cache: /path/to/text_embeddings_*.npz
+        encoder_params:
+          hidden_dim: 128
+          epochs: 200
+          lr: 0.001
+          patience: 20
+        cox_head:
+          epochs: 200
+          patience: 20
+          lr: 1e-3
+          weight_decay: 1e-3
+    """
+    from sklearn.model_selection import train_test_split
+    from components.adapters.ingestion.tabular.models.linear_compact import VariantC_LinearEncoder
+    from components.processors.prognosis.models.linear_cox import PrognosisProc_LinearCox
+
+    phase_cfg = config.get('phase_2_late_fusion_holdout', {})
+    if not phase_cfg.get('enabled', False):
+        log("[PHASE 2 LATE FUSION HOLDOUT] DISABLED")
+        return None
+
+    log("\n[PHASE 2 LATE FUSION HOLDOUT] Skip-VAE diagnostic: tab-only / text-only / concat")
+
+    valid = df_targets['survival_days'].notna() & (df_targets['survival_days'] > 0)
+    X = df_features.loc[valid].copy()
+    y = df_targets.loc[valid].copy()
+
+    seeds = phase_cfg.get('seeds', config['random']['seeds'])
+    holdout_fraction = phase_cfg.get('holdout_fraction', 0.20)
+    imp_name = phase_cfg.get('imputation', 'knn_5')
+    if imp_name == 'auto':
+        imp_name = best_imputation
+
+    encoder_params = phase_cfg.get('encoder_params', {})
+    cox_cfg = phase_cfg.get('cox_head', {})
+    cox_epochs = cox_cfg.get('epochs', 200)
+    cox_patience = cox_cfg.get('patience', 20)
+    cox_lr = cox_cfg.get('lr', 1e-3)
+    cox_wd = cox_cfg.get('weight_decay', 1e-3)
+
+    text_cache_path = phase_cfg.get('text_embeddings_cache')
+    if not text_cache_path:
+        log("  No text_embeddings_cache configured — text-only and concat will be skipped.")
+    text_emb_cache = None
+    text_conf_cache = None
+    text_cache_ids = None
+    if text_cache_path:
+        p = Path(text_cache_path)
+        if not p.is_absolute():
+            p = Path.cwd() / p
+        if not p.exists():
+            log(f"  text_embeddings_cache not found: {p}", level="warn")
+        else:
+            data = np.load(p, allow_pickle=True)
+            text_emb_cache = data['embeddings']
+            text_conf_cache = data['confidence']
+            text_cache_ids = [str(c) for c in data['case_ids']]
+            log(f"  Text cache loaded: {p.name} (shape {text_emb_cache.shape})")
+
+    log(f"  Cases: {len(X)}, seeds: {list(seeds)}, holdout_fraction={holdout_fraction}")
+    log(f"  Imputation: {imp_name}")
+    log(f"  Cox head: epochs={cox_epochs}, patience={cox_patience}, lr={cox_lr}, wd={cox_wd}")
+
+    rows = []
+    case_id_to_text_idx = (
+        {cid: j for j, cid in enumerate(text_cache_ids)} if text_cache_ids else None
+    )
+
+    for seed in seeds:
+        log(f"  Seed {seed}")
+        tr_idx, ho_idx = train_test_split(
+            np.arange(len(X)),
+            test_size=holdout_fraction,
+            stratify=y['event'].values,
+            random_state=int(seed),
+        )
+        X_tr_raw, X_ho_raw = X.iloc[tr_idx].copy(), X.iloc[ho_idx].copy()
+        y_tr, y_ho = y.iloc[tr_idx].copy(), y.iloc[ho_idx].copy()
+        cohort_case_ids = list(X.index)
+
+        # ---- 1. Train linear_compact encoder on train pool only (Cox loss) ----
+        prep = TabularPreprocessor()
+        X_tr_imp, mask_tr, _ = prep.fit_transform(X_tr_raw, get_imputation(imp_name))
+        X_ho_imp, mask_ho, _ = prep.transform(X_ho_raw)
+
+        input_dim = X_tr_imp.shape[1]
+        encoder = VariantC_LinearEncoder(
+            input_dim=input_dim,
+            hidden_dim=encoder_params.get('hidden_dim', 128),
+            output_dim=768,
+        )
+        X_tr_t = torch.tensor(X_tr_imp.values, dtype=torch.float32)
+        X_ho_t = torch.tensor(X_ho_imp.values, dtype=torch.float32)
+        M_tr_t = _build_mask_aligned(mask_tr, X_tr_imp)
+        M_ho_t = _build_mask_aligned(mask_ho, X_ho_imp)
+        T_tr_t = torch.tensor(y_tr['survival_days'].values, dtype=torch.float32)
+        E_tr_t = torch.tensor(y_tr['event'].values, dtype=torch.float32)
+        T_ho_t = torch.tensor(y_ho['survival_days'].values, dtype=torch.float32)
+        E_ho_t = torch.tensor(y_ho['event'].values, dtype=torch.float32)
+
+        # Use train_variant_c (already GPU-aware) to fit the encoder.
+        # We discard its risk_head — we want fresh Cox heads per fusion mode.
+        train_variant_c(
+            encoder, X_tr_t, M_tr_t, T_tr_t, E_tr_t,
+            X_ho_t, M_ho_t, T_ho_t, E_ho_t,
+            epochs=encoder_params.get('epochs', 200),
+            lr=encoder_params.get('lr', 1e-3),
+            patience=encoder_params.get('patience', 20),
+            weight_decay=encoder_params.get('weight_decay', 1e-4),
+            verbose=False,
+        )
+        encoder.eval()
+        with torch.no_grad():
+            tab_emb_tr, _ = encoder(X_tr_t, M_tr_t)
+            tab_emb_ho, _ = encoder(X_ho_t, M_ho_t)
+        tab_emb_tr = tab_emb_tr.cpu()
+        tab_emb_ho = tab_emb_ho.cpu()
+
+        # ---- 2. Align text embeddings to current cohort indices ----
+        if case_id_to_text_idx is not None:
+            tr_ids = [cohort_case_ids[i] for i in tr_idx]
+            ho_ids = [cohort_case_ids[i] for i in ho_idx]
+            txt_tr_np = np.zeros((len(tr_idx), 768), dtype=np.float32)
+            txt_ho_np = np.zeros((len(ho_idx), 768), dtype=np.float32)
+            for k, cid in enumerate(tr_ids):
+                j = case_id_to_text_idx.get(str(cid))
+                if j is not None:
+                    txt_tr_np[k] = text_emb_cache[j]
+            for k, cid in enumerate(ho_ids):
+                j = case_id_to_text_idx.get(str(cid))
+                if j is not None:
+                    txt_ho_np[k] = text_emb_cache[j]
+            text_tr_t = torch.tensor(txt_tr_np, dtype=torch.float32)
+            text_ho_t = torch.tensor(txt_ho_np, dtype=torch.float32)
+        else:
+            text_tr_t = text_ho_t = None
+
+        # ---- 3. Train three Cox heads ----
+        def _train_eval(name, X_tr_emb, X_ho_emb):
+            fused_dim = X_tr_emb.shape[1]
+            head = PrognosisProc_LinearCox(fused_dim=fused_dim, lr=cox_lr, weight_decay=cox_wd)
+            res = head.fit(
+                X_tr_emb, T_tr_t, E_tr_t,
+                X_ho_emb, T_ho_t, E_ho_t,
+                epochs=cox_epochs, patience=cox_patience, verbose=False,
+            )
+            return float(res['best_val_cindex'])
+
+        ci_tab = _train_eval('tab_only', tab_emb_tr, tab_emb_ho)
+        log(f"    tab_only:  cindex={ci_tab:.4f}")
+        rows.append({'seed': int(seed), 'fusion': 'tab_only',
+                     'cindex_holdout': ci_tab, 'fused_dim': 768,
+                     'n_train': len(tr_idx), 'n_holdout': len(ho_idx)})
+
+        if text_tr_t is not None:
+            ci_txt = _train_eval('text_only', text_tr_t, text_ho_t)
+            log(f"    text_only: cindex={ci_txt:.4f}")
+            rows.append({'seed': int(seed), 'fusion': 'text_only',
+                         'cindex_holdout': ci_txt, 'fused_dim': 768,
+                         'n_train': len(tr_idx), 'n_holdout': len(ho_idx)})
+
+            concat_tr = torch.cat([tab_emb_tr, text_tr_t], dim=1)
+            concat_ho = torch.cat([tab_emb_ho, text_ho_t], dim=1)
+            ci_cat = _train_eval('concat', concat_tr, concat_ho)
+            log(f"    concat:    cindex={ci_cat:.4f}")
+            rows.append({'seed': int(seed), 'fusion': 'concat',
+                         'cindex_holdout': ci_cat, 'fused_dim': 1536,
+                         'n_train': len(tr_idx), 'n_holdout': len(ho_idx)})
+
+    df_results = pd.DataFrame(rows)
+    df_results.to_csv(run_dir / "phase2_late_fusion.csv", index=False)
+
+    summary = (
+        df_results
+        .groupby('fusion')['cindex_holdout']
+        .agg(cindex_mean='mean', cindex_std='std', cindex_median='median', n_seeds='count')
+        .round(4)
+    )
+    summary.to_csv(run_dir / "phase2_late_fusion_summary.csv")
+    log("\n  LATE FUSION HOLDOUT SUMMARY:")
+    log(summary.to_string())
+    return df_results
+
+
+# ============================================================
 # PHASE 2 EXTERNAL — non-compliant SOTA baselines
 # ============================================================
 
@@ -2034,31 +2256,44 @@ def phase_6_fusion_proc(
         verbose             = False,
     )
  
-    # --- Train VAE (on GPU if available; vae.fit reads device from model params) ---
-    vae_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    vae = vae.to(vae_device)
-    t0 = time.time()
-    result = vae.fit(
-        X_train=X_flat[idx_tr],  conf_train=conf[idx_tr],
-        T_train=T[idx_tr],        E_train=E[idx_tr],
-        X_val=X_flat[idx_va],     conf_val=conf[idx_va],
-        T_val=T[idx_va],          E_val=E[idx_va],
-        cfg=train_cfg,
-    )
-    elapsed = time.time() - t0
-    log(f"  VAE training elapsed: {elapsed:.1f}s  "
-        f"(Stage A: {len(result['stage_A_history'])}ep, "
-        f"Stage B: {len(result['stage_B_history'])}ep)")
-    # Return VAE to CPU so the downstream extract_latent_space call (which
-    # receives CPU tensors X_flat/conf) does not hit a device mismatch.
-    vae = vae.to('cpu')
+    # --- Late-fusion shortcut: skip the VAE entirely and use the concat as Z ---
+    # When phase_6_fusion_proc.late_fusion_mode is true, the "latent" passed
+    # downstream is simply the concatenated modality block (X_flat). Phase 7
+    # (TurboLatent) and Phase 8 (Cox/Weibull on Z) read d_latent dynamically,
+    # so they work transparently with any D. This is the operational path
+    # after the 2026-05-28 diagnostic showed the VAE was diluting text signal.
+    late_fusion_mode = phase_cfg.get('late_fusion_mode', False)
+    if late_fusion_mode:
+        log("  late_fusion_mode=ON: skipping VAE training, Z = concat modalities")
+        Z = X_flat.cpu().numpy().astype(np.float32)
+        conf_full = conf.cpu().numpy().astype(np.float32).mean(axis=1)
+        result = {'stage_A_history': [], 'stage_B_history': []}
+    else:
+        # --- Train VAE (on GPU if available; vae.fit reads device from model params) ---
+        vae_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        vae = vae.to(vae_device)
+        t0 = time.time()
+        result = vae.fit(
+            X_train=X_flat[idx_tr],  conf_train=conf[idx_tr],
+            T_train=T[idx_tr],        E_train=E[idx_tr],
+            X_val=X_flat[idx_va],     conf_val=conf[idx_va],
+            T_val=T[idx_va],          E_val=E[idx_va],
+            cfg=train_cfg,
+        )
+        elapsed = time.time() - t0
+        log(f"  VAE training elapsed: {elapsed:.1f}s  "
+            f"(Stage A: {len(result['stage_A_history'])}ep, "
+            f"Stage B: {len(result['stage_B_history'])}ep)")
+        # Return VAE to CPU so the downstream extract_latent_space call (which
+        # receives CPU tensors X_flat/conf) does not hit a device mismatch.
+        vae = vae.to('cpu')
 
-    # --- Extract frozen Z for full cohort ---
-    vae.eval()
-    with torch.no_grad():
-        Z, conf_full = vae.extract_latent_space(X_flat, conf)
-    Z = Z.cpu().numpy()
-    conf_full = conf_full.cpu().numpy()
+        # --- Extract frozen Z for full cohort ---
+        vae.eval()
+        with torch.no_grad():
+            Z, conf_full = vae.extract_latent_space(X_flat, conf)
+        Z = Z.cpu().numpy()
+        conf_full = conf_full.cpu().numpy()
  
     # --- Persist artifact ---
     # FIX (Apr 2026, BUG 5): persist BOTH the train-pool/held-out partition
@@ -2081,34 +2316,48 @@ def phase_6_fusion_proc(
     log(f"  Latent Z saved: {latent_path}  (shape: {Z.shape})")
     log(f"  Train pool: {len(pool_idx)} cases | Held-out: {len(holdout_idx)} cases")
  
-    # --- Persist checkpoint + history ---
-    ckpt_path = artifacts_dir / "phase_6_vae_checkpoint.pt"
-    torch.save({
-        'model_state': vae.state_dict(),
-        'model_name':  vae.name,
-        'n_parameters': vae.n_parameters(),
-        'train_cfg': train_cfg.__dict__,
-    }, ckpt_path)
- 
-    history_path = artifacts_dir / "phase_6_vae_history.json"
-    with open(history_path, 'w') as f:
-        json.dump({
-            'stage_A': result['stage_A_history'],
-            'stage_B': result['stage_B_history'],
-        }, f, indent=2, default=str)
- 
+    # --- Persist checkpoint + history (only when a VAE was actually trained) ---
+    if not late_fusion_mode:
+        ckpt_path = artifacts_dir / "phase_6_vae_checkpoint.pt"
+        torch.save({
+            'model_state': vae.state_dict(),
+            'model_name':  vae.name,
+            'n_parameters': vae.n_parameters(),
+            'train_cfg': train_cfg.__dict__,
+        }, ckpt_path)
+
+        history_path = artifacts_dir / "phase_6_vae_history.json"
+        with open(history_path, 'w') as f:
+            json.dump({
+                'stage_A': result['stage_A_history'],
+                'stage_B': result['stage_B_history'],
+            }, f, indent=2, default=str)
+
     # --- Summary dataframe ---
-    summary_row = {
-        'model':            vae.name,
-        'n_parameters':     vae.n_parameters(),
-        'd_latent':         Z.shape[1],
-        'n_cases':          N,
-        'n_events':         int(y['event'].sum()),
-        'stage_a_epochs':   len(result['stage_A_history']),
-        'stage_b_epochs':   len(result['stage_B_history']),
-        'elapsed_s':        round(elapsed, 2),
-        'artifact_path':    str(latent_path),
-    }
+    if late_fusion_mode:
+        summary_row = {
+            'model':            'late_fusion_concat',
+            'n_parameters':     0,
+            'd_latent':         Z.shape[1],
+            'n_cases':          N,
+            'n_events':         int(y['event'].sum()),
+            'stage_a_epochs':   0,
+            'stage_b_epochs':   0,
+            'elapsed_s':        0.0,
+            'artifact_path':    str(latent_path),
+        }
+    else:
+        summary_row = {
+            'model':            vae.name,
+            'n_parameters':     vae.n_parameters(),
+            'd_latent':         Z.shape[1],
+            'n_cases':          N,
+            'n_events':         int(y['event'].sum()),
+            'stage_a_epochs':   len(result['stage_A_history']),
+            'stage_b_epochs':   len(result['stage_B_history']),
+            'elapsed_s':        round(elapsed, 2),
+            'artifact_path':    str(latent_path),
+        }
     results_df = pd.DataFrame([summary_row])
     results_df.to_csv(run_dir / "phase_6_fusion_proc.csv", index=False)
     log(f"  Summary: {summary_row}")
@@ -2142,8 +2391,8 @@ def phase_7_turbolatent(
     log("\n[PHASE 7] TurboLatent (rotation + PTQ on frozen Z)")
  
     from core.registry import get_prognosis_proc
-    from sklearn.model_selection import StratifiedKFold
- 
+    from sklearn.model_selection import StratifiedKFold, train_test_split
+
     # --- Resolve Z artifact ---
     latent_path = resolve_artifact_path(
         artifact_name='phase_6_latent_z.npz',
@@ -2220,9 +2469,20 @@ def phase_7_turbolatent(
         return R
  
     def make_svd_rotation(Z: np.ndarray) -> np.ndarray:
-        """Data-driven rotation via SVD of the centered Z."""
+        """Data-driven rotation via SVD of the centered Z.
+
+        Uses `full_matrices=True` so the right-singular-vector matrix Vt is
+        always [D, D] orthogonal. With `full_matrices=False` SVD returns
+        Vt with shape [min(N, D), D]; in the concat-fusion case where
+        D > N, that's [N, D] and is NOT a valid rotation matrix (the
+        downstream `Z @ R.T` then collapses to [N, N] and the Cox head
+        receives the wrong feature count). Caveat: when N < D, only the
+        first N singular directions are data-driven; the rest of Vt
+        is an arbitrary orthonormal basis of the null space. The SVD
+        baseline in this regime is therefore a fair-but-noisy comparator.
+        """
         Zc = Z - Z.mean(axis=0, keepdims=True)
-        _, _, Vt = np.linalg.svd(Zc, full_matrices=False)
+        _, _, Vt = np.linalg.svd(Zc, full_matrices=True)
         return Vt  # [D, D] orthogonal
  
     def quantize_uniform(x: np.ndarray, bits: int) -> np.ndarray:
@@ -2266,19 +2526,73 @@ def phase_7_turbolatent(
                 fold_cis.append(res['best_val_cindex'])
             seed_means.append(float(np.mean(fold_cis)))
         return float(np.mean(seed_means)), float(np.std(seed_means))
+
+    def eval_cox_holdout(X: np.ndarray) -> Tuple[float, float]:
+        """Train Cox on the full train pool once per seed, evaluate on the
+        fixed held-out set. Variance comes from model-init randomness only.
+
+        Critical when D > N (e.g. concat-1536 with N=355 train pool): the
+        in-pool CV severely overfits because each CV fold has only ~284
+        training cases for 1536 covariates. The held-out cifra is the
+        honest one for Paper 3 rotation/quantization comparisons.
+
+        Protocol note: this uses the FIXED train_pool_idx / holdout_idx from
+        the Phase 6 artifact (set by random.seed=42). This is internally
+        consistent for Paper 3 (all rotation variants on the same Z and the
+        same held-out 45/89 cases). It is intentionally different from the
+        per-seed stratified protocol used by phase_2_late_fusion_holdout
+        (Hallazgo 6 in Paper 2). Don't try to "fix" by re-splitting per seed
+        in this function: the encoder that produced Z saw pool_42 already,
+        so any per-seed re-split of Z leaks the encoder's training data
+        into the held-out. The legitimate way to obtain a per-seed cifra is
+        to re-train the encoder per seed (which is what phase_2_late_fusion_holdout
+        does and what would require 5 separate Phase 6 artifacts here).
+        """
+        if len(holdout_idx) == 0:
+            return float('nan'), float('nan')
+        cis = []
+        for s in seeds:
+            torch.manual_seed(int(s))
+            np.random.seed(int(s))
+            X_tr = torch.tensor(X[train_pool_idx], dtype=torch.float32)
+            X_ho = torch.tensor(X[holdout_idx],    dtype=torch.float32)
+            T_tr = torch.tensor(T[train_pool_idx], dtype=torch.float32)
+            T_ho = torch.tensor(T[holdout_idx],    dtype=torch.float32)
+            E_tr = torch.tensor(E[train_pool_idx], dtype=torch.float32)
+            E_ho = torch.tensor(E[holdout_idx],    dtype=torch.float32)
+            model = get_prognosis_proc(prognosis_name, fused_dim=D)
+            res = model.fit(
+                X_tr, T_tr, E_tr, X_ho, T_ho, E_ho,
+                epochs=phase_cfg.get('epochs', 200),
+                patience=phase_cfg.get('patience', 20),
+                verbose=False,
+            )
+            cis.append(float(res['best_val_cindex']))
+        return float(np.mean(cis)), float(np.std(cis))
  
     # --- Run all (variant × bits) combinations ---
     rows = []
- 
+
+    def _record(variant: str, bits, X_eval: np.ndarray) -> None:
+        ci_cv, std_cv = eval_cox_cv(X_eval)
+        ci_ho, std_ho = eval_cox_holdout(X_eval)
+        rows.append({
+            'variant': variant, 'bits': bits,
+            # CV in-pool (original semantics — kept for backward compat)
+            'cindex_mean': ci_cv, 'cindex_std': std_cv,
+            'cindex_cv_mean': ci_cv, 'cindex_cv_std': std_cv,
+            # Held-out (NEW — honest cifra when D > N)
+            'cindex_holdout_mean': ci_ho, 'cindex_holdout_std': std_ho,
+        })
+        # One log line with both numbers; NaN held-out renders cleanly.
+        ho_str = (f"  |  held-out {ci_ho:.4f} ± {std_ho:.4f}"
+                  if ci_ho == ci_ho else "  |  held-out (none)")
+        log(f"  {variant:<10} {str(bits):<14} cv {ci_cv:.4f} ± {std_cv:.4f}{ho_str}")
+
     if include_baseline:
         log("  Baseline: no rotation, FP32")
-        ci_mean, ci_std = eval_cox_cv(Z)
-        rows.append({
-            'variant': 'baseline', 'bits': 'fp32',
-            'cindex_mean': ci_mean, 'cindex_std': ci_std,
-        })
-        log(f"    C-index: {ci_mean:.4f} ± {ci_std:.4f}")
- 
+        _record('baseline', 'fp32', Z)
+
     for variant in variants:
         if variant == 'hadamard':
             R = make_hadamard(D)
@@ -2289,23 +2603,11 @@ def phase_7_turbolatent(
         else:
             log(f"  Unknown variant: {variant}, skipping")
             continue
- 
-        # FP32 rotated (rotation-only, no quantization)
-        ci_mean, ci_std = eval_cox_cv(Z_rot)
-        rows.append({
-            'variant': variant, 'bits': 'fp32_rotated',
-            'cindex_mean': ci_mean, 'cindex_std': ci_std,
-        })
-        log(f"  {variant} FP32-rotated: C-index {ci_mean:.4f} ± {ci_std:.4f}")
- 
+
+        _record(variant, 'fp32_rotated', Z_rot)
         for bits in bit_widths:
             Z_q = quantize_uniform(Z_rot, bits=bits)
-            ci_mean, ci_std = eval_cox_cv(Z_q)
-            rows.append({
-                'variant': variant, 'bits': int(bits),
-                'cindex_mean': ci_mean, 'cindex_std': ci_std,
-            })
-            log(f"  {variant} INT{bits}:     C-index {ci_mean:.4f} ± {ci_std:.4f}")
+            _record(variant, int(bits), Z_q)
  
     results_df = pd.DataFrame(rows)
     results_df.to_csv(run_dir / "phase_7_turbolatent.csv", index=False)
@@ -2589,6 +2891,15 @@ def run_experiment(config_input: Union[str, Path, dict] = "experiment_config.yam
                 .round(4)
             )
             summary['phases']['phase_2_mahootiha'] = ph2_mah_summary.to_dict()
+
+        ph2_lf = phase_2_late_fusion_holdout(df_features, df_targets, config, run_dir, best_imp)
+        if ph2_lf is not None:
+            ph2_lf_summary = (
+                ph2_lf.groupby('fusion')['cindex_holdout']
+                .agg(['mean', 'std', 'median'])
+                .round(4)
+            )
+            summary['phases']['phase_2_late_fusion_holdout'] = ph2_lf_summary.to_dict()
     except Exception as e:
         summary['errors'].append({'phase': '2_external', 'error': str(e)})
         if fail_fast: raise
