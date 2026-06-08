@@ -436,24 +436,31 @@ def _evaluate_variant(
     X_tr, X_va, y_tr, y_va,
     mask_tr, mask_va, conf_tr, conf_va,
     median_surv,
-    curves_ctx: Optional[dict] = None,    # NEW
+    curves_ctx: Optional[dict] = None,
+    artifacts_dir: Optional[Path] = None,
+    artifacts_key: str = '',
 ) -> Tuple[float, float, float, bool]:
     """Evaluate a single variant on a single fold. Returns (cindex, ece, brier, contract_ok)."""
     try:
         if variant_name == 'cox_baseline':
-            return _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv)
+            return _eval_cox_baseline(
+                X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv,
+                artifacts_dir=artifacts_dir, artifacts_key=artifacts_key,
+            )
         elif variant_name == 'linear_compact':
             return _eval_linear_compact(
                 X_tr, X_va, y_tr, y_va, mask_tr, mask_va, conf_va,
                 output_dim, variant_params,
-                curves_ctx=curves_ctx,        # NEW
+                curves_ctx=curves_ctx,
+                artifacts_dir=artifacts_dir, artifacts_key=artifacts_key,
             )
         elif variant_name == 'ft_transformer':
             return _eval_ft_transformer(
                 X_tr, X_va, y_tr, y_va,
                 mask_tr, mask_va, conf_va, output_dim,
                 variant_params.get(variant_name, {}),
-                curves_ctx=curves_ctx,        # NEW
+                curves_ctx=curves_ctx,
+                artifacts_dir=artifacts_dir, artifacts_key=artifacts_key,
             )
         else:
             log(f"    {variant_name}: no evaluator registered, skipping", level="debug")
@@ -463,7 +470,73 @@ def _evaluate_variant(
         return np.nan, np.nan, np.nan, False
 
 
-def _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv):
+def _save_predictions_npz(
+    artifacts_dir: Optional[Path],
+    artifacts_key: str,
+    *,
+    case_ids_train, risk_train, times_train, events_train,
+    case_ids_holdout, risk_holdout, times_holdout, events_holdout,
+    surv_func_holdout=None, surv_time_grid=None,
+    extra: Optional[dict] = None,
+) -> None:
+    """Persist per-patient predictions for post-hoc bootstrap / DeLong / calibration."""
+    if artifacts_dir is None or not artifacts_key:
+        return
+    out_dir = Path(artifacts_dir) / "predictions"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        'case_ids_train': np.asarray(case_ids_train).astype('U64'),
+        'risk_train': np.asarray(risk_train, dtype=np.float64),
+        'times_train': np.asarray(times_train, dtype=np.float64),
+        'events_train': np.asarray(events_train, dtype=np.int64),
+        'case_ids_holdout': np.asarray(case_ids_holdout).astype('U64'),
+        'risk_holdout': np.asarray(risk_holdout, dtype=np.float64),
+        'times_holdout': np.asarray(times_holdout, dtype=np.float64),
+        'events_holdout': np.asarray(events_holdout, dtype=np.int64),
+    }
+    if surv_func_holdout is not None:
+        payload['surv_func_holdout'] = np.asarray(surv_func_holdout, dtype=np.float64)
+        payload['surv_time_grid'] = np.asarray(surv_time_grid, dtype=np.float64)
+    if extra:
+        for k, v in extra.items():
+            payload[k] = np.asarray(v)
+    np.savez_compressed(out_dir / f"{artifacts_key}.npz", **payload)
+
+
+def _save_cox_checkpoint(artifacts_dir, artifacts_key, cph, scaler, feature_cols):
+    if artifacts_dir is None or not artifacts_key:
+        return
+    import pickle
+    out_dir = Path(artifacts_dir) / "checkpoints"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with open(out_dir / f"{artifacts_key}.pkl", 'wb') as f:
+        pickle.dump({
+            'kind': 'cox_baseline',
+            'cph': cph,
+            'scaler': scaler,
+            'feature_cols': list(feature_cols),
+        }, f)
+
+
+def _save_neural_checkpoint(artifacts_dir, artifacts_key, encoder, risk_head, feature_cols,
+                            variant_name, variant_kwargs):
+    if artifacts_dir is None or not artifacts_key:
+        return
+    import pickle
+    out_dir = Path(artifacts_dir) / "checkpoints"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with open(out_dir / f"{artifacts_key}.pkl", 'wb') as f:
+        pickle.dump({
+            'kind': variant_name,
+            'encoder_state_dict': {k: v.cpu() for k, v in encoder.state_dict().items()},
+            'risk_head_state_dict': {k: v.cpu() for k, v in risk_head.state_dict().items()},
+            'feature_cols': list(feature_cols),
+            'variant_kwargs': variant_kwargs,
+        }, f)
+
+
+def _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv,
+                       artifacts_dir: Optional[Path] = None, artifacts_key: str = ''):
     """
     Cox baseline aligned with diagnostic_cox_raw.py protocol.
  
@@ -527,10 +600,11 @@ def _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv)
  
     # ---- 6. Risk scores and C-index on validation ----
     risk = cph.predict_partial_hazard(cox_df_va).values.ravel()
+    risk_tr = cph.predict_partial_hazard(cox_df_tr).values.ravel()
     ci = concordance_index(
         y_va['survival_days'].values, -risk, y_va['event'].values
     )
- 
+
     # ---- 7. Calibration metrics (ECE, Brier) on validation ----
     surv_func = cph.predict_survival_function(cox_df_va)
     if median_surv in surv_func.index:
@@ -538,11 +612,27 @@ def _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv)
     else:
         pred_probs = np.full(len(cox_df_va), 0.5)
     pred_probs = np.clip(pred_probs, 0.01, 0.99)
- 
+
     # Helpers from the existing runner (imported in real file)
     ece = expected_calibration_error(pred_probs, y_va['event'].values)
     bs = brier_score(pred_probs, y_va['event'].values)
- 
+
+    # ---- 7b. Persist artifacts (predictions + checkpoint) ----
+    _save_predictions_npz(
+        artifacts_dir, artifacts_key,
+        case_ids_train=y_tr_f.index.astype(str).values,
+        risk_train=risk_tr,
+        times_train=y_tr_f['survival_days'].values,
+        events_train=y_tr_f['event'].values,
+        case_ids_holdout=y_va.index.astype(str).values,
+        risk_holdout=risk,
+        times_holdout=y_va['survival_days'].values,
+        events_holdout=y_va['event'].values,
+        surv_func_holdout=surv_func.values,
+        surv_time_grid=surv_func.index.values,
+    )
+    _save_cox_checkpoint(artifacts_dir, artifacts_key, cph, sc, keep_var)
+
     # ---- 8. Contract verification (unchanged behavior) ----
     variant = get_variant('cox_baseline', X_va.shape[1], output_dim)
     emb, conf_t = variant.encode(
@@ -554,12 +644,14 @@ def _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv)
 
 
 def _eval_linear_compact(X_tr, X_va, y_tr, y_va, mask_tr, mask_va, conf_va, output_dim, params,
-                         curves_ctx: Optional[dict] = None):
+                         curves_ctx: Optional[dict] = None,
+                         artifacts_dir: Optional[Path] = None, artifacts_key: str = ''):
+    variant_kwargs = {'hidden_dim': params.get('hidden_dim', 128)}
     encoder = get_variant(
         'linear_compact',
         input_dim=X_tr.shape[1],
         output_dim=output_dim,
-        hidden_dim=params.get('hidden_dim', 128),
+        **variant_kwargs,
     )
 
     X_tr_t = torch.tensor(X_tr.values, dtype=torch.float32)
@@ -586,12 +678,32 @@ def _eval_linear_compact(X_tr, X_va, y_tr, y_va, mask_tr, mask_va, conf_va, outp
 
     encoder.eval()
     with torch.no_grad():
+        emb_tr, _ = encoder(X_tr_t, M_tr)
+        risk_tr = result['risk_head'](emb_tr).squeeze(-1).numpy()
         emb, conf_t = encoder(X_va_t, M_va)
         risk = result['risk_head'](emb).squeeze(-1).numpy()
     pred_probs = 1 / (1 + np.exp(-risk))
     pred_probs = np.clip(pred_probs, 0.01, 0.99)
     ece = expected_calibration_error(pred_probs, y_va['event'].values)
     bs = brier_score(pred_probs, y_va['event'].values)
+
+    _save_predictions_npz(
+        artifacts_dir, artifacts_key,
+        case_ids_train=y_tr.index.astype(str).values,
+        risk_train=risk_tr,
+        times_train=y_tr['survival_days'].values,
+        events_train=y_tr['event'].values,
+        case_ids_holdout=y_va.index.astype(str).values,
+        risk_holdout=risk,
+        times_holdout=y_va['survival_days'].values,
+        events_holdout=y_va['event'].values,
+    )
+    _save_neural_checkpoint(
+        artifacts_dir, artifacts_key, encoder, result['risk_head'],
+        feature_cols=list(X_tr.columns),
+        variant_name='linear_compact',
+        variant_kwargs={**variant_kwargs, 'output_dim': output_dim, 'input_dim': X_tr.shape[1]},
+    )
 
     contract = verify_ingestion_contract(emb, conf_t, output_dim, verbose=False)
     return ci, ece, bs, contract.get('contract_satisfied', False)
@@ -632,16 +744,20 @@ def _eval_ft_transformer(
     mask_tr, mask_va, conf_va,
     output_dim, params,
     curves_ctx: Optional[dict] = None,    # NEW
+    artifacts_dir: Optional[Path] = None, artifacts_key: str = '',
 ):
+    variant_kwargs = {
+        'd_token': params.get('d_token', 192),
+        'n_blocks': params.get('n_blocks', 3),
+        'n_heads': params.get('n_heads', 8),
+        'd_ff': params.get('d_ff', None),
+        'dropout': params.get('dropout', 0.1),
+    }
     encoder = get_variant(
         'ft_transformer',
         input_dim=X_tr.shape[1],
         output_dim=output_dim,
-        d_token=params.get('d_token', 192),
-        n_blocks=params.get('n_blocks', 3),
-        n_heads=params.get('n_heads', 8),
-        d_ff=params.get('d_ff', None),
-        dropout=params.get('dropout', 0.1),
+        **variant_kwargs,
     )
 
     X_tr_t = torch.tensor(X_tr.values, dtype=torch.float32)
@@ -669,6 +785,8 @@ def _eval_ft_transformer(
 
     encoder.eval()
     with torch.no_grad():
+        emb_tr, _ = encoder(X_tr_t, M_tr)
+        risk_tr = result['risk_head'](emb_tr).squeeze(-1).numpy()
         emb, conf_t = encoder(X_va_t, M_va)
         risk = result['risk_head'](emb).squeeze(-1).numpy()
 
@@ -676,6 +794,24 @@ def _eval_ft_transformer(
     pred_probs = np.clip(pred_probs, 0.01, 0.99)
     ece = expected_calibration_error(pred_probs, y_va['event'].values)
     bs = brier_score(pred_probs, y_va['event'].values)
+
+    _save_predictions_npz(
+        artifacts_dir, artifacts_key,
+        case_ids_train=y_tr.index.astype(str).values,
+        risk_train=risk_tr,
+        times_train=y_tr['survival_days'].values,
+        events_train=y_tr['event'].values,
+        case_ids_holdout=y_va.index.astype(str).values,
+        risk_holdout=risk,
+        times_holdout=y_va['survival_days'].values,
+        events_holdout=y_va['event'].values,
+    )
+    _save_neural_checkpoint(
+        artifacts_dir, artifacts_key, encoder, result['risk_head'],
+        feature_cols=list(X_tr.columns),
+        variant_name='ft_transformer',
+        variant_kwargs={**variant_kwargs, 'output_dim': output_dim, 'input_dim': X_tr.shape[1]},
+    )
 
     contract = verify_ingestion_contract(emb, conf_t, output_dim, verbose=False)
     return ci, ece, bs, contract.get('contract_satisfied', False)
@@ -858,89 +994,117 @@ def phase_2_holdout(
     imp_for_baseline = phase_cfg.get('imputation_for_baseline',
                                       config.get('phase_2_variants', {}).get('imputation_for_baseline', 'knn_5'))
 
+    # Multi-protocol support: each entry defines a name and an optional
+    # list of columns to drop from df_features (e.g. the post-event variables
+    # ecog/karnofsky/tumor_status for the "limpio" protocol). If absent,
+    # behaviour collapses to a single anonymous protocol on the full feature set.
+    protocols_cfg = phase_cfg.get('protocols')
+    if not protocols_cfg:
+        protocols_cfg = [{'name': '', 'drop_features': []}]
+    save_artifacts = bool(phase_cfg.get('save_artifacts', False))
+    artifacts_dir = run_dir / "phase2_artifacts" if save_artifacts else None
+
     log(f"  Cases: {len(X)}, output_dim: {output_dim}")
     log(f"  Holdout fraction: {holdout_fraction}, seeds: {list(seeds)}")
     log(f"  Variants: {variants}")
     log(f"  Imputation for baseline: {imp_for_baseline}")
     log(f"  Imputation for advanced variants: {imp_for_variants}")
+    log(f"  Protocols: {[p.get('name','<unnamed>') for p in protocols_cfg]}")
+    log(f"  save_artifacts: {save_artifacts}")
 
     rows = []
-    holdout_rows_aux = []
 
-    for seed in seeds:
-        log(f"  Seed {seed}")
-        idx_all = np.arange(len(X))
-        tr_idx, ho_idx = train_test_split(
-            idx_all,
-            test_size=holdout_fraction,
-            stratify=y['event'].values,
-            random_state=int(seed),
-        )
+    for protocol in protocols_cfg:
+        proto_name = str(protocol.get('name', '') or '')
+        drop_cols = list(protocol.get('drop_features') or [])
+        X_proto = X.drop(columns=[c for c in drop_cols if c in X.columns], errors='ignore')
+        proto_tag = proto_name if proto_name else 'default'
+        log(f"\n  [Protocol: {proto_tag}] n_features={X_proto.shape[1]} "
+            f"(dropped={[c for c in drop_cols if c in X.columns]})")
 
-        X_tr_raw, X_ho_raw = X.iloc[tr_idx].copy(), X.iloc[ho_idx].copy()
-        y_tr, y_ho = y.iloc[tr_idx].copy(), y.iloc[ho_idx].copy()
-
-        # Two preprocessing passes mirroring phase_2_variants: baseline and advanced.
-        prep_base = TabularPreprocessor()
-        X_tr_b, mask_tr_b, conf_tr_b = prep_base.fit_transform(
-            X_tr_raw, get_imputation(imp_for_baseline)
-        )
-        X_ho_b, mask_ho_b, conf_ho_b = prep_base.transform(X_ho_raw)
-
-        prep_adv = TabularPreprocessor()
-        X_tr_a, mask_tr_a, conf_tr_a = prep_adv.fit_transform(
-            X_tr_raw, get_imputation(imp_for_variants)
-        )
-        X_ho_a, mask_ho_a, conf_ho_a = prep_adv.transform(X_ho_raw)
-
-        input_dim = X_tr_a.shape[1]
-        n_events_ho = int(y_ho['event'].sum())
-        log(f"    n_train={len(tr_idx)}, n_holdout={len(ho_idx)}, events_holdout={n_events_ho}")
-
-        for variant_name in variants:
-            if variant_name == 'cox_baseline':
-                X_tr_use, X_ho_use = X_tr_b, X_ho_b
-                conf_ho_use = conf_ho_b
-            else:
-                X_tr_use, X_ho_use = X_tr_a, X_ho_a
-                conf_ho_use = conf_ho_a
-
-            ci, ece, bs, contract_ok = _evaluate_variant(
-                variant_name=variant_name,
-                input_dim=input_dim,
-                output_dim=output_dim,
-                variant_params=variant_params.get(variant_name, {}),
-                X_tr=X_tr_use, X_va=X_ho_use,
-                y_tr=y_tr, y_va=y_ho,
-                mask_tr=mask_tr_a, mask_va=mask_ho_a,
-                conf_tr=conf_tr_a, conf_va=conf_ho_use,
-                median_surv=median_surv,
-                curves_ctx={
-                    'run_dir': run_dir,
-                    'seed': seed,
-                    'fold': 'holdout',
-                    'variant_name': variant_name,
-                },
+        for seed in seeds:
+            log(f"  Seed {seed}")
+            idx_all = np.arange(len(X_proto))
+            tr_idx, ho_idx = train_test_split(
+                idx_all,
+                test_size=holdout_fraction,
+                stratify=y['event'].values,
+                random_state=int(seed),
             )
 
-            rows.append({
-                'seed': int(seed),
-                'variant': variant_name,
-                'cindex_holdout': float(ci),
-                'ece': float(ece) if ece == ece else float('nan'),
-                'brier_score': float(bs) if bs == bs else float('nan'),
-                'contract_satisfied': bool(contract_ok),
-                'n_train': int(len(tr_idx)),
-                'n_holdout': int(len(ho_idx)),
-                'events_holdout': n_events_ho,
-            })
+            X_tr_raw, X_ho_raw = X_proto.iloc[tr_idx].copy(), X_proto.iloc[ho_idx].copy()
+            y_tr, y_ho = y.iloc[tr_idx].copy(), y.iloc[ho_idx].copy()
+
+            # Two preprocessing passes mirroring phase_2_variants: baseline and advanced.
+            prep_base = TabularPreprocessor()
+            X_tr_b, mask_tr_b, conf_tr_b = prep_base.fit_transform(
+                X_tr_raw, get_imputation(imp_for_baseline)
+            )
+            X_ho_b, mask_ho_b, conf_ho_b = prep_base.transform(X_ho_raw)
+
+            prep_adv = TabularPreprocessor()
+            X_tr_a, mask_tr_a, conf_tr_a = prep_adv.fit_transform(
+                X_tr_raw, get_imputation(imp_for_variants)
+            )
+            X_ho_a, mask_ho_a, conf_ho_a = prep_adv.transform(X_ho_raw)
+
+            input_dim = X_tr_a.shape[1]
+            n_events_ho = int(y_ho['event'].sum())
+            log(f"    n_train={len(tr_idx)}, n_holdout={len(ho_idx)}, events_holdout={n_events_ho}")
+
+            for variant_name in variants:
+                if variant_name == 'cox_baseline':
+                    X_tr_use, X_ho_use = X_tr_b, X_ho_b
+                    conf_ho_use = conf_ho_b
+                else:
+                    X_tr_use, X_ho_use = X_tr_a, X_ho_a
+                    conf_ho_use = conf_ho_a
+
+                artifacts_key = (
+                    f"{proto_tag}_seed{int(seed)}_{variant_name}"
+                    if save_artifacts else ''
+                )
+
+                ci, ece, bs, contract_ok = _evaluate_variant(
+                    variant_name=variant_name,
+                    input_dim=input_dim,
+                    output_dim=output_dim,
+                    variant_params=variant_params.get(variant_name, {}),
+                    X_tr=X_tr_use, X_va=X_ho_use,
+                    y_tr=y_tr, y_va=y_ho,
+                    mask_tr=mask_tr_a, mask_va=mask_ho_a,
+                    conf_tr=conf_tr_a, conf_va=conf_ho_use,
+                    median_surv=median_surv,
+                    curves_ctx={
+                        'run_dir': run_dir,
+                        'seed': seed,
+                        'fold': f'holdout_{proto_tag}',
+                        'variant_name': variant_name,
+                    },
+                    artifacts_dir=artifacts_dir,
+                    artifacts_key=artifacts_key,
+                )
+
+                rows.append({
+                    'protocol': proto_tag,
+                    'seed': int(seed),
+                    'variant': variant_name,
+                    'cindex_holdout': float(ci),
+                    'ece': float(ece) if ece == ece else float('nan'),
+                    'brier_score': float(bs) if bs == bs else float('nan'),
+                    'contract_satisfied': bool(contract_ok),
+                    'n_train': int(len(tr_idx)),
+                    'n_holdout': int(len(ho_idx)),
+                    'events_holdout': n_events_ho,
+                    'n_features': int(X_proto.shape[1]),
+                })
 
     df_results = pd.DataFrame(rows)
     df_results.to_csv(run_dir / "phase2_holdout.csv", index=False)
 
     summary = (
         df_results
-        .groupby('variant')
+        .groupby(['protocol', 'variant'])
         .agg(
             cindex_mean=('cindex_holdout', 'mean'),
             cindex_std=('cindex_holdout', 'std'),
@@ -2846,12 +3010,14 @@ def run_experiment(config_input: Union[str, Path, dict] = "experiment_config.yam
 
         ph2_ho = phase_2_holdout(df_features, df_targets, config, run_dir, best_imp)
         if ph2_ho is not None:
+            group_cols = ['protocol', 'variant'] if 'protocol' in ph2_ho.columns else ['variant']
             ph2_ho_summary = (
-                ph2_ho.groupby('variant')['cindex_holdout']
+                ph2_ho.groupby(group_cols)['cindex_holdout']
                 .agg(['mean', 'std', 'median'])
                 .round(4)
+                .reset_index()
             )
-            summary['phases']['phase_2_holdout'] = ph2_ho_summary.to_dict()
+            summary['phases']['phase_2_holdout'] = ph2_ho_summary.to_dict(orient='records')
 
         # New Phase 2 External Baselines
         ph2_ext = phase_2_external_baselines(df_features, df_targets, config, run_dir, best_imp)

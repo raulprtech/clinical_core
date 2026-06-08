@@ -19,6 +19,10 @@ tabpfn
 
 # Survival Analysis (Core)
 lifelines
+scikit-survival
+
+# Interpretability (post-hoc SHAP attributions on phase_2_holdout artifacts)
+shap
 
 # Vision & Text Ingestion 
 # (Note: pyradiomics requires 'cmake' on system)

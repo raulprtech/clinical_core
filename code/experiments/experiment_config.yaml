@@ -25,8 +25,10 @@ data:
   # Directory containing TCGA-KIRC BCR XML clinical supplements
   xml_dir: "/home/raulprtech/clinical_core/data/raw/clinicalsupplement"
   
-  # Feature/target schema (tabular_mapping.yaml)
-  feature_config: "../components/adapters/ingestion/tabular/configs/tabular_mapping_no_leakage.yaml"
+  # Feature/target schema (tabular_mapping.yaml). Loads the 22-variable superset
+  # so phase_2_holdout can ablate the 3 post-event variables (ecog, karnofsky,
+  # tumor_status) per protocol without requiring two extraction passes.
+  feature_config: "../components/adapters/ingestion/tabular/configs/tabular_mapping_22_with_leakage.yaml"
   
   # Optional: drug treatment TXT for future use (not used in this run)
   drug_file: null
@@ -110,6 +112,60 @@ phase_2_variants:
   
   # Variant A (Cox baseline) always uses mean_median (specified by protocol)
   imputation_for_baseline: "mean_median"
+
+# ============================================================
+# PHASE 2 HOLDOUT — 80/20 split per seed × protocol × variant
+# ============================================================
+# Drives the paper's Table 1 (sensibilidad al leakage por arquitectura).
+# Runs each variant under two protocols on the same patients/seeds so that
+# DeLong p-values and bootstrap CIs can be computed pairwise downstream.
+phase_2_holdout:
+  enabled: true
+
+  holdout_fraction: 0.20
+  seeds: [42, 123, 456, 789, 1024]
+
+  variants:
+    - cox_baseline
+    - linear_compact
+    - ft_transformer
+
+  output_dim: 768
+
+  variant_params:
+    linear_compact:
+      hidden_dim: 64
+      lr: 0.01
+      weight_decay: 1.0e-5
+      epochs: 200
+      patience: 10
+    ft_transformer:
+      d_token: 192
+      n_blocks: 3
+      n_heads: 8
+      dropout: 0.1
+      epochs: 200
+      lr: 3.0e-4
+      patience: 20
+
+  imputation_for_baseline: "mean_median"
+  imputation_for_variants: "knn_5"
+
+  # Persist per-(protocol, seed, variant) predictions and model checkpoints
+  # under {run_dir}/phase2_artifacts/. Required for the post-hoc tools:
+  #   tools/run_significance_tests.py
+  #   tools/run_calibration.py
+  #   tools/run_shap_attributions.py
+  save_artifacts: true
+
+  # The 22-vars feature_config above is the superset. Each protocol drops
+  # the listed columns from the feature matrix BEFORE the 80/20 split, so
+  # train/holdout indices stay aligned across protocols for the same seed.
+  protocols:
+    - name: limpio
+      drop_features: [ecog_score, karnofsky_score, tumor_status]
+    - name: permisivo
+      drop_features: []
 
 # ============================================================
 # PHASE 2 EXTERNAL — non-compliant SOTA baselines
@@ -211,6 +267,19 @@ phase_5_multimodal:
   # PROGNOSIS-PROC training hyperparameters
   prognosis_epochs: 200
   prognosis_patience: 20
+
+# ============================================================
+# COHORT FILTER — dense subcohort (Mahootiha §4.3 ablation)
+# ============================================================
+# When enabled, restricts the cohort to cases with valid DFS AND
+# simultaneous availability of the 4 expensive modalities (WSI, mRNA,
+# miRNA, methylation 450K). Yields ~224 patients on TCGA-KIRC and is
+# the setting where the paper's leakage effect (+0.036) is detectable.
+cohort_filter:
+  enabled: false   # set to true to restrict to the dense n=224 subcohort (Mahootiha-style)
+  require_dfs_valid: true
+  modality_manifest_path: "/home/raulprtech/clinical_core/data/manifests/gdc_modality_manifest_TCGA-KIRC_20260528.csv"
+  require_modalities: [wsi, mrna_seq, mirna_seq, methylation_450k]
 
 # ============================================================
 # RUNTIME CONTROLS
