@@ -168,6 +168,25 @@ phase_2_holdout:
       drop_features: []
 
 # ============================================================
+# PHASE 2 MAHOOTIHA — Spearman + RF + top-K replication
+# ============================================================
+# Reproduces Mahootiha 2024's feature-ranking pipeline.
+# Two protocols share the same per-seed train/holdout split, so the
+# columns of Tabla 3 (19 limpio vs 22 leak) are paired by patient.
+phase_2_mahootiha:
+  enabled: true
+  holdout_fraction: 0.20
+  seeds: [42, 123, 456, 789, 1024]
+  k_values: [5, 10, 15, null]
+  imputation: knn_5
+  rf_n_estimators: 200
+  protocols:
+    - name: limpio
+      drop_features: [ecog_score, karnofsky_score, tumor_status]
+    - name: permisivo
+      drop_features: []
+
+# ============================================================
 # PHASE 2 EXTERNAL — non-compliant SOTA baselines
 # ============================================================
 phase_2_external_baselines:
@@ -224,10 +243,10 @@ phase_4_stress:
 # Modality data discovery:
 #   - tabular: extracted from xml_dir (no extra config needed)
 #   - text:    expects PDFs/TXTs in text_dir, matched to case_id by filename
-#   - vision:  expects .nii.gz volumes in vision_dir, matched by filename
+#   - vision:  accepts NIfTI volumes or DICOM series trees in vision_dir
 #
-# If text_dir / vision_dir are null, those modalities are disabled
-# automatically and the pipeline falls back to whatever is available.
+# A null directory simply contributes no cases for that modality, unless a
+# precomputed vision_embeddings_csv is supplied.
 phase_5_multimodal:
   enabled: false
   
@@ -242,7 +261,10 @@ phase_5_multimodal:
   
   # Component selections (must exist in respective registries)
   text_conn: "text_baseline_docling_clinicalbert"
-  vision_conn: "vision_baseline_stunet_radiomics"
+  text_embeddings_npz: "/home/raulprtech/clinical_core/data/embeddings/text_embeddings_TCGA-KIRC_20260528.npz"
+  # Notebook-derived alternatives:
+  #   vision_resnet18_2d | vision_resnet50_2d | vision_resnet18_2p5d
+  vision_conn: "vision_resnet18_2p5d"
   fusion_proc: "fusion_baseline_concat"
   prognosis_proc: "prognosis_baseline_linear_cox"
   
@@ -252,13 +274,32 @@ phase_5_multimodal:
   #   stunet:   force STU-Net (requires manual setup, see vision_conn.py)
   #   mock:     force synthetic mask (architecture validation only)
   vision_backend: "auto"
+
+  # Parameters shared by the three frozen ResNet connectors. These defaults
+  # reproduce the official notebooks (mean3 views and leakage-safe projection).
+  vision_params:
+    use_imagenet_weights: true
+    image_size: 224
+    aggregation: "mean3"
+    window_low: -150
+    window_high: 250
+    min_slices: 16
+    slice_offsets: [-1, 0, 1]  # used only by vision_resnet18_2p5d
+    projection_seed: 2026      # used for ResNet50 2048 -> 768
+    device: "auto"
+    weights_dir: "/home/raulprtech/clinical_core/data/models/torch"
+
+  # Optional fast path: consume vision_embedding_patient_level_all_usable.csv
+  # exported by a notebook. Rows found here take precedence over raw volumes.
+  vision_embeddings_csv: null
   
   # Imputation strategy used for the tabular path inside the multimodal pipeline
   tabular_imputation: "knn_5"
   
   # Data directories (set to null to disable a modality)
   text_dir: null  # e.g., "/content/drive/MyDrive/data_tesis/pathology_reports"
-  vision_dir: null  # e.g., "/content/drive/MyDrive/data_tesis/ct_volumes"
+  # Supports .nii/.nii.gz files or DICOM trees such as case_id/series_uid/*.dcm.
+  vision_dir: null  # e.g., "/content/drive/MyDrive/data_tesis/tcga_kirc_tcia_dicom"
   
   # Ablations to run. If null, defaults to:
   #   [tabular], [tabular,text], [tabular,vision], [tabular,text,vision]

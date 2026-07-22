@@ -11,6 +11,11 @@ from components.adapters.ingestion.tabular.models.ft_transformer import build_ft
 
 from components.adapters.ingestion.text.models.clinicalbert import TextConn_Baseline
 from components.adapters.ingestion.vision.models.stunet import VisionConn_Baseline
+from components.adapters.ingestion.vision.models.resnet_multiview import (
+    VisionResNet18_2D,
+    VisionResNet50_2D,
+    VisionResNet18_2p5D,
+)
 from components.processors.fusion.models.concatenation import FusionProc_Concatenation
 from components.processors.prognosis.models.linear_cox import PrognosisProc_LinearCox
 
@@ -68,6 +73,9 @@ TEXT_CONN_REGISTRY = {
 # ============================================================
 VISION_CONN_REGISTRY = {
     'vision_baseline_stunet_radiomics': lambda **kw: VisionConn_Baseline(**kw),
+    'vision_resnet18_2d': lambda **kw: VisionResNet18_2D(**kw),
+    'vision_resnet50_2d': lambda **kw: VisionResNet50_2D(**kw),
+    'vision_resnet18_2p5d': lambda **kw: VisionResNet18_2p5D(**kw),
 }
 
 

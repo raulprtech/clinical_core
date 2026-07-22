@@ -6,7 +6,7 @@ Baseline implementation: Docling (extraction) + ClinicalBERT (embedding).
 """
 
 from pathlib import Path
-from typing import Tuple, Optional, Union
+from typing import Dict, Tuple, Optional, Union
 import hashlib
 import warnings
 import numpy as np
@@ -103,3 +103,38 @@ class TextConn_Baseline:
         length_factor = min(1.0, len(text) / 500.0)
         confidence = float(extraction_quality * length_factor)
         return embedding, confidence
+
+
+def load_precomputed_text_embeddings(
+    npz_path: Union[str, Path], output_dim: int = 768
+) -> Dict[str, Tuple[torch.Tensor, float]]:
+    """Load the cache produced by ``tools/build_text_embeddings.py``."""
+    path = Path(npz_path)
+    with np.load(path, allow_pickle=True) as cache:
+        required = {'case_ids', 'embeddings', 'confidence'}
+        missing = required.difference(cache.files)
+        if missing:
+            raise ValueError(f"Text embedding cache is missing {sorted(missing)}: {path}")
+        case_ids = cache['case_ids']
+        embeddings = cache['embeddings']
+        confidence = cache['confidence']
+    if embeddings.ndim != 2 or embeddings.shape[1] != output_dim:
+        raise ValueError(
+            f"Text embeddings have shape {embeddings.shape}; expected [N, {output_dim}]"
+        )
+    if len(case_ids) != len(embeddings) or len(confidence) != len(embeddings):
+        raise ValueError(f"Text embedding arrays are not aligned: {path}")
+
+    result = {}
+    for case_id, values, conf in zip(case_ids, embeddings, confidence):
+        conf = float(conf)
+        tensor = torch.as_tensor(values, dtype=torch.float32)
+        if conf <= 0.0 or not np.isfinite(conf):
+            continue
+        if not torch.isfinite(tensor).all() or float(tensor.norm()) == 0.0:
+            continue
+        result[str(case_id).strip().upper()] = (
+            torch.nn.functional.normalize(tensor, p=2, dim=0),
+            min(1.0, conf),
+        )
+    return result

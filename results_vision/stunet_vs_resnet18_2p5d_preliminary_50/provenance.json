@@ -1,0 +1,17 @@
+{
+  "created_at_utc": "2026-07-22T09:44:40.236676+00:00",
+  "script": "/home/raulprtech/clinical_core/code/tools/evaluate_stunet_vs_resnet2p5d.py",
+  "inputs": {
+    "stunet_cases_dir": "/home/raulprtech/clinical_core/data/embeddings/vision/stunet_turboconv_preliminary_20x50/variants/fp32/cases",
+    "resnet_embeddings": "/home/raulprtech/clinical_core/data/embeddings/vision/vision_resnet18_2p5d_embeddings_768.csv",
+    "resnet_embeddings_sha256": "fba88272d882979bf449b01b33f00f55db2efa47c27e47bf5d532012c3e1c488",
+    "targets": "/home/raulprtech/clinical_core/results_trimodal/20260721_012302_d9a7599d/raw_targets.csv",
+    "targets_sha256": "fdf76c68ac0e78ab382081a47ef6b59cf4615c614e65a4f3c3f3c86c2a958222"
+  },
+  "software": {
+    "python": "3.12.3 (main, Jun 19 2026, 12:46:00) [GCC 13.3.0]",
+    "torch": "2.12.0+cu130",
+    "numpy": "2.4.6",
+    "pandas": "2.3.3"
+  }
+}

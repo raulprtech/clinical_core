@@ -34,7 +34,11 @@ class PrognosisProc_LinearCox(nn.Module):
         return self.risk_head(fused_embedding).squeeze(-1)
     def fit(self, X_train: torch.Tensor, T_train: torch.Tensor, E_train: torch.Tensor, X_val: torch.Tensor, T_val: torch.Tensor, E_val: torch.Tensor, epochs: int = 200, patience: int = 20, verbose: bool = False) -> dict:
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
-        best_ci = 0.0; best_state = None; patience_counter = 0; history = {'train_loss': [], 'val_cindex': []}
+        # ``0.0`` is a valid (albeit poor) validation C-index. Starting at
+        # zero meant a run that never exceeded zero saved no checkpoint and
+        # silently returned the final epoch instead of the validation-selected
+        # model. ``-inf`` guarantees that the first finite score is retained.
+        best_ci = -np.inf; best_state = None; patience_counter = 0; history = {'train_loss': [], 'val_cindex': []}
         for epoch in range(epochs):
             self.train()
             risk = self.forward(X_train); loss = cox_partial_likelihood_loss(risk, T_train, E_train)
@@ -45,11 +49,11 @@ class PrognosisProc_LinearCox(nn.Module):
             except Exception: val_ci = 0.5
             history['train_loss'].append(float(loss.item())); history['val_cindex'].append(float(val_ci))
             if val_ci > best_ci:
-                best_ci = val_ci; best_state = {k: v.clone() for k, v in self.state_dict().items()}; patience_counter = 0
+                best_ci = val_ci; best_state = {k: v.detach().clone() for k, v in self.state_dict().items()}; patience_counter = 0
             else:
                 patience_counter += 1
                 if patience_counter >= patience: break
-        if best_state: self.load_state_dict(best_state)
+        if best_state is not None: self.load_state_dict(best_state)
         return {'best_val_cindex': best_ci, 'history': history}
     def predict_risk(self, X: torch.Tensor) -> np.ndarray:
         self.eval()

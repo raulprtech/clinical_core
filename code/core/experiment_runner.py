@@ -71,6 +71,35 @@ from core.registry import get_imputation, get_variant, list_components
 from core.main import MultimodalPipeline, discover_modality_files
 
 
+def validate_clinical_moment(
+    config: dict,
+    phase_cfg: dict,
+    modalities,
+) -> str:
+    """Enforce that pathology-derived modalities are post-surgery only."""
+    context_cfg = config.get('clinical_context', {})
+    moment = phase_cfg.get(
+        'clinical_moment', context_cfg.get('moment', 'post_surgery')
+    )
+    if moment not in {'pre_surgery', 'post_surgery'}:
+        raise ValueError(
+            "clinical moment must be 'pre_surgery' or 'post_surgery'"
+        )
+    pathology_modalities = set(
+        phase_cfg.get(
+            'pathology_modalities',
+            context_cfg.get('pathology_modalities', ['text']),
+        )
+    )
+    forbidden = pathology_modalities.intersection(modalities)
+    if moment == 'pre_surgery' and forbidden:
+        raise ValueError(
+            "Pre-surgery evaluation cannot use pathology-derived modalities: "
+            f"{sorted(forbidden)}"
+        )
+    return moment
+
+
 
 
 # ============================================================
@@ -832,8 +861,11 @@ def apply_cohort_filter(
 
     Filters (all optional, applied conjunctively):
       - require_dfs_valid: keep only cases with df_targets['dfs_valid'] == True
-      - modality_manifest_path + require_modalities: keep only cases where the
-        manifest's has_<modality> flag is True for every requested modality.
+      - modality_manifest_path + require_modalities: with modality_policy set
+        to ``intersection`` (legacy), keep only cases where every requested
+        modality is present. With ``per_modality``, record availability but do
+        not shrink the global cohort; each modality combination selects its own
+        cohort later.
 
     YAML structure:
       cohort_filter:
@@ -883,9 +915,15 @@ def apply_cohort_filter(
         )
         log(f"  After require_dfs_valid: {n_after} (dropped {n_dropped})")
 
-    # Filter 2: modality availability via GDC manifest
+    # Filter 2: modality availability via GDC manifest. The preferred
+    # per_modality policy preserves the largest cohort for every experiment.
     manifest_path = cohort_cfg.get('modality_manifest_path')
     required_modalities = cohort_cfg.get('require_modalities', [])
+    modality_policy = cohort_cfg.get('modality_policy', 'intersection')
+    if modality_policy not in {'intersection', 'per_modality'}:
+        raise ValueError(
+            "cohort_filter.modality_policy must be 'intersection' or 'per_modality'"
+        )
     if manifest_path and required_modalities:
         manifest_path = Path(manifest_path)
         if not manifest_path.is_absolute():
@@ -913,19 +951,34 @@ def apply_cohort_filter(
             per_case_pass.loc[cid] = bool(
                 all(row.get(f'has_{m}', False) for m in required_modalities)
             )
-        # cases NOT in manifest are treated as missing modalities (strict policy)
-        n_dropped = int((~per_case_pass).sum())
-        keep_mask &= per_case_pass
-        n_after = int(keep_mask.sum())
-        audit['filters_applied'].append(
-            f"modalities:{','.join(required_modalities)}"
-        )
-        audit['n_after_each_filter'].append(n_after)
-        audit['dropped_examples']['modalities'] = (
-            df_features.index[~per_case_pass].tolist()[:10]
-        )
+        audit['modality_policy'] = modality_policy
         audit['modality_manifest_path'] = str(manifest_path)
-        log(f"  After modality intersection: {n_after} (dropped {n_dropped})")
+        audit['modality_counts'] = {
+            modality: int(
+                manifest_df.get(
+                    f'has_{modality}', pd.Series(False, index=manifest_df.index)
+                ).fillna(False).astype(bool).sum()
+            )
+            for modality in required_modalities
+        }
+        if modality_policy == 'intersection':
+            # Cases absent from the manifest are missing under strict policy.
+            n_dropped = int((~per_case_pass).sum())
+            keep_mask &= per_case_pass
+            n_after = int(keep_mask.sum())
+            audit['filters_applied'].append(
+                f"modalities:{','.join(required_modalities)}"
+            )
+            audit['n_after_each_filter'].append(n_after)
+            audit['dropped_examples']['modalities'] = (
+                df_features.index[~per_case_pass].tolist()[:10]
+            )
+            log(f"  After modality intersection: {n_after} (dropped {n_dropped})")
+        else:
+            log(
+                "  Modality policy per_modality: global cohort preserved; "
+                "availability will be applied per experiment subset"
+            )
 
     df_features_f = df_features.loc[keep_mask].copy()
     df_targets_f = df_targets.reindex(df_features_f.index).copy()
@@ -1336,93 +1389,117 @@ def phase_2_mahootiha(
     log(f"  Seeds: {list(seeds)}, K values: {k_values}")
     log(f"  RF n_estimators: {rf_n_estimators}, imputation: {imp_name}")
 
+    # Multi-protocol support (mirrors phase_2_holdout): each entry drops a
+    # list of columns from df_features BEFORE the 80/20 split so train/holdout
+    # indices stay aligned across protocols for the same seed.
+    protocols_cfg = phase_cfg.get('protocols')
+    if not protocols_cfg:
+        protocols_cfg = [{'name': '', 'drop_features': []}]
+    log(f"  Protocols: {[p.get('name','<unnamed>') for p in protocols_cfg]}")
+
     rows = []
-    rankings_per_seed: Dict[int, pd.DataFrame] = {}
+    rankings_per_seed: Dict[str, Dict[int, pd.DataFrame]] = {}
 
-    for seed in seeds:
-        log(f"  Seed {seed}")
-        tr_idx, ho_idx = train_test_split(
-            np.arange(len(X)),
-            test_size=holdout_fraction,
-            stratify=y['event'].values,
-            random_state=int(seed),
-        )
-        X_tr_raw, X_ho_raw = X.iloc[tr_idx].copy(), X.iloc[ho_idx].copy()
-        y_tr, y_ho = y.iloc[tr_idx].copy(), y.iloc[ho_idx].copy()
+    for protocol in protocols_cfg:
+        proto_name = str(protocol.get('name', '') or '')
+        drop_cols = list(protocol.get('drop_features') or [])
+        X_proto = X.drop(columns=[c for c in drop_cols if c in X.columns], errors='ignore')
+        proto_tag = proto_name if proto_name else 'default'
+        log(f"\n  [Protocol: {proto_tag}] n_features={X_proto.shape[1]} "
+            f"(dropped={[c for c in drop_cols if c in X.columns]})")
+        rankings_per_seed[proto_tag] = {}
 
-        # Impute with the same KNN strategy as phase_2_holdout (fit on train only)
-        prep = TabularPreprocessor()
-        X_tr_imp, _, _ = prep.fit_transform(X_tr_raw, get_imputation(imp_name))
-        X_ho_imp, _, conf_ho = prep.transform(X_ho_raw)
+        # Re-derive k_values per protocol because n_features changes
+        proto_k_values = sorted(set(
+            X_proto.shape[1] if k is None else min(int(k), X_proto.shape[1]) for k in k_raw
+        ))
 
-        # 1. Spearman correlation (abs value) of each feature vs survival_days
-        spearman_corrs = {}
-        for col in X_tr_imp.columns:
-            try:
-                corr, _ = spearmanr(X_tr_imp[col].values, y_tr['survival_days'].values)
-                spearman_corrs[col] = abs(corr) if not np.isnan(corr) else 0.0
-            except Exception:
-                spearman_corrs[col] = 0.0
+        for seed in seeds:
+            log(f"  Seed {seed}")
+            tr_idx, ho_idx = train_test_split(
+                np.arange(len(X_proto)),
+                test_size=holdout_fraction,
+                stratify=y['event'].values,
+                random_state=int(seed),
+            )
+            X_tr_raw, X_ho_raw = X_proto.iloc[tr_idx].copy(), X_proto.iloc[ho_idx].copy()
+            y_tr, y_ho = y.iloc[tr_idx].copy(), y.iloc[ho_idx].copy()
 
-        # 2. RF feature importance via binary-at-median classifier (Kim et al. 2026 framing),
-        # with the same informative-censoring guard as the TabPFN wrapper.
-        survival_arr = y_tr['survival_days'].values
-        event_arr = y_tr['event'].values
-        y_bin = (survival_arr < median_surv).astype(int)
-        keep_for_rf = ~((event_arr == 0) & (survival_arr < median_surv))
-        rf = RandomForestClassifier(
-            n_estimators=rf_n_estimators,
-            random_state=int(seed),
-            n_jobs=-1,
-        )
-        rf.fit(X_tr_imp.values[keep_for_rf], y_bin[keep_for_rf])
-        rf_imp = dict(zip(X_tr_imp.columns, rf.feature_importances_))
+            # Impute with the same KNN strategy as phase_2_holdout (fit on train only)
+            prep = TabularPreprocessor()
+            X_tr_imp, _, _ = prep.fit_transform(X_tr_raw, get_imputation(imp_name))
+            X_ho_imp, _, conf_ho = prep.transform(X_ho_raw)
 
-        # 3. Combined rank (lower = more important)
-        spearman_rank = pd.Series(spearman_corrs).rank(ascending=False, method='average')
-        rf_rank = pd.Series(rf_imp).rank(ascending=False, method='average')
-        combined_rank = ((spearman_rank + rf_rank) / 2).sort_values()
-        rankings_per_seed[int(seed)] = pd.DataFrame({
-            'spearman_corr_abs': pd.Series(spearman_corrs),
-            'rf_importance': pd.Series(rf_imp),
-            'spearman_rank': spearman_rank,
-            'rf_rank': rf_rank,
-            'combined_rank': combined_rank,
-        }).reindex(combined_rank.index)
+            # 1. Spearman correlation (abs value) of each feature vs survival_days
+            spearman_corrs = {}
+            for col in X_tr_imp.columns:
+                try:
+                    corr, _ = spearmanr(X_tr_imp[col].values, y_tr['survival_days'].values)
+                    spearman_corrs[col] = abs(corr) if not np.isnan(corr) else 0.0
+                except Exception:
+                    spearman_corrs[col] = 0.0
 
-        # 4. Train Cox over top-K features for each K
-        for K in k_values:
-            top_features = combined_rank.head(K).index.tolist()
-            X_tr_K = X_tr_imp[top_features]
-            X_ho_K = X_ho_imp[top_features]
-            try:
-                ci, ece, bs, _ = _eval_cox_baseline(
-                    X_tr_K, X_ho_K, y_tr, y_ho,
-                    conf_va=conf_ho,
-                    output_dim=output_dim,
-                    median_surv=median_surv,
-                )
-            except Exception as e:
-                log(f"    K={K} seed={seed} cox FAILED: {e}", level="warn")
-                ci, ece, bs = float('nan'), float('nan'), float('nan')
+            # 2. RF feature importance via binary-at-median classifier
+            survival_arr = y_tr['survival_days'].values
+            event_arr = y_tr['event'].values
+            y_bin = (survival_arr < median_surv).astype(int)
+            keep_for_rf = ~((event_arr == 0) & (survival_arr < median_surv))
+            rf = RandomForestClassifier(
+                n_estimators=rf_n_estimators,
+                random_state=int(seed),
+                n_jobs=-1,
+            )
+            rf.fit(X_tr_imp.values[keep_for_rf], y_bin[keep_for_rf])
+            rf_imp = dict(zip(X_tr_imp.columns, rf.feature_importances_))
 
-            rows.append({
-                'seed': int(seed),
-                'K': int(K),
-                'cindex_holdout': float(ci) if ci == ci else float('nan'),
-                'ece': float(ece) if ece == ece else float('nan'),
-                'brier_score': float(bs) if bs == bs else float('nan'),
-                'n_train': int(len(tr_idx)),
-                'n_holdout': int(len(ho_idx)),
-                'top_features': ','.join(top_features),
-            })
+            # 3. Combined rank (lower = more important)
+            spearman_rank = pd.Series(spearman_corrs).rank(ascending=False, method='average')
+            rf_rank = pd.Series(rf_imp).rank(ascending=False, method='average')
+            combined_rank = ((spearman_rank + rf_rank) / 2).sort_values()
+            rankings_per_seed[proto_tag][int(seed)] = pd.DataFrame({
+                'spearman_corr_abs': pd.Series(spearman_corrs),
+                'rf_importance': pd.Series(rf_imp),
+                'spearman_rank': spearman_rank,
+                'rf_rank': rf_rank,
+                'combined_rank': combined_rank,
+            }).reindex(combined_rank.index)
+
+            # 4. Train Cox over top-K features for each K
+            for K in proto_k_values:
+                top_features = combined_rank.head(K).index.tolist()
+                X_tr_K = X_tr_imp[top_features]
+                X_ho_K = X_ho_imp[top_features]
+                try:
+                    ci, ece, bs, _ = _eval_cox_baseline(
+                        X_tr_K, X_ho_K, y_tr, y_ho,
+                        conf_va=conf_ho,
+                        output_dim=output_dim,
+                        median_surv=median_surv,
+                    )
+                except Exception as e:
+                    log(f"    K={K} seed={seed} cox FAILED: {e}", level="warn")
+                    ci, ece, bs = float('nan'), float('nan'), float('nan')
+
+                rows.append({
+                    'protocol': proto_tag,
+                    'seed': int(seed),
+                    'K': int(K),
+                    'cindex_holdout': float(ci) if ci == ci else float('nan'),
+                    'ece': float(ece) if ece == ece else float('nan'),
+                    'brier_score': float(bs) if bs == bs else float('nan'),
+                    'n_train': int(len(tr_idx)),
+                    'n_holdout': int(len(ho_idx)),
+                    'n_features': int(X_proto.shape[1]),
+                    'top_features': ','.join(top_features),
+                })
 
     df_results = pd.DataFrame(rows)
     df_results.to_csv(run_dir / "phase2_mahootiha.csv", index=False)
 
+    group_cols = ['protocol', 'K'] if 'protocol' in df_results.columns else ['K']
     summary = (
         df_results
-        .groupby('K')['cindex_holdout']
+        .groupby(group_cols)['cindex_holdout']
         .agg(cindex_mean='mean', cindex_std='std', cindex_median='median', n_seeds='count')
         .round(4)
     )
@@ -1430,16 +1507,20 @@ def phase_2_mahootiha(
     log("\n  MAHOOTIHA top-K HOLDOUT SUMMARY:")
     log(summary.to_string())
 
-    # Aggregated feature ranking across seeds
-    rank_matrix = pd.DataFrame({
-        f'rank_seed{s}': r['combined_rank'] for s, r in rankings_per_seed.items()
-    })
-    rank_matrix['mean_combined_rank'] = rank_matrix.mean(axis=1)
-    rank_matrix['std_combined_rank'] = rank_matrix.std(axis=1)
-    rank_matrix = rank_matrix.sort_values('mean_combined_rank')
-    rank_matrix.to_csv(run_dir / "phase2_mahootiha_feature_ranking.csv")
-    log("\n  TOP 10 FEATURES BY MEAN COMBINED RANK (across seeds):")
-    log(rank_matrix[['mean_combined_rank', 'std_combined_rank']].head(10).to_string())
+    # Aggregated feature ranking across seeds (per protocol)
+    for proto_tag, seed_rankings in rankings_per_seed.items():
+        if not seed_rankings:
+            continue
+        rank_matrix = pd.DataFrame({
+            f'rank_seed{s}': r['combined_rank'] for s, r in seed_rankings.items()
+        })
+        rank_matrix['mean_combined_rank'] = rank_matrix.mean(axis=1)
+        rank_matrix['std_combined_rank'] = rank_matrix.std(axis=1)
+        rank_matrix = rank_matrix.sort_values('mean_combined_rank')
+        suffix = f"_{proto_tag}" if proto_tag != 'default' else ''
+        rank_matrix.to_csv(run_dir / f"phase2_mahootiha_feature_ranking{suffix}.csv")
+        log(f"\n  TOP 10 FEATURES BY MEAN COMBINED RANK (protocol={proto_tag}):")
+        log(rank_matrix[['mean_combined_rank', 'std_combined_rank']].head(10).to_string())
 
     return df_results
 
@@ -1502,6 +1583,8 @@ def phase_2_late_fusion_holdout(
     if not phase_cfg.get('enabled', False):
         log("[PHASE 2 LATE FUSION HOLDOUT] DISABLED")
         return None
+
+    validate_clinical_moment(config, phase_cfg, ['text'])
 
     log("\n[PHASE 2 LATE FUSION HOLDOUT] Skip-VAE diagnostic: tab-only / text-only / concat")
 
@@ -1664,6 +1747,235 @@ def phase_2_late_fusion_holdout(
     log("\n  LATE FUSION HOLDOUT SUMMARY:")
     log(summary.to_string())
     return df_results
+
+
+def phase_2_text_only_nested_cv(
+    df_targets: pd.DataFrame,
+    config: dict,
+    run_dir: Path,
+) -> Optional[pd.DataFrame]:
+    """Evaluate pathology-report embeddings with honest nested CV.
+
+    The outer fold is used once for the final C-index. Early stopping happens
+    on an inner validation split. Only cases with a real text embedding and
+    valid overall survival enter this modality-specific cohort.
+    """
+    from sklearn.model_selection import train_test_split
+    from components.processors.prognosis.models.linear_cox import (
+        PrognosisProc_LinearCox,
+    )
+
+    phase_cfg = config.get('phase_2_text_only_nested_cv', {})
+    if not phase_cfg.get('enabled', False):
+        log("[PHASE 2 TEXT-ONLY NESTED CV] DISABLED")
+        return None
+
+    clinical_moment = validate_clinical_moment(config, phase_cfg, ['text'])
+
+    cache_path = Path(phase_cfg['text_embeddings_cache'])
+    if not cache_path.is_absolute():
+        cache_path = Path.cwd() / cache_path
+    if not cache_path.exists():
+        raise FileNotFoundError(f"Text embedding cache not found: {cache_path}")
+
+    cache = np.load(cache_path, allow_pickle=True)
+    embeddings = np.asarray(cache['embeddings'], dtype=np.float32)
+    confidence = np.asarray(cache['confidence'], dtype=np.float32)
+    cache_ids = [str(cid) for cid in cache['case_ids']]
+    if len(cache_ids) != len(embeddings) or len(confidence) != len(embeddings):
+        raise ValueError("Text cache arrays have inconsistent row counts")
+
+    min_confidence = float(phase_cfg.get('min_confidence', 0.0))
+    id_to_row = {cid: row for row, cid in enumerate(cache_ids)}
+    cohort_ids = []
+    cohort_rows = []
+    survival = []
+    events = []
+    for cid in df_targets.index.astype(str):
+        row = id_to_row.get(cid)
+        if row is None or not confidence[row] > min_confidence:
+            continue
+        vector = embeddings[row]
+        if not np.isfinite(vector).all() or float(np.linalg.norm(vector)) == 0.0:
+            continue
+        target_row = df_targets.loc[cid]
+        time_value = pd.to_numeric(
+            pd.Series([target_row.get('survival_days')]), errors='coerce'
+        ).iloc[0]
+        event_value = pd.to_numeric(
+            pd.Series([target_row.get('event')]), errors='coerce'
+        ).iloc[0]
+        if pd.isna(time_value) or float(time_value) <= 0:
+            continue
+        if pd.isna(event_value) or int(event_value) not in {0, 1}:
+            continue
+        cohort_ids.append(cid)
+        cohort_rows.append(row)
+        survival.append(float(time_value))
+        events.append(int(event_value))
+
+    if len(cohort_ids) < 50:
+        raise ValueError(
+            f"Too few text cases with valid survival ({len(cohort_ids)})"
+        )
+
+    X_all = torch.tensor(embeddings[cohort_rows], dtype=torch.float32)
+    survival = np.asarray(survival, dtype=np.float32)
+    events = np.asarray(events, dtype=np.int64)
+    cohort_ids = np.asarray(cohort_ids, dtype=object)
+
+    seeds = phase_cfg.get('seeds', config['random']['seeds'])
+    n_folds = int(phase_cfg.get('n_folds', config['random'].get('n_folds', 5)))
+    validation_fraction = float(phase_cfg.get('validation_fraction', 0.20))
+    epochs = int(phase_cfg.get('epochs', 200))
+    patience = int(phase_cfg.get('patience', 20))
+    lr = float(phase_cfg.get('lr', 1e-3))
+    weight_decay = float(phase_cfg.get('weight_decay', 1e-3))
+
+    log("\n[PHASE 2 TEXT-ONLY NESTED CV] Post-surgery pathology reports")
+    log(
+        f"  Modality-specific cohort: n={len(cohort_ids)}, "
+        f"events={int(events.sum())}, cache={cache_path.name}"
+    )
+    log(
+        f"  Outer folds={n_folds}, seeds={list(seeds)}, "
+        f"inner validation={validation_fraction:.0%}"
+    )
+
+    fold_rows = []
+    prediction_rows = []
+    seed_rows = []
+    for seed in seeds:
+        splitter = StratifiedKFold(
+            n_splits=n_folds, shuffle=True, random_state=int(seed)
+        )
+        oof_risk = np.full(len(cohort_ids), np.nan, dtype=np.float64)
+
+        for fold, (outer_train_idx, test_idx) in enumerate(
+            splitter.split(np.zeros(len(cohort_ids)), events)
+        ):
+            inner_train_local, val_local = train_test_split(
+                np.arange(len(outer_train_idx)),
+                test_size=validation_fraction,
+                stratify=events[outer_train_idx],
+                random_state=int(seed) * 100 + fold,
+            )
+            train_idx = outer_train_idx[inner_train_local]
+            val_idx = outer_train_idx[val_local]
+
+            torch.manual_seed(int(seed) * 1000 + fold)
+            head = PrognosisProc_LinearCox(
+                fused_dim=X_all.shape[1], lr=lr, weight_decay=weight_decay,
+            )
+            fit_result = head.fit(
+                X_all[train_idx],
+                torch.tensor(survival[train_idx]),
+                torch.tensor(events[train_idx], dtype=torch.float32),
+                X_all[val_idx],
+                torch.tensor(survival[val_idx]),
+                torch.tensor(events[val_idx], dtype=torch.float32),
+                epochs=epochs,
+                patience=patience,
+                verbose=False,
+            )
+            test_risk = head.predict_risk(X_all[test_idx])
+            oof_risk[test_idx] = test_risk
+            test_ci = concordance_index(
+                survival[test_idx], -test_risk, events[test_idx]
+            )
+            fold_rows.append({
+                'clinical_moment': clinical_moment,
+                'modality': 'text',
+                'seed': int(seed),
+                'fold': int(fold),
+                'cindex_test': float(test_ci),
+                'cindex_inner_validation_selected': float(
+                    fit_result['best_val_cindex']
+                ),
+                'n_train': int(len(train_idx)),
+                'n_validation': int(len(val_idx)),
+                'n_test': int(len(test_idx)),
+                'events_train': int(events[train_idx].sum()),
+                'events_validation': int(events[val_idx].sum()),
+                'events_test': int(events[test_idx].sum()),
+            })
+            prediction_rows.extend({
+                'clinical_moment': clinical_moment,
+                'modality': 'text',
+                'seed': int(seed),
+                'fold': int(fold),
+                'case_id': str(cohort_ids[idx]),
+                'survival_days': float(survival[idx]),
+                'event': int(events[idx]),
+                'risk_oof': float(oof_risk[idx]),
+            } for idx in test_idx)
+
+        if np.isnan(oof_risk).any():
+            raise RuntimeError(f"Incomplete OOF predictions for seed {seed}")
+        pooled_ci = concordance_index(survival, -oof_risk, events)
+        seed_fold_cis = [
+            row['cindex_test'] for row in fold_rows if row['seed'] == int(seed)
+        ]
+        seed_rows.append({
+            'clinical_moment': clinical_moment,
+            'modality': 'text',
+            'seed': int(seed),
+            'n_cases': int(len(cohort_ids)),
+            'n_events': int(events.sum()),
+            'cindex_outer_fold_mean': float(np.mean(seed_fold_cis)),
+            'cindex_outer_fold_std': float(np.std(seed_fold_cis, ddof=1)),
+            # Diagnostic only: scores from independently trained folds are not
+            # guaranteed to share a common scale, so this must not be the
+            # primary cross-validation estimate.
+            'cindex_pooled_oof_uncalibrated': float(pooled_ci),
+        })
+        log(
+            f"  Seed {seed}: outer-fold mean C-index="
+            f"{np.mean(seed_fold_cis):.4f} "
+            f"(pooled uncalibrated diagnostic={pooled_ci:.4f})"
+        )
+
+    folds_df = pd.DataFrame(fold_rows)
+    predictions_df = pd.DataFrame(prediction_rows)
+    seeds_df = pd.DataFrame(seed_rows)
+    folds_df.to_csv(run_dir / 'phase2_text_only_nested_cv_folds.csv', index=False)
+    predictions_df.to_csv(
+        run_dir / 'phase2_text_only_nested_cv_oof_predictions.csv', index=False
+    )
+    seeds_df.to_csv(run_dir / 'phase2_text_only_nested_cv_seeds.csv', index=False)
+
+    summary_df = pd.DataFrame([{
+        'clinical_moment': clinical_moment,
+        'modality': 'text',
+        'n_cases': int(len(cohort_ids)),
+        'n_events': int(events.sum()),
+        'n_seeds': int(len(seeds_df)),
+        'n_outer_folds': n_folds,
+        'cindex_outer_fold_mean': float(
+            seeds_df['cindex_outer_fold_mean'].mean()
+        ),
+        'cindex_outer_fold_std_across_seeds': float(
+            seeds_df['cindex_outer_fold_mean'].std(ddof=1)
+        ),
+        'cindex_outer_fold_median': float(
+            seeds_df['cindex_outer_fold_mean'].median()
+        ),
+        'cindex_outer_fold_min': float(
+            seeds_df['cindex_outer_fold_mean'].min()
+        ),
+        'cindex_outer_fold_max': float(
+            seeds_df['cindex_outer_fold_mean'].max()
+        ),
+        'cindex_pooled_oof_uncalibrated_mean': float(
+            seeds_df['cindex_pooled_oof_uncalibrated'].mean()
+        ),
+    }])
+    summary_df.to_csv(
+        run_dir / 'phase2_text_only_nested_cv_summary.csv', index=False
+    )
+    log("\n  TEXT-ONLY HONEST OUTER-FOLD SUMMARY:")
+    log(summary_df.to_string(index=False))
+    return seeds_df
 
 
 # ============================================================
@@ -2036,6 +2348,10 @@ def phase_5_multimodal(
     n_vision = modality_files['vision_path'].notna().sum()
     log(f"  Cases with text data:   {n_text}/{len(modality_files)}")
     log(f"  Cases with vision data: {n_vision}/{len(modality_files)}")
+    if phase_cfg.get('text_embeddings_npz'):
+        log(f"  Precomputed text embeddings: {phase_cfg['text_embeddings_npz']}")
+    if phase_cfg.get('vision_embeddings_csv'):
+        log(f"  Precomputed vision embeddings: {phase_cfg['vision_embeddings_csv']}")
     
     # Save modality file manifest for traceability
     modality_files.to_csv(run_dir / "phase5_modality_manifest.csv")
@@ -2240,6 +2556,8 @@ def phase_6_fusion_proc(
     # --- Build trimodal input (tabular real + mock text/vision) ---
     modality_dim = phase_cfg.get('modality_dim', 768)
     modalities = phase_cfg.get('modalities', ['tabular', 'text', 'vision'])
+    clinical_moment = validate_clinical_moment(config, phase_cfg, modalities)
+    log(f"  Clinical moment: {clinical_moment}")
     n_mod = len(modalities)
  
     # Train a linear_compact encoder on the full cohort. Single stratified
@@ -3066,6 +3384,29 @@ def run_experiment(config_input: Union[str, Path, dict] = "experiment_config.yam
                 .round(4)
             )
             summary['phases']['phase_2_late_fusion_holdout'] = ph2_lf_summary.to_dict()
+
+        ph2_text = phase_2_text_only_nested_cv(df_targets, config, run_dir)
+        if ph2_text is not None:
+            summary['phases']['phase_2_text_only_nested_cv'] = {
+                'clinical_moment': 'post_surgery',
+                'modality': 'text',
+                'n_cases': int(ph2_text['n_cases'].iloc[0]),
+                'n_events': int(ph2_text['n_events'].iloc[0]),
+                'cindex_outer_fold_mean': float(
+                    ph2_text['cindex_outer_fold_mean'].mean()
+                ),
+                'cindex_outer_fold_std_across_seeds': float(
+                    ph2_text['cindex_outer_fold_mean'].std(ddof=1)
+                ),
+                'per_seed': ph2_text[
+                    [
+                        'seed',
+                        'cindex_outer_fold_mean',
+                        'cindex_outer_fold_std',
+                        'cindex_pooled_oof_uncalibrated',
+                    ]
+                ].to_dict(orient='records'),
+            }
     except Exception as e:
         summary['errors'].append({'phase': '2_external', 'error': str(e)})
         if fail_fast: raise

@@ -64,7 +64,16 @@ code/
 
 ### VISION
 - **`stunet`**: Uses STU-Net (SOTA medical segmentation) and TotalSegmentator.
+- **`vision_resnet18_2d`**: Frozen ResNet18 over three central anatomical views.
+- **`vision_resnet50_2d`**: Frozen ResNet50 with a fixed leakage-safe 768D projection.
+- **`vision_resnet18_2p5d`**: Frozen ResNet18 with neighboring slices as RGB context.
 - **`mock`**: Architectural validation with synthetic masks.
+
+See [VISION-L0 integration](docs/vision_resnet_integration.md) for raw DICOM/NIfTI
+and precomputed-Colab workflows.
+
+For the complete TCGA-KIRC download, embedding-cache and three-modality run,
+see [trimodal data preparation](docs/trimodal_data_preparation.md).
 
 ### TEXT
 - **`clinicalbert`**: Docling extraction + ClinicalBERT embeddings.

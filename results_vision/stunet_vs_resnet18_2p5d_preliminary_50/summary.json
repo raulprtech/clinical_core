@@ -1,0 +1,122 @@
+{
+  "status": "preliminary_paired_holdout",
+  "cohort": {
+    "n_cases": 50,
+    "n_events": 13,
+    "case_ids": [
+      "TCGA-B0-4839",
+      "TCGA-B0-4845",
+      "TCGA-B0-5081",
+      "TCGA-B0-5099",
+      "TCGA-B0-5106",
+      "TCGA-B0-5110",
+      "TCGA-B0-5399",
+      "TCGA-B0-5697",
+      "TCGA-B0-5702",
+      "TCGA-B0-5709",
+      "TCGA-B0-5711",
+      "TCGA-B0-5712",
+      "TCGA-B8-4148",
+      "TCGA-B8-4151",
+      "TCGA-B8-4154",
+      "TCGA-B8-4620",
+      "TCGA-B8-4622",
+      "TCGA-B8-5159",
+      "TCGA-B8-5164",
+      "TCGA-B8-5165",
+      "TCGA-B8-5545",
+      "TCGA-B8-5549",
+      "TCGA-B8-5553",
+      "TCGA-B8-A54D",
+      "TCGA-B8-A54F",
+      "TCGA-BP-4349",
+      "TCGA-BP-4352",
+      "TCGA-BP-4797",
+      "TCGA-BP-4804",
+      "TCGA-BP-4962",
+      "TCGA-BP-4970",
+      "TCGA-BP-4992",
+      "TCGA-BP-5004",
+      "TCGA-BP-5194",
+      "TCGA-CJ-4887",
+      "TCGA-CJ-4899",
+      "TCGA-CJ-4905",
+      "TCGA-CJ-5686",
+      "TCGA-CW-5580",
+      "TCGA-CW-5584",
+      "TCGA-CW-5589",
+      "TCGA-CW-5590",
+      "TCGA-CW-6087",
+      "TCGA-CW-6097",
+      "TCGA-CZ-4861",
+      "TCGA-CZ-4866",
+      "TCGA-CZ-5451",
+      "TCGA-CZ-5452",
+      "TCGA-CZ-5985",
+      "TCGA-CZ-5988"
+    ]
+  },
+  "protocol": {
+    "outer_split": "80/20 stratified by event",
+    "inner_validation_fraction_of_outer_train": 0.2,
+    "seeds": [
+      42,
+      123,
+      456,
+      789,
+      1024
+    ],
+    "head": "PrognosisProc_LinearCox (768 -> 1)",
+    "epochs": 200,
+    "patience": 20,
+    "lr": 0.001,
+    "weight_decay": 0.001,
+    "same_initial_head_weights_per_seed": true,
+    "bootstrap_iterations_per_seed": 5000
+  },
+  "results": {
+    "stunet_s_fp32_frozen": {
+      "cindex_mean": 0.6317793317793318,
+      "cindex_std_across_seeds": 0.2029903190876306,
+      "cindex_per_seed": [
+        0.7272727272727273,
+        0.4444444444444444,
+        0.38461538461538464,
+        0.7692307692307693,
+        0.8333333333333334
+      ]
+    },
+    "resnet18_2p5d_imagenet_frozen": {
+      "cindex_mean": 0.47964257964257967,
+      "cindex_std_across_seeds": 0.17792673108504975,
+      "cindex_per_seed": [
+        0.7272727272727273,
+        0.5555555555555556,
+        0.3076923076923077,
+        0.3076923076923077,
+        0.5
+      ]
+    },
+    "paired_delta_stunet_minus_resnet": {
+      "mean": 0.15213675213675212,
+      "std_across_seeds": 0.23804607989445165,
+      "per_seed": [
+        0.0,
+        -0.11111111111111116,
+        0.07692307692307693,
+        0.46153846153846156,
+        0.33333333333333337
+      ],
+      "stunet_wins": 3,
+      "ties": 1,
+      "resnet_wins": 1
+    }
+  },
+  "limitations": [
+    "Only 50 common patients and 13 events are available.",
+    "Each held-out set has 10 patients and only 2 or 3 events; uncertainty is large.",
+    "Repeated holdouts overlap, so across-seed dispersion is not an independent-sample confidence interval.",
+    "The local ResNet18 2.5D cache uses a frozen ImageNet backbone; this is not a split-specific fine-tuned ResNet.",
+    "This preliminary result must not replace the final common-cohort comparison."
+  ]
+}

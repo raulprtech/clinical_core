@@ -1,0 +1,143 @@
+# ================================================================
+# LEAKAGE-SURVIVAL-PROTOCOL — paper release configuration
+# ================================================================
+# Single source of truth for the anti-leakage TCGA-KIRC experiment.
+# Editing this file is the ONLY way to change what runs; the runner
+# does not parse command-line overrides.
+#
+# Each invocation produces a unique directory:
+#   results/{timestamp}_{config_hash}/
+# containing a copy of this config, all CSVs, all PNGs, model
+# checkpoints under phase2_artifacts/, and a summary.json with full
+# provenance information.
+# ================================================================
+
+experiment:
+  name: "leakage_survival_protocol_KIRC"
+  description: "Anti-leakage protocol for survival prediction on TCGA-KIRC. Replicates Tables 1-3 of the manuscript."
+  protocol_version: "1"
+
+# ----------------------------------------------------------------
+# DATA SOURCES
+# ----------------------------------------------------------------
+# xml_dir must point to the TCGA-KIRC BCR Clinical Supplement XMLs
+# obtained from https://portal.gdc.cancer.gov/. See README for the
+# manifest used to download them. The feature_config is the 22-vars
+# superset; phase_2_holdout drops the 3 post-event vars per protocol.
+data:
+  xml_dir: "../data/raw/clinicalsupplement"
+  feature_config: "tabular_mapping_22_with_leakage.yaml"
+
+# ----------------------------------------------------------------
+# OUTPUT DESTINATION
+# ----------------------------------------------------------------
+output:
+  base_dir: "../results"
+  save_raw_extraction: true
+
+# ----------------------------------------------------------------
+# REPRODUCIBILITY
+# ----------------------------------------------------------------
+random:
+  seeds: [42, 123, 456, 789, 1024]
+  n_folds: 5
+
+# ----------------------------------------------------------------
+# COHORT FILTER — dense subcohort (n=224) ablation
+# ----------------------------------------------------------------
+# Set enabled: true to restrict to the n=224 dense subcohort: cases
+# with valid DFS AND simultaneous availability of the 4 expensive
+# modalities (WSI, mRNA-seq, miRNA-seq, methylation 450K). This is
+# the cohort where the leakage effect is detectable (paper §4.3).
+# When disabled, the full n=444 cohort is used (paper §4.1).
+cohort_filter:
+  enabled: false
+  require_dfs_valid: true
+  modality_manifest_path: "../data/manifests/gdc_modality_manifest_TCGA-KIRC_20260528.csv"
+  require_modalities: [wsi, mrna_seq, mirna_seq, methylation_450k]
+
+# ----------------------------------------------------------------
+# PHASE 1 — IMPUTATION BENCHMARK (optional)
+# ----------------------------------------------------------------
+# Disabled by default. Enable only if you want to re-derive the KNN
+# winner reported in the paper's §3.2. Adds ~10 min runtime.
+phase_1_imputation:
+  enabled: false
+  strategies: [mean_median, knn_5, knn_10, mice]
+  cox_penalizer: 0.1
+
+# ----------------------------------------------------------------
+# PHASE 2 HOLDOUT — headline result (Tables 1 & 2 of the paper)
+# ----------------------------------------------------------------
+# For each (protocol × seed × variant): single 80/20 stratified split,
+# train Cox / linear_compact / FT-Transformer with adaptive penalizer
+# or 200-epoch Cox-loss training, evaluate held-out C-index, ECE and
+# Brier. Persists per-patient risk scores and model checkpoints under
+# phase2_artifacts/ so the 3 post-hoc tools (significance, calibration,
+# SHAP) can run without re-training.
+phase_2_holdout:
+  enabled: true
+
+  holdout_fraction: 0.20
+  seeds: [42, 123, 456, 789, 1024]
+
+  variants:
+    - cox_baseline
+    - linear_compact
+    - ft_transformer
+
+  output_dim: 768
+
+  variant_params:
+    linear_compact:
+      hidden_dim: 64
+      lr: 0.01
+      weight_decay: 1.0e-5
+      epochs: 200
+      patience: 10
+    ft_transformer:
+      d_token: 192
+      n_blocks: 3
+      n_heads: 8
+      dropout: 0.1
+      epochs: 200
+      lr: 3.0e-4
+      patience: 20
+
+  imputation_for_baseline: "mean_median"
+  imputation_for_variants: "knn_5"
+
+  save_artifacts: true
+
+  # Each protocol drops the listed columns from the feature matrix BEFORE
+  # the 80/20 split; train/holdout indices stay aligned across protocols
+  # for the same seed, which is the required structure for the paired
+  # bootstrap test in tools/run_significance_tests.py.
+  protocols:
+    - name: limpio
+      drop_features: [ecog_score, karnofsky_score, tumor_status]
+    - name: permisivo
+      drop_features: []
+
+# ----------------------------------------------------------------
+# PHASE 2 MAHOOTIHA — Spearman + RF + top-K replication (Table 3)
+# ----------------------------------------------------------------
+# Re-derives Mahootiha 2024's feature-ranking pipeline (|Spearman|
+# vs survival_days + Random Forest classifier on binary-at-median
+# target) and evaluates Cox on top-K features. Run twice — once with
+# the 22-vars feature_config and once with the 19-vars to recover
+# Table 3. The k_values use null to mean "all features".
+phase_2_mahootiha:
+  enabled: true
+  holdout_fraction: 0.20
+  seeds: [42, 123, 456, 789, 1024]
+  k_values: [5, 10, 15, null]
+  imputation: knn_5
+  rf_n_estimators: 200
+
+# ----------------------------------------------------------------
+# RUNTIME CONTROLS
+# ----------------------------------------------------------------
+runtime:
+  verbosity: "normal"   # silent | normal | verbose
+  fail_fast: false

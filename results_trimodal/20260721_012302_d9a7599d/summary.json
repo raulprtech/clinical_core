@@ -1,0 +1,82 @@
+{
+  "phases": {
+    "phase_5": [
+      {
+        "modalities": [
+          "tabular"
+        ],
+        "n_cases": 444,
+        "cindex_mean": 0.7727945604085124,
+        "cindex_std": 0.007275888066223899,
+        "cindex_per_seed": [
+          0.7789522780756774,
+          0.759210180837497,
+          0.7713120895024923,
+          0.7776709305972209,
+          0.7768273230296743
+        ],
+        "subset_label": "tabular",
+        "clinical_moment": "post_surgery"
+      },
+      {
+        "modalities": [
+          "text"
+        ],
+        "n_cases": 435,
+        "cindex_mean": 0.6824220098657731,
+        "cindex_std": 0.009403301734317684,
+        "cindex_per_seed": [
+          0.6857672489298319,
+          0.6984940883107351,
+          0.6805334232499474,
+          0.6708815748209942,
+          0.6764337140173572
+        ],
+        "subset_label": "text",
+        "clinical_moment": "post_surgery"
+      },
+      {
+        "modalities": [
+          "vision"
+        ],
+        "n_cases": 214,
+        "cindex_mean": 0.6318643504085975,
+        "cindex_std": 0.010252428271048405,
+        "cindex_per_seed": [
+          0.618044266960518,
+          0.6224117299054399,
+          0.6355889234530652,
+          0.6371507922682137,
+          0.6461260394557506
+        ],
+        "subset_label": "vision",
+        "clinical_moment": "post_surgery"
+      },
+      {
+        "modalities": [
+          "tabular",
+          "text",
+          "vision"
+        ],
+        "n_cases": 210,
+        "cindex_mean": 0.7058810473079987,
+        "cindex_std": 0.018942202811729113,
+        "cindex_per_seed": [
+          0.7330553723713156,
+          0.6845264617698184,
+          0.6841374159405298,
+          0.7138090823046722,
+          0.713876904153657
+        ],
+        "subset_label": "tabular+text+vision",
+        "clinical_moment": "post_surgery"
+      }
+    ]
+  },
+  "errors": [],
+  "n_cases": 537,
+  "n_features": 19,
+  "n_events": 140,
+  "runtime_seconds": 23.69,
+  "run_dir": "/home/raulprtech/clinical_core/results_trimodal/20260721_012302_d9a7599d"
+}

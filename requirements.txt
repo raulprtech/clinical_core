@@ -27,6 +27,11 @@ shap
 # Vision & Text Ingestion 
 # (Note: pyradiomics requires 'cmake' on system)
 nibabel
+pydicom
+SimpleITK
+medpy
+gdown
+torchinfo
 totalsegmentator
 # pyradiomics 
 

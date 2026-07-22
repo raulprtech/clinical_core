@@ -1,0 +1,131 @@
+{
+  "status": "paired_trimodal_fusion_benchmark",
+  "created_at_utc": "2026-07-22T22:46:19.795274+00:00",
+  "vision_label": "resnet18_2p5d_local_diagnostic",
+  "inputs": {
+    "features": "/home/raulprtech/clinical_core/results_trimodal/20260721_012302_d9a7599d/raw_features.csv",
+    "targets": "/home/raulprtech/clinical_core/results_trimodal/20260721_012302_d9a7599d/raw_targets.csv",
+    "text_embeddings": "/home/raulprtech/clinical_core/data/embeddings/text_embeddings_TCGA-KIRC_20260528.npz",
+    "vision_embeddings": "/home/raulprtech/clinical_core/data/embeddings/vision/vision_resnet18_2p5d_embeddings_768.csv"
+  },
+  "cohort": {
+    "n_cases": 210,
+    "n_events": 64
+  },
+  "protocol": {
+    "outer_split": "80/20 event-stratified holdout",
+    "seeds": [
+      42,
+      123,
+      456,
+      789,
+      1024
+    ],
+    "inner_folds": 3,
+    "train_only_preprocessing": true,
+    "fusion": "cross-fitted empirical-risk percentiles",
+    "simplex_weight_step": 0.1,
+    "pca_dims": [
+      4,
+      8,
+      16,
+      32
+    ],
+    "penalizers": [
+      0.01,
+      0.1,
+      1.0,
+      10.0
+    ]
+  },
+  "results": {
+    "tabular": {
+      "cindex_mean": 0.7990417444441612,
+      "cindex_std_across_seeds": 0.09894255443801225,
+      "cindex_per_seed": [
+        0.8571428571428571,
+        0.7919161676646707,
+        0.8681506849315068,
+        0.8479623824451411,
+        0.63003663003663
+      ]
+    },
+    "text": {
+      "cindex_mean": 0.6358065643523262,
+      "cindex_std_across_seeds": 0.05868358851025366,
+      "cindex_per_seed": [
+        0.6162790697674418,
+        0.5494011976047904,
+        0.6455479452054794,
+        0.7084639498432602,
+        0.6593406593406593
+      ]
+    },
+    "vision": {
+      "cindex_mean": 0.6397046069112132,
+      "cindex_std_across_seeds": 0.044687738772581954,
+      "cindex_per_seed": [
+        0.6810631229235881,
+        0.6676646706586826,
+        0.6284246575342466,
+        0.6536050156739812,
+        0.5677655677655677
+      ]
+    },
+    "late_equal": {
+      "cindex_mean": 0.7758040924195516,
+      "cindex_std_across_seeds": 0.059281228956180945,
+      "cindex_per_seed": [
+        0.7906976744186046,
+        0.7574850299401198,
+        0.791095890410959,
+        0.8510971786833855,
+        0.6886446886446886
+      ]
+    },
+    "late_tuned_simplex": {
+      "cindex_mean": 0.8111093418671931,
+      "cindex_std_across_seeds": 0.08203997764185456,
+      "cindex_per_seed": [
+        0.8571428571428571,
+        0.8143712574850299,
+        0.8767123287671232,
+        0.8369905956112853,
+        0.6703296703296703
+      ]
+    },
+    "late_equal_minus_tabular": {
+      "mean": -0.023237652024609635,
+      "std_across_seeds": 0.05541366265201857,
+      "wins": 2,
+      "ties": 0,
+      "losses": 3,
+      "per_seed": [
+        -0.06644518272425248,
+        -0.034431137724550864,
+        -0.07705479452054786,
+        0.0031347962382444194,
+        0.05860805860805862
+      ]
+    },
+    "late_tuned_simplex_minus_tabular": {
+      "mean": 0.012067597423032029,
+      "std_across_seeds": 0.01995812784663583,
+      "wins": 3,
+      "ties": 1,
+      "losses": 1,
+      "per_seed": [
+        0.0,
+        0.022455089820359264,
+        0.008561643835616417,
+        -0.010971786833855801,
+        0.04029304029304026
+      ]
+    }
+  },
+  "limitations": [
+    "Repeated holdouts overlap and are not independent replicates.",
+    "Fusion weights are selected on outer-train cross-fitted predictions only.",
+    "A result with the local ResNet cache is diagnostic; rerun with the 160-patient STU-Net export for the target comparison."
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "run_id": "20260721_012302_d9a7599d",
+  "timestamp": "20260721_012302",
+  "config_hash": "d9a7599d",
+  "experiment_name": "TCGA-KIRC trimodal \u2014 tabular + ClinicalBERT + ResNet18 2.5D",
+  "protocol_version": "trimodal-v1",
+  "environment": {
+    "python": "3.12.3",
+    "platform": "Linux-5.15.153.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "torch": "2.12.0+cu130",
+    "numpy": "2.4.6",
+    "pandas": "2.3.3"
+  },
+  "registered_components": {
+    "imputation": [
+      "knn_10",
+      "knn_5",
+      "mean_median",
+      "mice"
+    ],
+    "variants": [
+      "cox_baseline",
+      "ft_transformer",
+      "linear_compact"
+    ],
+    "text_conn": [
+      "text_baseline_docling_clinicalbert"
+    ],
+    "vision_conn": [
+      "vision_baseline_stunet_radiomics",
+      "vision_resnet18_2d",
+      "vision_resnet18_2p5d",
+      "vision_resnet50_2d"
+    ],
+    "fusion_proc": [
+      "fusion_baseline_concat",
+      "fusion_vae_generative"
+    ],
+    "prognosis_proc": [
+      "prognosis_baseline_linear_cox",
+      "prognosis_weibull_head"
+    ]
+  }
+}
