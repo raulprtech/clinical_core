@@ -125,11 +125,12 @@ Artefactos:
 
 ## Cuarta referencia: alineación ortogonal y fusión jerárquica
 
-Se evaluaron tres variantes adicionales sobre los mismos 210 pacientes,
+Se evaluaron cuatro variantes adicionales sobre los mismos 210 pacientes,
 hold-outs y cinco semillas del diagnóstico ResNet18 2.5D:
 
 - concatenación después de una rotación Procrustes de visión;
 - fusión jerárquica con tabular como ancla y residuos gated de texto y visión;
+- fusión jerárquica híbrida que concatena tabular-texto y añade visión mediante gate;
 - la combinación de rotación Procrustes y fusión jerárquica.
 
 La rotación se ajustó solo con el outer-train. Su objetivo fue alinear visión
@@ -141,6 +142,7 @@ el modelo se reinicializó y reajustó con todo el outer-train.
 |---|---:|---:|---:|---:|
 | Convexa train-only | **0.8111** | 0.0820 | — | — |
 | Jerárquica residual | 0.8066 | **0.0714** | −0.0045 | 3/0/2 |
+| Jerárquica concat + gate visual | 0.8005 | 0.0910 | −0.0107 | 1/0/4 |
 | Ortogonal + jerárquica | 0.7972 | 0.0726 | −0.0139 | 1/2/2 |
 | Atención cruzada | 0.7915 | 0.0868 | −0.0196 | 2/0/3 |
 | Concatenación proyectada | 0.7516 | 0.0786 | −0.0595 | 0/0/5 |
@@ -156,6 +158,12 @@ La jerárquica residual es la única variante nueva competitiva. Superó a la
 convexa en tres de cinco semillas y redujo la dispersión, pero su media fue
 0.0045 menor. Por tanto, no reemplaza todavía a la convexa; queda como
 comparador secundario que merece repetirse con STU-Net.
+
+La híbrida concat + gate obtuvo 0.8005 ± 0.0910. Mejoró con claridad en una
+semilla, pero perdió contra la convexa en las otras cuatro y fue menos estable
+que la jerárquica residual. La concatenación del contexto añade unos 4.6 k
+parámetros y no justificó escalar a una doble atención jerárquica con esta
+cohorte.
 
 Artefactos:
 

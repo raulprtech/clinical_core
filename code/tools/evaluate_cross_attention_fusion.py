@@ -30,6 +30,7 @@ if str(CODE_ROOT) not in sys.path:
 
 from components.processors.fusion.models.cross_attention import (  # noqa: E402
     CrossAttentionSurvivalFusion,
+    HierarchicalConcatGatedSurvivalFusion,
     HierarchicalResidualSurvivalFusion,
     ProjectedConcatSurvivalFusion,
     count_trainable_parameters,
@@ -122,6 +123,10 @@ def make_model(
         )
     if architecture == "hierarchical":
         return HierarchicalResidualSurvivalFusion(
+            modality_dims, d_model=d_model, dropout=dropout
+        )
+    if architecture == "hierarchical_concat_gated":
+        return HierarchicalConcatGatedSurvivalFusion(
             modality_dims, d_model=d_model, dropout=dropout
         )
     raise ValueError(architecture)

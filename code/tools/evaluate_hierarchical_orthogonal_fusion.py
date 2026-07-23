@@ -44,6 +44,7 @@ MODALITIES = ("tabular", "text", "vision")
 VARIANTS = {
     "orthogonal_concat": ("concat", True),
     "hierarchical": ("hierarchical", False),
+    "hierarchical_concat_gated": ("hierarchical_concat_gated", False),
     "orthogonal_hierarchical": ("hierarchical", True),
 }
 
@@ -298,6 +299,7 @@ def main() -> int:
             f"seed={seed} convex={seed_result['cindex_convex']:.3f} "
             f"ortho_concat={seed_result['cindex_orthogonal_concat']:.3f} "
             f"hier={seed_result['cindex_hierarchical']:.3f} "
+            f"hybrid={seed_result['cindex_hierarchical_concat_gated']:.3f} "
             f"ortho_hier={seed_result['cindex_orthogonal_hierarchical']:.3f}",
             flush=True,
         )
