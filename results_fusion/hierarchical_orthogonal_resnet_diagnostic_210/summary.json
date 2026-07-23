@@ -1,0 +1,120 @@
+{
+  "status": "paired_hierarchical_orthogonal_fusion_benchmark",
+  "created_at_utc": "2026-07-23T00:24:11.719424+00:00",
+  "cohort": {
+    "n_cases": 210,
+    "n_events": 64
+  },
+  "protocol": {
+    "outer_split": "80/20 event-stratified holdout",
+    "seeds": [
+      42,
+      123,
+      456,
+      789,
+      1024
+    ],
+    "pca_dim_train_only": 16,
+    "orthogonal_fit": "Procrustes on outer-train only toward mean(tabular-PCA, text)",
+    "hierarchy": "tabular anchor + gated text residual + gated vision residual",
+    "epoch_selection": "inner validation, refit on complete outer train"
+  },
+  "results": {
+    "convex": {
+      "cindex_mean": 0.8111093418671931,
+      "cindex_std_across_seeds": 0.08203997764185456,
+      "cindex_per_seed": [
+        0.8571428571428571,
+        0.8143712574850299,
+        0.8767123287671232,
+        0.8369905956112853,
+        0.6703296703296703
+      ]
+    },
+    "concat": {
+      "cindex_mean": 0.7515783832991625,
+      "cindex_std_across_seeds": 0.07864337114194568,
+      "cindex_per_seed": [
+        0.7009966777408638,
+        0.7994011976047904,
+        0.8082191780821918,
+        0.8119122257053292,
+        0.6373626373626373
+      ],
+      "minus_convex_mean": -0.05953095856803066,
+      "wins_ties_losses_vs_convex": [
+        0,
+        0,
+        5
+      ]
+    },
+    "cross_attention": {
+      "cindex_mean": 0.7915026142831411,
+      "cindex_std_across_seeds": 0.08684097821327545,
+      "cindex_per_seed": [
+        0.7940199335548173,
+        0.8473053892215568,
+        0.8287671232876712,
+        0.8463949843260188,
+        0.6410256410256411
+      ],
+      "minus_convex_mean": -0.01960672758405213,
+      "wins_ties_losses_vs_convex": [
+        2,
+        0,
+        3
+      ]
+    },
+    "orthogonal_concat": {
+      "cindex_mean": 0.748272286444497,
+      "cindex_std_across_seeds": 0.07722875165809821,
+      "cindex_per_seed": [
+        0.6877076411960132,
+        0.7035928143712575,
+        0.8698630136986302,
+        0.780564263322884,
+        0.6996336996336996
+      ],
+      "minus_convex_mean": -0.06283705542269627,
+      "wins_ties_losses_vs_convex": [
+        1,
+        0,
+        4
+      ]
+    },
+    "hierarchical": {
+      "cindex_mean": 0.8065976459524042,
+      "cindex_std_across_seeds": 0.07140564629037761,
+      "cindex_per_seed": [
+        0.8604651162790697,
+        0.8023952095808383,
+        0.8356164383561644,
+        0.8495297805642633,
+        0.684981684981685
+      ],
+      "minus_convex_mean": -0.004511695914789016,
+      "wins_ties_losses_vs_convex": [
+        3,
+        0,
+        2
+      ]
+    },
+    "orthogonal_hierarchical": {
+      "cindex_mean": 0.7972055672998144,
+      "cindex_std_across_seeds": 0.07264150583053086,
+      "cindex_per_seed": [
+        0.8571428571428571,
+        0.7395209580838323,
+        0.8527397260273972,
+        0.8369905956112853,
+        0.6996336996336996
+      ],
+      "minus_convex_mean": -0.013903774567378856,
+      "wins_ties_losses_vs_convex": [
+        1,
+        2,
+        2
+      ]
+    }
+  }
+}

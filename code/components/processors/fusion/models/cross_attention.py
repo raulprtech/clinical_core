@@ -164,5 +164,70 @@ class CrossAttentionSurvivalFusion(nn.Module):
         return attention
 
 
+class HierarchicalResidualSurvivalFusion(nn.Module):
+    """Fuse text and vision as gated residuals around a tabular anchor.
+
+    The two scalar gates are patient-specific but deliberately low-capacity.
+    This lets the model ignore a weak modality without introducing a large
+    interaction network, which is important for small survival cohorts.
+    """
+
+    name = "fusion_hierarchical_residual_survival"
+
+    def __init__(
+        self,
+        modality_dims: Sequence[int],
+        d_model: int = 32,
+        dropout: float = 0.10,
+    ):
+        super().__init__()
+        dims = tuple(int(dim) for dim in modality_dims)
+        if len(dims) != 3:
+            raise ValueError("Hierarchical fusion requires tabular, text and vision")
+        self.encoder = ModalityTokenEncoder(dims, d_model, dropout)
+        self.text_gate = nn.Linear(2 * d_model, 1)
+        self.context_norm = nn.LayerNorm(d_model)
+        self.vision_gate = nn.Linear(2 * d_model, 1)
+        self.fused_norm = nn.LayerNorm(d_model)
+        self.risk_head = nn.Linear(d_model, 1)
+        nn.init.zeros_(self.text_gate.weight)
+        nn.init.zeros_(self.vision_gate.weight)
+        # sigmoid(-1.1) is approximately 0.25: residual modalities start
+        # conservatively instead of overwhelming the tabular anchor.
+        nn.init.constant_(self.text_gate.bias, -1.1)
+        nn.init.constant_(self.vision_gate.bias, -1.1)
+        nn.init.xavier_uniform_(self.risk_head.weight)
+        nn.init.zeros_(self.risk_head.bias)
+
+    def fused_and_gates(
+        self, modality_inputs: Sequence[torch.Tensor]
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        tokens = self.encoder(modality_inputs)
+        tabular, text, vision = tokens.unbind(dim=1)
+        text_gate = torch.sigmoid(self.text_gate(torch.cat([tabular, text], dim=1)))
+        context = self.context_norm(tabular + text_gate * text)
+        vision_gate = torch.sigmoid(
+            self.vision_gate(torch.cat([context, vision], dim=1))
+        )
+        fused = self.fused_norm(context + vision_gate * vision)
+        gates = torch.cat(
+            [torch.ones_like(text_gate), text_gate, vision_gate], dim=1
+        )
+        return fused, gates
+
+    def forward(self, modality_inputs: Sequence[torch.Tensor]) -> torch.Tensor:
+        fused, _ = self.fused_and_gates(modality_inputs)
+        return self.risk_head(fused).squeeze(-1)
+
+    @torch.no_grad()
+    def modality_weights(self, modality_inputs: Sequence[torch.Tensor]) -> torch.Tensor:
+        was_training = self.training
+        self.eval()
+        _, gates = self.fused_and_gates(modality_inputs)
+        weights = gates / gates.sum(dim=1, keepdim=True)
+        self.train(was_training)
+        return weights
+
+
 def count_trainable_parameters(model: nn.Module) -> int:
     return sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)

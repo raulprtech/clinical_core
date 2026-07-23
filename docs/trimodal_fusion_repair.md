@@ -122,3 +122,42 @@ Artefactos:
 - `code/components/processors/fusion/models/cross_attention.py`
 - `code/tools/evaluate_cross_attention_fusion.py`
 - `results_fusion/three_fusion_resnet_diagnostic_210/`
+
+## Cuarta referencia: alineación ortogonal y fusión jerárquica
+
+Se evaluaron tres variantes adicionales sobre los mismos 210 pacientes,
+hold-outs y cinco semillas del diagnóstico ResNet18 2.5D:
+
+- concatenación después de una rotación Procrustes de visión;
+- fusión jerárquica con tabular como ancla y residuos gated de texto y visión;
+- la combinación de rotación Procrustes y fusión jerárquica.
+
+La rotación se ajustó solo con el outer-train. Su objetivo fue alinear visión
+con un contexto construido mediante PCA tabular y texto, también ajustados
+solo con train. La selección de época se realizó en una partición interna y
+el modelo se reinicializó y reajustó con todo el outer-train.
+
+| Fusión | C-index medio | SD entre semillas | Diferencia vs convexa | Victorias/empates/derrotas |
+|---|---:|---:|---:|---:|
+| Convexa train-only | **0.8111** | 0.0820 | — | — |
+| Jerárquica residual | 0.8066 | **0.0714** | −0.0045 | 3/0/2 |
+| Ortogonal + jerárquica | 0.7972 | 0.0726 | −0.0139 | 1/2/2 |
+| Atención cruzada | 0.7915 | 0.0868 | −0.0196 | 2/0/3 |
+| Concatenación proyectada | 0.7516 | 0.0786 | −0.0595 | 0/0/5 |
+| Ortogonal + concatenación | 0.7483 | 0.0772 | −0.0628 | 1/0/4 |
+
+La transformación sí consiguió alineación geométrica: el coseno medio entre
+visión y contexto pasó de −0.035 a 0.114 en held-out y el error de
+ortogonalidad fue aproximadamente 5.8e−15. Sin embargo, esa alineación no se
+tradujo en mejor discriminación de supervivencia. Esto indica que aproximar
+los espacios no añade señal pronóstica y puede eliminar complementariedad.
+
+La jerárquica residual es la única variante nueva competitiva. Superó a la
+convexa en tres de cinco semillas y redujo la dispersión, pero su media fue
+0.0045 menor. Por tanto, no reemplaza todavía a la convexa; queda como
+comparador secundario que merece repetirse con STU-Net.
+
+Artefactos:
+
+- `code/tools/evaluate_hierarchical_orthogonal_fusion.py`
+- `results_fusion/hierarchical_orthogonal_resnet_diagnostic_210/`
