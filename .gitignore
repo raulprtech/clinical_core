@@ -25,6 +25,7 @@ dist/
 # Nunca subimos los datos de pacientes ni resultados masivos a GitHub
 data/
 results/
+results_nigma_dry_run/
 eda_results/
 eda_figures/
 

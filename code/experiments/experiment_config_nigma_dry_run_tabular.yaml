@@ -1,0 +1,64 @@
+# Minimal real-data dry run authorized through Nigma.
+# Patient-level extraction remains in memory and is never persisted.
+
+experiment:
+  name: "nigma_clinical_core_tabular_postop_dry_run"
+  description: "Single-seed Cox holdout over the leakage-safe post-surgery tabular contract."
+  author: "Raul Pacheco"
+  protocol_version: "nigma-dry-run-v1"
+
+clinical_context:
+  moment: "post_surgery"
+  pathology_modalities: []
+
+data:
+  xml_dir: "/home/raulprtech/clinical_core/data/raw/clinicalsupplement"
+  feature_config: "../components/adapters/ingestion/tabular/configs/tabular_mapping_no_leakage.yaml"
+  drug_file: null
+
+output:
+  base_dir: "/home/raulprtech/clinical_core/results_nigma_dry_run"
+  save_raw_extraction: false
+  save_resolved_config: true
+
+random:
+  seeds: [42]
+  n_folds: 2
+
+phase_1_imputation:
+  enabled: false
+
+phase_2_variants:
+  enabled: false
+  imputation_for_variants: "mean_median"
+  imputation_for_baseline: "mean_median"
+
+phase_2_holdout:
+  enabled: true
+  holdout_fraction: 0.20
+  seeds: [42]
+  variants: [cox_baseline]
+  output_dim: 768
+  imputation_for_baseline: "mean_median"
+  imputation_for_variants: "mean_median"
+  save_artifacts: false
+  protocols:
+    - name: "postop_clean"
+      drop_features: []
+
+phase_2_external_baselines: {enabled: false}
+phase_2_external_holdout: {enabled: false}
+phase_2_mahootiha: {enabled: false}
+phase_2_late_fusion_holdout: {enabled: false}
+phase_2_text_only_nested_cv: {enabled: false}
+phase_3_efficiency: {enabled: false}
+phase_4_stress: {enabled: false}
+phase_5_multimodal: {enabled: false}
+phase_6_fusion_proc: {enabled: false}
+phase_7_turbolatent: {enabled: false}
+phase_8_prognosis_benchmark: {enabled: false}
+
+runtime:
+  verbosity: "normal"
+  fail_fast: true
+  max_phase_minutes: 5
