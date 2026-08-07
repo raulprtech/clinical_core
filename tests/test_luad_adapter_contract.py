@@ -29,14 +29,14 @@ class LuadAdapterContractTests(unittest.TestCase):
         self.assertEqual(contract["prediction_time"], "post_surgery")
         self.assertEqual(
             self.experiment["disease_contract"]["source_status"],
-            "reference_registered_data_not_present_locally",
+            "local_verified_522_patient_xml",
         )
         self.assertFalse(self.experiment["phase_2_holdout"]["enabled"])
 
     def test_contract_excludes_unaudited_renal_features(self):
         features = set(self.mapping["features"])
         portable = {"age", "gender", "race", "ethnicity", "pathologic_stage", "pathologic_T", "pathologic_N", "pathologic_M"}
-        excluded = {"hemoglobin", "ldh", "serum_calcium", "platelet_count", "white_cell_count", "tumor_status"}
+        excluded = {"hemoglobin", "ldh", "serum_calcium", "platelet_count", "white_cell_count", "tumor_status", "cigarettes_per_day"}
         self.assertTrue(portable <= features)
         self.assertTrue(excluded.isdisjoint(features))
 

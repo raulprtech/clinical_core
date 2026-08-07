@@ -11,7 +11,7 @@ disease_contract:
   excluded_project_ids: ["TCGA-LUSC"]
   nigma_plan_id: "8fc10f9f9062185cd985d4ee529b4291f15a"
   nigma_plan_digest: "907581ea5e85b1f0c7cddc638160c63d229e581b4d91e83536f2bffe4b21c853"
-  source_status: "reference_registered_data_not_present_locally"
+  source_status: "local_verified_522_patient_xml"
 
 clinical_context:
   moment: "post_surgery"

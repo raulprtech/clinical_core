@@ -83,11 +83,7 @@ features:
     sources: [pack_years_smoked, number_pack_years_smoked]
     type: continuous
     normalization: zscore
-  cigarettes_per_day:
-    sources: [cigarettes_per_day]
-    type: continuous
-    normalization: zscore
-
 audit_candidates:
+  cigarettes_per_day: {status: excluded_after_real_audit, observed_coverage: 0.0}
   tobacco_smoking_status: {status: excluded_until_current_dictionary_harmonization}
   asbestos_exposure_type: {status: excluded_until_luad_coverage_and_temporal_audit}
