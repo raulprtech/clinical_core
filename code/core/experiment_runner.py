@@ -1573,6 +1573,156 @@ def phase_2_repeated_cv(
 
 
 # ============================================================
+# PHASE 2 TEMPORAL VALIDATION — earlier diagnosis years to later years
+# ============================================================
+
+def phase_2_temporal_validation(
+    df_features: pd.DataFrame,
+    df_targets: pd.DataFrame,
+    config: dict,
+    run_dir: Path,
+    best_imputation: str,
+) -> Optional[pd.DataFrame]:
+    """Evaluate transport from earlier to later diagnosis years.
+
+    This is an internal temporal stress test, not external validation. The
+    diagnosis year is partition-only metadata and is never included in X.
+    """
+    phase_cfg = config.get("phase_2_temporal_validation", {})
+    if not phase_cfg.get("enabled", False):
+        log("[PHASE 2 TEMPORAL VALIDATION] DISABLED")
+        return None
+    if "diagnosis_year" not in df_targets.columns:
+        raise KeyError(
+            "phase_2_temporal_validation requires diagnosis_year target metadata"
+        )
+
+    cutoff_year = int(phase_cfg["cutoff_year"])
+    valid = (
+        df_targets["survival_days"].notna()
+        & (df_targets["survival_days"] > 0)
+        & df_targets["diagnosis_year"].notna()
+    )
+    X = df_features.loc[valid].copy()
+    y = df_targets.loc[valid].copy()
+    train_mask = y["diagnosis_year"] <= cutoff_year
+    validation_mask = y["diagnosis_year"] > cutoff_year
+    if not train_mask.any() or not validation_mask.any():
+        raise ValueError(
+            f"Temporal cutoff {cutoff_year} produced an empty partition"
+        )
+
+    output_dim = int(phase_cfg.get("output_dim", 768))
+    imputation = phase_cfg.get("imputation", "mean_median")
+    if imputation == "auto":
+        imputation = best_imputation
+    onehot_features = list(phase_cfg.get("onehot_features") or [])
+    onehot_drop_first = bool(phase_cfg.get("onehot_drop_first", False))
+    horizon = float(phase_cfg.get("calibration_horizon_days", 730))
+    ipcw_tau = float(phase_cfg.get("ipcw_tau_days", horizon))
+    bootstrap_iterations = int(phase_cfg.get("bootstrap_iterations", 1000))
+    bootstrap_confidence = float(
+        phase_cfg.get("bootstrap_confidence_level", 0.95)
+    )
+    bootstrap_seed = int(phase_cfg.get("bootstrap_seed", 42))
+    protocols = list(
+        phase_cfg.get("protocols")
+        or [{"name": "default", "drop_features": []}]
+    )
+
+    y_train = y.loc[train_mask].copy()
+    y_validation = y.loc[validation_mask].copy()
+    log("")
+    log("[PHASE 2 TEMPORAL VALIDATION] Earlier-to-later transport stress test")
+    log(
+        f"  Cutoff: <= {cutoff_year} train, > {cutoff_year} validation; "
+        f"n={len(y_train)}/{len(y_validation)}, "
+        f"events={int(y_train['event'].sum())}/{int(y_validation['event'].sum())}"
+    )
+
+    rows = []
+    for protocol in protocols:
+        protocol_name = str(protocol["name"])
+        drop_features = list(protocol.get("drop_features") or [])
+        X_protocol = X.drop(
+            columns=[column for column in drop_features if column in X.columns],
+            errors="ignore",
+        )
+        X_train_raw = X_protocol.loc[train_mask].copy()
+        X_validation_raw = X_protocol.loc[validation_mask].copy()
+        preprocessor = TabularPreprocessor(
+            onehot_columns=onehot_features,
+            onehot_drop_first=onehot_drop_first,
+        )
+        X_train, mask_train, confidence_train = preprocessor.fit_transform(
+            X_train_raw, get_imputation(imputation)
+        )
+        X_validation, mask_validation, confidence_validation = (
+            preprocessor.transform(X_validation_raw)
+        )
+        details = {
+            "bootstrap_iterations": bootstrap_iterations,
+            "bootstrap_confidence_level": bootstrap_confidence,
+            "bootstrap_seed": bootstrap_seed,
+            "ipcw_tau_days": ipcw_tau,
+        }
+        cindex, ece, brier, contract_ok = _evaluate_variant(
+            variant_name="cox_baseline",
+            input_dim=X_train.shape[1],
+            output_dim=output_dim,
+            variant_params={},
+            X_tr=X_train,
+            X_va=X_validation,
+            y_tr=y_train,
+            y_va=y_validation,
+            mask_tr=mask_train,
+            mask_va=mask_validation,
+            conf_tr=confidence_train,
+            conf_va=confidence_validation,
+            median_surv=horizon,
+            evaluation_details=details,
+        )
+        rows.append({
+            "protocol": protocol_name,
+            "cutoff_year": cutoff_year,
+            "train_year_min": int(y_train["diagnosis_year"].min()),
+            "train_year_max": int(y_train["diagnosis_year"].max()),
+            "validation_year_min": int(y_validation["diagnosis_year"].min()),
+            "validation_year_max": int(y_validation["diagnosis_year"].max()),
+            "n_train": int(len(y_train)),
+            "events_train": int(y_train["event"].sum()),
+            "n_validation": int(len(y_validation)),
+            "events_validation": int(y_validation["event"].sum()),
+            "cindex": float(cindex),
+            "cindex_bootstrap_lower": details.get("cindex_bootstrap_lower", float("nan")),
+            "cindex_bootstrap_upper": details.get("cindex_bootstrap_upper", float("nan")),
+            "cindex_bootstrap_confidence_level": details.get("cindex_bootstrap_confidence_level", float("nan")),
+            "cindex_bootstrap_valid_iterations": details.get("cindex_bootstrap_valid_iterations", 0),
+            "cindex_ipcw": details.get("cindex_ipcw", float("nan")),
+            "ipcw_tau_days": details.get("ipcw_tau_days", float("nan")),
+            "cox_penalizer": details.get("cox_penalizer", float("nan")),
+            "ece": float(ece),
+            "brier_score": float(brier),
+            "contract_satisfied": bool(contract_ok),
+            "n_features": int(X_train.shape[1]),
+            "design_condition_number": details.get("design_condition_number", float("nan")),
+            "design_rank": details.get("design_rank", 0),
+            "design_columns": details.get("design_columns", 0),
+            "design_rank_deficient": details.get("design_rank_deficient", True),
+            "ph_min_p_value": details.get("ph_min_p_value", float("nan")),
+            "ph_violations_p_lt_0_05": details.get("ph_violations_p_lt_0_05", -1),
+            "interpretation": "internal_temporal_transport_not_external_validation",
+        })
+
+    results = pd.DataFrame(rows)
+    results.to_csv(run_dir / "phase2_temporal_validation.csv", index=False)
+    log("")
+    log("  TEMPORAL VALIDATION RESULTS:")
+    log(results[["protocol", "cindex", "cindex_ipcw", "contract_satisfied"]].round(4).to_string(index=False))
+    return results
+
+
+# ============================================================
 # PHASE 2 EXTERNAL HOLDOUT — single train/holdout 80/20 per seed for externals
 # ============================================================
 
@@ -3754,6 +3904,18 @@ def run_experiment(config_input: Union[str, Path, dict] = "experiment_config.yam
             )
             summary["phases"]["phase_2_repeated_cv"] = (
                 repeated_summary.to_dict(orient="records")
+            )
+
+        ph2_temporal = phase_2_temporal_validation(
+            df_features, df_targets, config, run_dir, best_imp
+        )
+        if ph2_temporal is not None:
+            summary["phases"]["phase_2_temporal_validation"] = (
+                ph2_temporal[[
+                    "protocol", "cutoff_year", "n_train",
+                    "n_validation", "cindex", "cindex_ipcw",
+                    "contract_satisfied",
+                ]].to_dict(orient="records")
             )
 
         # New Phase 2 External Baselines

@@ -18,6 +18,11 @@ targets:
   vital_status:
     sources: [vital_status]
     mapping: {Dead: 1, Alive: 0}
+  diagnosis_year:
+    sources: [year_of_initial_pathologic_diagnosis]
+    type: continuous
+    role: partition_only
+    description: "Calendar year used only for temporal transport evaluation; never a model feature."
 
 features:
   age:

@@ -63,12 +63,30 @@ class LuadAdapterContractTests(unittest.TestCase):
         self.assertEqual(repeated["protocols"], holdout["protocols"])
         self.assertTrue(repeated["onehot_drop_first"])
         self.assertFalse(repeated["save_artifacts"])
+        temporal = self.experiment["phase_2_temporal_validation"]
+        self.assertTrue(temporal["enabled"])
+        self.assertEqual(temporal["cutoff_year"], 2007)
+        self.assertEqual(temporal["partition_field"], "diagnosis_year")
+        self.assertEqual(temporal["protocols"], holdout["protocols"])
+        self.assertFalse(temporal["save_artifacts"])
+        self.assertEqual(
+            self.mapping["targets"]["diagnosis_year"]["role"],
+            "partition_only",
+        )
+        self.assertNotIn("diagnosis_year", self.mapping["features"])
         enabled = [
             name for name, phase in self.experiment.items()
             if name.startswith("phase_") and isinstance(phase, dict)
             and phase.get("enabled") is True
         ]
-        self.assertEqual(enabled, ["phase_2_holdout", "phase_2_repeated_cv"])
+        self.assertEqual(
+            enabled,
+            [
+                "phase_2_holdout",
+                "phase_2_repeated_cv",
+                "phase_2_temporal_validation",
+            ],
+        )
 
     def test_contract_excludes_unaudited_renal_features(self):
         features = set(self.mapping["features"])
@@ -88,6 +106,7 @@ class LuadAdapterContractTests(unittest.TestCase):
                 "<ajcc_pathologic_stage>Stage IIA</ajcc_pathologic_stage>"
                 "<number_pack_years_smoked>30.5</number_pack_years_smoked>"
                 "<cigarettes_per_day>12</cigarettes_per_day>"
+                "<year_of_initial_pathologic_diagnosis>2007</year_of_initial_pathologic_diagnosis>"
                 "</patient>",
                 encoding="utf-8",
             )
@@ -96,6 +115,8 @@ class LuadAdapterContractTests(unittest.TestCase):
         self.assertEqual(targets.loc["TCGA-LU-0001", "survival_days"], 400)
         self.assertEqual(features.loc["TCGA-LU-0001", "pathologic_stage"], 2)
         self.assertEqual(features.loc["TCGA-LU-0001", "pack_years_smoked"], 30.5)
+        self.assertEqual(targets.loc["TCGA-LU-0001", "diagnosis_year"], 2007)
+        self.assertNotIn("diagnosis_year", features.columns)
 
     def test_death_time_has_priority_over_follow_up(self):
         raw = {

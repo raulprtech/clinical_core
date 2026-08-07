@@ -367,6 +367,10 @@ class TCGAExtractor:
             # Extract targets
             survival_days, event = self._resolve_survival(raw)
             dfs_days, dfs_event, dfs_valid = self._resolve_dfs(raw)
+            diagnosis_year_config = self.config['targets'].get('diagnosis_year', {})
+            diagnosis_year = self._apply_mapping(
+                raw.get('target__diagnosis_year'), diagnosis_year_config
+            )
             target_rows.append({
                 'case_id': case_id,
                 'survival_days': survival_days,
@@ -374,6 +378,7 @@ class TCGAExtractor:
                 'dfs_days': dfs_days,
                 'dfs_event': dfs_event,
                 'dfs_valid': dfs_valid,
+                'diagnosis_year': diagnosis_year,
             })
         
         if not feature_rows:
