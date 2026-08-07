@@ -40,6 +40,18 @@ class LuadAdapterContractTests(unittest.TestCase):
         self.assertEqual(holdout["variants"], ["cox_baseline"])
         self.assertFalse(holdout["save_artifacts"])
         self.assertEqual(holdout["onehot_features"], ["race"])
+        self.assertTrue(holdout["onehot_drop_first"])
+        self.assertEqual(
+            holdout["protocols"],
+            [
+                {
+                    "name": "stage_model",
+                    "drop_features": ["pathologic_T", "pathologic_N", "pathologic_M"],
+                },
+                {"name": "tnm_model", "drop_features": ["pathologic_stage"]},
+                {"name": "stage_tnm_model", "drop_features": []},
+            ],
+        )
         self.assertEqual(holdout["calibration_horizon_days"], 730)
         self.assertEqual(holdout["bootstrap_iterations"], 1000)
         self.assertEqual(holdout["bootstrap_confidence_level"], 0.95)

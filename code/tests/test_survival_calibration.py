@@ -72,6 +72,23 @@ class SurvivalCalibrationTests(unittest.TestCase):
         self.assertGreaterEqual(result, 0.0)
         self.assertLessEqual(result, 1.0)
 
+    def test_reference_category_removes_onehot_linear_dependency(self):
+        train = pd.DataFrame({
+            "race": [0.0, 1.0, 2.0, 0.0],
+            "age": [50.0, 60.0, 70.0, 55.0],
+        })
+        holdout = pd.DataFrame({"race": [3.0], "age": [65.0]})
+        prep = TabularPreprocessor(
+            onehot_columns=["race"],
+            onehot_drop_first=True,
+        )
+        encoded_train, _, _ = prep.fit_transform(train, MeanMedianImputer())
+        encoded_holdout, _, _ = prep.transform(holdout)
+        race_columns = [col for col in encoded_train if col.startswith("race_")]
+        self.assertEqual(len(race_columns), 2)
+        self.assertEqual(list(encoded_train.columns), list(encoded_holdout.columns))
+        self.assertEqual(float(encoded_holdout[race_columns].sum(axis=1).iloc[0]), 0.0)
+
     def test_declared_nominal_column_is_onehot_encoded(self):
         train = pd.DataFrame({"race": [0.0, 1.0, 2.0, 0.0], "age": [50.0, 60.0, 70.0, 55.0]})
         holdout = pd.DataFrame({"race": [3.0], "age": [65.0]})

@@ -1255,13 +1255,20 @@ def phase_2_holdout(
 
             # Two preprocessing passes mirroring phase_2_variants: baseline and advanced.
             onehot_features = list(phase_cfg.get('onehot_features') or [])
-            prep_base = TabularPreprocessor(onehot_columns=onehot_features)
+            onehot_drop_first = bool(phase_cfg.get('onehot_drop_first', False))
+            prep_base = TabularPreprocessor(
+                onehot_columns=onehot_features,
+                onehot_drop_first=onehot_drop_first,
+            )
             X_tr_b, mask_tr_b, conf_tr_b = prep_base.fit_transform(
                 X_tr_raw, get_imputation(imp_for_baseline)
             )
             X_ho_b, mask_ho_b, conf_ho_b = prep_base.transform(X_ho_raw)
 
-            prep_adv = TabularPreprocessor(onehot_columns=onehot_features)
+            prep_adv = TabularPreprocessor(
+                onehot_columns=onehot_features,
+                onehot_drop_first=onehot_drop_first,
+            )
             X_tr_a, mask_tr_a, conf_tr_a = prep_adv.fit_transform(
                 X_tr_raw, get_imputation(imp_for_variants)
             )

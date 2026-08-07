@@ -39,13 +39,18 @@ phase_2_holdout:
   imputation_for_baseline: mean_median
   imputation_for_variants: mean_median
   onehot_features: [race]
+  onehot_drop_first: true
   calibration_horizon_days: 730
   bootstrap_iterations: 1000
   bootstrap_confidence_level: 0.95
   ipcw_tau_days: 730
   save_artifacts: false
   protocols:
-    - name: luad_baseline_v2
+    - name: stage_model
+      drop_features: [pathologic_T, pathologic_N, pathologic_M]
+    - name: tnm_model
+      drop_features: [pathologic_stage]
+    - name: stage_tnm_model
       drop_features: []
 phase_2_external_baselines: {enabled: false}
 phase_2_external_holdout: {enabled: false}

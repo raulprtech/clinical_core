@@ -170,13 +170,18 @@ class TabularPreprocessor:
     5. Computes confidence score
     """
     
-    def __init__(self, onehot_columns: Optional[List[str]] = None):
+    def __init__(
+        self,
+        onehot_columns: Optional[List[str]] = None,
+        onehot_drop_first: bool = False,
+    ):
         self.scaler = StandardScaler()
         self.numeric_cols = []
         self.all_cols = []
         self.categorical_cols = []
         self.scaler_cols = []
         self.onehot_columns = list(onehot_columns or [])
+        self.onehot_drop_first = bool(onehot_drop_first)
         self.output_cols = []
         self.fitted = False
     
@@ -267,7 +272,11 @@ class TabularPreprocessor:
         encoded = [c for c in self.onehot_columns if c in df_imputed.columns]
         if encoded:
             df_imputed = pd.get_dummies(
-                df_imputed, columns=encoded, prefix=encoded, dtype=float,
+                df_imputed,
+                columns=encoded,
+                prefix=encoded,
+                dtype=float,
+                drop_first=self.onehot_drop_first,
             )
         self.output_cols = df_imputed.columns.tolist()
         
@@ -300,7 +309,11 @@ class TabularPreprocessor:
         encoded = [c for c in self.onehot_columns if c in df_imputed.columns]
         if encoded:
             df_imputed = pd.get_dummies(
-                df_imputed, columns=encoded, prefix=encoded, dtype=float,
+                df_imputed,
+                columns=encoded,
+                prefix=encoded,
+                dtype=float,
+                drop_first=self.onehot_drop_first,
             )
         df_imputed = df_imputed.reindex(columns=self.output_cols, fill_value=0.0)
         
