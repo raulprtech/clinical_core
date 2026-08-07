@@ -40,6 +40,9 @@ phase_2_holdout:
   imputation_for_variants: mean_median
   onehot_features: [race]
   calibration_horizon_days: 730
+  bootstrap_iterations: 1000
+  bootstrap_confidence_level: 0.95
+  ipcw_tau_days: 730
   save_artifacts: false
   protocols:
     - name: luad_baseline_v2

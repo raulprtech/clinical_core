@@ -49,7 +49,10 @@ import yaml
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 from lifelines import CoxPHFitter, KaplanMeierFitter
+from lifelines.statistics import proportional_hazard_test
 from lifelines.utils import concordance_index
+from sksurv.metrics import concordance_index_ipcw
+from sksurv.util import Surv
 
 warnings.filterwarnings('ignore')
 
@@ -233,6 +236,75 @@ def survival_ipcw_calibration(
         observed_mean = float(np.average(observed[mask], weights=weights[mask]))
         ece += (bin_weight / total_weight) * abs(observed_mean - predicted_mean)
     return float(ece), brier
+
+
+def bootstrap_concordance_interval(
+    survival_days: np.ndarray,
+    events: np.ndarray,
+    risk_scores: np.ndarray,
+    iterations: int = 1000,
+    confidence_level: float = 0.95,
+    seed: int = 42,
+) -> Tuple[float, float, int]:
+    """Patient-level bootstrap CI for Harrell's C; only aggregates are returned."""
+    times = np.asarray(survival_days, dtype=float)
+    observed = np.asarray(events, dtype=int)
+    risk = np.asarray(risk_scores, dtype=float)
+    if len(times) < 2 or observed.sum() == 0 or iterations <= 0:
+        return float('nan'), float('nan'), 0
+    rng = np.random.default_rng(seed)
+    estimates = []
+    for _ in range(int(iterations)):
+        sample = rng.integers(0, len(times), size=len(times))
+        try:
+            estimate = concordance_index(
+                times[sample], -risk[sample], observed[sample]
+            )
+        except (ValueError, ZeroDivisionError):
+            continue
+        if np.isfinite(estimate):
+            estimates.append(float(estimate))
+    if not estimates:
+        return float('nan'), float('nan'), 0
+    alpha = 1.0 - float(confidence_level)
+    lower, upper = np.quantile(estimates, [alpha / 2.0, 1.0 - alpha / 2.0])
+    return float(lower), float(upper), len(estimates)
+
+
+def ipcw_concordance(
+    y_train: pd.DataFrame,
+    y_test: pd.DataFrame,
+    risk_scores: np.ndarray,
+    tau: float,
+) -> float:
+    """Uno's IPCW concordance at a fixed, predeclared evaluation horizon."""
+    train_survival = Surv.from_arrays(
+        event=y_train['event'].to_numpy(dtype=bool),
+        time=y_train['survival_days'].to_numpy(dtype=float),
+    )
+    test_survival = Surv.from_arrays(
+        event=y_test['event'].to_numpy(dtype=bool),
+        time=y_test['survival_days'].to_numpy(dtype=float),
+    )
+    try:
+        result = concordance_index_ipcw(
+            train_survival,
+            test_survival,
+            np.asarray(risk_scores, dtype=float),
+            tau=float(tau),
+        )
+    except (ValueError, ZeroDivisionError):
+        return float('nan')
+    return float(result[0])
+
+
+def _safe_float(value, default=float('nan')) -> float:
+    """Convert optional diagnostic values without leaking row-level material."""
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return result if np.isfinite(result) else default
 
 
 # ============================================================
@@ -517,6 +589,7 @@ def _evaluate_variant(
     curves_ctx: Optional[dict] = None,
     artifacts_dir: Optional[Path] = None,
     artifacts_key: str = '',
+    evaluation_details: Optional[dict] = None,
 ) -> Tuple[float, float, float, bool]:
     """Evaluate a single variant on a single fold. Returns (cindex, ece, brier, contract_ok)."""
     try:
@@ -524,6 +597,7 @@ def _evaluate_variant(
             return _eval_cox_baseline(
                 X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv,
                 artifacts_dir=artifacts_dir, artifacts_key=artifacts_key,
+                evaluation_details=evaluation_details,
             )
         elif variant_name == 'linear_compact':
             return _eval_linear_compact(
@@ -614,7 +688,8 @@ def _save_neural_checkpoint(artifacts_dir, artifacts_key, encoder, risk_head, fe
 
 
 def _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv,
-                       artifacts_dir: Optional[Path] = None, artifacts_key: str = ''):
+                       artifacts_dir: Optional[Path] = None, artifacts_key: str = '',
+                       evaluation_details: Optional[dict] = None):
     """
     Cox baseline aligned with diagnostic_cox_raw.py protocol.
  
@@ -663,9 +738,11 @@ def _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv,
     cox_df_va = pd.DataFrame(X_va_s, columns=keep_var)
  
     cph = None
+    selected_penalizer = None
     for pen_try in [0.5, 1.0, 5.0, 20.0]:
         try:
             cph = CoxPHFitter(penalizer=pen_try, l1_ratio=0.0)
+            selected_penalizer = float(pen_try)
             cph.fit(
                 cox_df_tr, duration_col='T', event_col='E',
                 show_progress=False,
@@ -682,6 +759,50 @@ def _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv,
     ci = concordance_index(
         y_va['survival_days'].values, -risk, y_va['event'].values
     )
+    details = evaluation_details if evaluation_details is not None else {}
+    bootstrap_iterations = int(details.get('bootstrap_iterations', 1000))
+    bootstrap_confidence = float(details.get('bootstrap_confidence_level', 0.95))
+    bootstrap_seed = int(details.get('bootstrap_seed', 42))
+    ci_lower, ci_upper, ci_valid = bootstrap_concordance_interval(
+        y_va['survival_days'].values,
+        y_va['event'].values,
+        risk,
+        iterations=bootstrap_iterations,
+        confidence_level=bootstrap_confidence,
+        seed=bootstrap_seed,
+    )
+    ipcw_tau = float(details.get('ipcw_tau_days', median_surv))
+    ci_ipcw = ipcw_concordance(y_tr_f, y_va, risk, tau=ipcw_tau)
+    condition_number = _safe_float(np.linalg.cond(X_tr_s))
+    design_rank = int(np.linalg.matrix_rank(X_tr_s))
+    design_columns = int(X_tr_s.shape[1])
+    design_rank_deficient = design_rank < design_columns
+    ph_min_p = float('nan')
+    ph_violations = -1
+    try:
+        ph_result = proportional_hazard_test(
+            cph, cox_df_tr, time_transform='rank'
+        )
+        ph_values = np.asarray(ph_result.summary['p'], dtype=float)
+        ph_min_p = _safe_float(np.min(ph_values))
+        ph_violations = int(np.sum(ph_values < 0.05))
+    except Exception:
+        pass
+    details.update({
+        'cindex_bootstrap_lower': ci_lower,
+        'cindex_bootstrap_upper': ci_upper,
+        'cindex_bootstrap_confidence_level': bootstrap_confidence,
+        'cindex_bootstrap_valid_iterations': int(ci_valid),
+        'cindex_ipcw': ci_ipcw,
+        'ipcw_tau_days': ipcw_tau,
+        'cox_penalizer': selected_penalizer,
+        'design_condition_number': condition_number,
+        'design_rank': design_rank,
+        'design_columns': design_columns,
+        'design_rank_deficient': design_rank_deficient,
+        'ph_min_p_value': ph_min_p,
+        'ph_violations_p_lt_0_05': ph_violations,
+    })
 
     # ---- 7. Calibration metrics (ECE, Brier) on validation ----
     horizon = float(median_surv)
@@ -1166,6 +1287,14 @@ def phase_2_holdout(
                     f"{proto_tag}_seed{int(seed)}_{variant_name}"
                     if save_artifacts else ''
                 )
+                evaluation_details = {
+                    'bootstrap_iterations': int(phase_cfg.get('bootstrap_iterations', 1000)),
+                    'bootstrap_confidence_level': float(
+                        phase_cfg.get('bootstrap_confidence_level', 0.95)
+                    ),
+                    'bootstrap_seed': int(seed),
+                    'ipcw_tau_days': float(phase_cfg.get('ipcw_tau_days', calibration_horizon)),
+                }
 
                 ci, ece, bs, contract_ok = _evaluate_variant(
                     variant_name=variant_name,
@@ -1185,6 +1314,7 @@ def phase_2_holdout(
                     },
                     artifacts_dir=artifacts_dir,
                     artifacts_key=artifacts_key,
+                    evaluation_details=evaluation_details,
                 )
 
                 rows.append({
@@ -1195,6 +1325,19 @@ def phase_2_holdout(
                     'ece': float(ece) if ece == ece else float('nan'),
                     'brier_score': float(bs) if bs == bs else float('nan'),
                     'contract_satisfied': bool(contract_ok),
+                    'cindex_bootstrap_lower': evaluation_details.get('cindex_bootstrap_lower', float('nan')),
+                    'cindex_bootstrap_upper': evaluation_details.get('cindex_bootstrap_upper', float('nan')),
+                    'cindex_bootstrap_confidence_level': evaluation_details.get('cindex_bootstrap_confidence_level', float('nan')),
+                    'cindex_bootstrap_valid_iterations': evaluation_details.get('cindex_bootstrap_valid_iterations', 0),
+                    'cindex_ipcw': evaluation_details.get('cindex_ipcw', float('nan')),
+                    'ipcw_tau_days': evaluation_details.get('ipcw_tau_days', float('nan')),
+                    'cox_penalizer': evaluation_details.get('cox_penalizer', float('nan')),
+                    'design_condition_number': evaluation_details.get('design_condition_number', float('nan')),
+                    'design_rank': evaluation_details.get('design_rank', 0),
+                    'design_columns': evaluation_details.get('design_columns', 0),
+                    'design_rank_deficient': evaluation_details.get('design_rank_deficient', False),
+                    'ph_min_p_value': evaluation_details.get('ph_min_p_value', float('nan')),
+                    'ph_violations_p_lt_0_05': evaluation_details.get('ph_violations_p_lt_0_05', -1),
                     'n_train': int(len(tr_idx)),
                     'n_holdout': int(len(ho_idx)),
                     'events_holdout': n_events_ho,
@@ -1212,8 +1355,14 @@ def phase_2_holdout(
             cindex_mean=('cindex_holdout', 'mean'),
             cindex_std=('cindex_holdout', 'std'),
             cindex_median=('cindex_holdout', 'median'),
+            cindex_bootstrap_lower=('cindex_bootstrap_lower', 'mean'),
+            cindex_bootstrap_upper=('cindex_bootstrap_upper', 'mean'),
+            cindex_ipcw=('cindex_ipcw', 'mean'),
             ece_mean=('ece', 'mean'),
             brier_mean=('brier_score', 'mean'),
+            design_rank_deficient=('design_rank_deficient', 'any'),
+            ph_min_p_value=('ph_min_p_value', 'min'),
+            ph_violations_p_lt_0_05=('ph_violations_p_lt_0_05', 'max'),
             contract_satisfied=('contract_satisfied', 'all'),
             n_seeds=('cindex_holdout', 'count'),
         )

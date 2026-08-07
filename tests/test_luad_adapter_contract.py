@@ -41,6 +41,9 @@ class LuadAdapterContractTests(unittest.TestCase):
         self.assertFalse(holdout["save_artifacts"])
         self.assertEqual(holdout["onehot_features"], ["race"])
         self.assertEqual(holdout["calibration_horizon_days"], 730)
+        self.assertEqual(holdout["bootstrap_iterations"], 1000)
+        self.assertEqual(holdout["bootstrap_confidence_level"], 0.95)
+        self.assertEqual(holdout["ipcw_tau_days"], 730)
         self.assertFalse(self.experiment["output"]["save_raw_extraction"])
         enabled = [
             name for name, phase in self.experiment.items()
