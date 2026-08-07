@@ -31,11 +31,17 @@ random: {seeds: [42], n_folds: 2}
 phase_1_imputation: {enabled: false}
 phase_2_variants: {enabled: false}
 phase_2_holdout:
-  enabled: false
+  enabled: true
   holdout_fraction: 0.20
   seeds: [42]
   variants: [cox_baseline]
+  output_dim: 768
+  imputation_for_baseline: mean_median
+  imputation_for_variants: mean_median
   save_artifacts: false
+  protocols:
+    - name: postop_luad_v1
+      drop_features: []
 phase_2_external_baselines: {enabled: false}
 phase_2_external_holdout: {enabled: false}
 phase_2_mahootiha: {enabled: false}

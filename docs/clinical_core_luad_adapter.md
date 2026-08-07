@@ -23,13 +23,19 @@ The aggregate-only extraction produced:
 - nine retained features;
 - no patient-level output artifacts.
 
-The experiment configuration remains non-executable: the source is now marked `local_verified_522_patient_xml`, but all training phases remain disabled until separate authorization for model execution. Renal data must never be used to claim a pulmonary execution.
+The experiment configuration now seals the authorized local holdout: only phase_2_holdout is enabled, with seed 42, an 80/20 split, cox_baseline, no raw extraction persistence and no model artifacts. Renal data must never be used to claim a pulmonary execution.
+
+## Authorized Cox holdout
+
+The single authorized run used 395 training cases and 99 holdout cases, including 24 holdout events. The Cox baseline obtained C-index 0.6390, ECE 0.2576 and Brier score 0.25; the ingestion contract was satisfied and the run reported zero errors.
+
+Exactly six allowlisted aggregate files were produced. Nigma found no nested directories, oversized files or TCGA patient identifiers, and no model artifacts were saved.
 
 ## Validation checkpoint
 
 Local validation passes 5 LUAD-specific contract tests and 21 existing Clinical-Core regression tests. Nigma accepts the immutable plan, approval, base commit, change scope, schema, prediction-time and leakage evidence.
 
-Nigma previously returned `requires_correction` because the source was absent. The remaining correction is a separately authorized holdout/model execution and clean-environment reproduction; neither has been claimed.
+Nigma previously returned requires_correction because the source was absent. The authorized holdout has now completed; only a second execution from a fresh environment remains unclaimed.
 
 Evidence:
 

@@ -22,7 +22,7 @@ class LuadAdapterContractTests(unittest.TestCase):
         self.mapping = yaml.safe_load(MAPPING.read_text(encoding="utf-8"))
         self.experiment = yaml.safe_load(EXPERIMENT.read_text(encoding="utf-8"))
 
-    def test_contract_is_luad_only_postoperative_and_non_executable(self):
+    def test_contract_is_luad_only_postoperative_and_sealed(self):
         contract = self.mapping["contract"]
         self.assertEqual(contract["project_id"], "TCGA-LUAD")
         self.assertEqual(contract["excluded_project_ids"], ["TCGA-LUSC"])
@@ -31,7 +31,19 @@ class LuadAdapterContractTests(unittest.TestCase):
             self.experiment["disease_contract"]["source_status"],
             "local_verified_522_patient_xml",
         )
-        self.assertFalse(self.experiment["phase_2_holdout"]["enabled"])
+        holdout = self.experiment["phase_2_holdout"]
+        self.assertTrue(holdout["enabled"])
+        self.assertEqual(holdout["holdout_fraction"], 0.20)
+        self.assertEqual(holdout["seeds"], [42])
+        self.assertEqual(holdout["variants"], ["cox_baseline"])
+        self.assertFalse(holdout["save_artifacts"])
+        self.assertFalse(self.experiment["output"]["save_raw_extraction"])
+        enabled = [
+            name for name, phase in self.experiment.items()
+            if name.startswith("phase_") and isinstance(phase, dict)
+            and phase.get("enabled") is True
+        ]
+        self.assertEqual(enabled, ["phase_2_holdout"])
 
     def test_contract_excludes_unaudited_renal_features(self):
         features = set(self.mapping["features"])
