@@ -57,12 +57,18 @@ class LuadAdapterContractTests(unittest.TestCase):
         self.assertEqual(holdout["bootstrap_confidence_level"], 0.95)
         self.assertEqual(holdout["ipcw_tau_days"], 730)
         self.assertFalse(self.experiment["output"]["save_raw_extraction"])
+        repeated = self.experiment["phase_2_repeated_cv"]
+        self.assertEqual(repeated["seeds"], [42, 101, 202])
+        self.assertEqual(repeated["n_folds"], 5)
+        self.assertEqual(repeated["protocols"], holdout["protocols"])
+        self.assertTrue(repeated["onehot_drop_first"])
+        self.assertFalse(repeated["save_artifacts"])
         enabled = [
             name for name, phase in self.experiment.items()
             if name.startswith("phase_") and isinstance(phase, dict)
             and phase.get("enabled") is True
         ]
-        self.assertEqual(enabled, ["phase_2_holdout"])
+        self.assertEqual(enabled, ["phase_2_holdout", "phase_2_repeated_cv"])
 
     def test_contract_excludes_unaudited_renal_features(self):
         features = set(self.mapping["features"])

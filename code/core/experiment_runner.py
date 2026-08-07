@@ -802,6 +802,10 @@ def _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv,
         'design_rank_deficient': design_rank_deficient,
         'ph_min_p_value': ph_min_p,
         'ph_violations_p_lt_0_05': ph_violations,
+        'cox_coefficients': {
+            str(feature): float(coefficient)
+            for feature, coefficient in cph.params_.items()
+        },
     })
 
     # ---- 7. Calibration metrics (ECE, Brier) on validation ----
@@ -1380,6 +1384,192 @@ def phase_2_holdout(
     log(summary.to_string())
 
     return df_results
+
+
+# ============================================================
+# PHASE 2 REPEATED CV — aggregate Cox stability evidence
+# ============================================================
+
+def phase_2_repeated_cv(
+    df_features: pd.DataFrame,
+    df_targets: pd.DataFrame,
+    config: dict,
+    run_dir: Path,
+    best_imputation: str,
+) -> Optional[pd.DataFrame]:
+    phase_cfg = config.get("phase_2_repeated_cv", {})
+    if not phase_cfg.get("enabled", False):
+        log("[PHASE 2 REPEATED CV] DISABLED")
+        return None
+
+    log("\n[PHASE 2 REPEATED CV] Stratified repeated Cox evaluation")
+    valid = df_targets["survival_days"].notna() & (
+        df_targets["survival_days"] > 0
+    )
+    X = df_features.loc[valid].copy()
+    y = df_targets.loc[valid].copy()
+    seeds = [int(seed) for seed in phase_cfg.get("seeds", [42, 101, 202])]
+    n_folds = int(phase_cfg.get("n_folds", 5))
+    output_dim = int(phase_cfg.get("output_dim", 768))
+    imputation = phase_cfg.get("imputation", "mean_median")
+    if imputation == "auto":
+        imputation = best_imputation
+    onehot_features = list(phase_cfg.get("onehot_features") or [])
+    onehot_drop_first = bool(phase_cfg.get("onehot_drop_first", False))
+    horizon = float(phase_cfg.get("calibration_horizon_days", 730))
+    ipcw_tau = float(phase_cfg.get("ipcw_tau_days", horizon))
+    protocols = list(phase_cfg.get("protocols") or [{"name": "default", "drop_features": []}])
+    expected_folds = len(seeds) * n_folds
+
+    log(f"  Cases: {len(X)}, events: {int(y["event"].sum())}")
+    log(f"  Seeds: {seeds}, folds per seed: {n_folds}")
+    log(f"  Protocols: {[item["name"] for item in protocols]}")
+
+    rows = []
+    coefficient_rows = []
+    for protocol in protocols:
+        protocol_name = str(protocol["name"])
+        drop_features = list(protocol.get("drop_features") or [])
+        X_protocol = X.drop(
+            columns=[column for column in drop_features if column in X.columns],
+            errors="ignore",
+        )
+        for seed in seeds:
+            splitter = StratifiedKFold(
+                n_splits=n_folds,
+                shuffle=True,
+                random_state=seed,
+            )
+            for fold, (train_index, validation_index) in enumerate(
+                splitter.split(X_protocol, y["event"])
+            ):
+                X_train_raw = X_protocol.iloc[train_index].copy()
+                X_validation_raw = X_protocol.iloc[validation_index].copy()
+                y_train = y.iloc[train_index].copy()
+                y_validation = y.iloc[validation_index].copy()
+                preprocessor = TabularPreprocessor(
+                    onehot_columns=onehot_features,
+                    onehot_drop_first=onehot_drop_first,
+                )
+                X_train, mask_train, confidence_train = preprocessor.fit_transform(
+                    X_train_raw, get_imputation(imputation)
+                )
+                X_validation, mask_validation, confidence_validation = (
+                    preprocessor.transform(X_validation_raw)
+                )
+                details = {
+                    "bootstrap_iterations": 0,
+                    "bootstrap_confidence_level": 0.95,
+                    "bootstrap_seed": seed,
+                    "ipcw_tau_days": ipcw_tau,
+                }
+                cindex, ece, brier, contract_ok = _evaluate_variant(
+                    variant_name="cox_baseline",
+                    input_dim=X_train.shape[1],
+                    output_dim=output_dim,
+                    variant_params={},
+                    X_tr=X_train,
+                    X_va=X_validation,
+                    y_tr=y_train,
+                    y_va=y_validation,
+                    mask_tr=mask_train,
+                    mask_va=mask_validation,
+                    conf_tr=confidence_train,
+                    conf_va=confidence_validation,
+                    median_surv=horizon,
+                    evaluation_details=details,
+                )
+                rows.append({
+                    "protocol": protocol_name,
+                    "seed": seed,
+                    "fold": int(fold),
+                    "cindex": float(cindex),
+                    "cindex_ipcw": details.get("cindex_ipcw", float("nan")),
+                    "ece": float(ece),
+                    "brier_score": float(brier),
+                    "contract_satisfied": bool(contract_ok),
+                    "n_train": int(len(train_index)),
+                    "n_validation": int(len(validation_index)),
+                    "events_validation": int(y_validation["event"].sum()),
+                    "n_features": int(X_train.shape[1]),
+                    "design_condition_number": details.get(
+                        "design_condition_number", float("nan")
+                    ),
+                    "design_rank": details.get("design_rank", 0),
+                    "design_columns": details.get("design_columns", 0),
+                    "design_rank_deficient": details.get(
+                        "design_rank_deficient", True
+                    ),
+                    "ph_min_p_value": details.get("ph_min_p_value", float("nan")),
+                    "ph_violations_p_lt_0_05": details.get(
+                        "ph_violations_p_lt_0_05", -1
+                    ),
+                })
+                for feature, coefficient in details.get(
+                    "cox_coefficients", {}
+                ).items():
+                    coefficient_rows.append({
+                        "protocol": protocol_name,
+                        "seed": seed,
+                        "fold": int(fold),
+                        "feature": feature,
+                        "coefficient": float(coefficient),
+                    })
+
+    results = pd.DataFrame(rows)
+    results.to_csv(run_dir / "phase2_repeated_cv.csv", index=False)
+
+    summary_rows = []
+    for protocol_name, group in results.groupby("protocol", sort=True):
+        valid_cindex = group["cindex"].dropna().to_numpy(dtype=float)
+        valid_ipcw = group["cindex_ipcw"].dropna().to_numpy(dtype=float)
+        summary_rows.append({
+            "protocol": protocol_name,
+            "cindex_mean": float(np.mean(valid_cindex)),
+            "cindex_std": float(np.std(valid_cindex, ddof=1)),
+            "cindex_median": float(np.median(valid_cindex)),
+            "cindex_fold_p02_5": float(np.quantile(valid_cindex, 0.025)),
+            "cindex_fold_p97_5": float(np.quantile(valid_cindex, 0.975)),
+            "cindex_ipcw_mean": float(np.mean(valid_ipcw)),
+            "cindex_ipcw_std": float(np.std(valid_ipcw, ddof=1)),
+            "ece_mean": float(group["ece"].mean()),
+            "brier_mean": float(group["brier_score"].mean()),
+            "successful_folds": int(group["cindex"].notna().sum()),
+            "expected_folds": int(expected_folds),
+            "all_contracts_satisfied": bool(group["contract_satisfied"].all()),
+            "any_rank_deficient": bool(group["design_rank_deficient"].any()),
+            "ph_violations_total": int(group["ph_violations_p_lt_0_05"].sum()),
+        })
+    summary = pd.DataFrame(summary_rows)
+    summary.to_csv(run_dir / "phase2_repeated_cv_summary.csv", index=False)
+
+    coefficient_data = pd.DataFrame(coefficient_rows)
+    stability_rows = []
+    for (protocol_name, feature), group in coefficient_data.groupby(
+        ["protocol", "feature"], sort=True
+    ):
+        values = group["coefficient"].to_numpy(dtype=float)
+        positive_fraction = float(np.mean(values > 0))
+        stability_rows.append({
+            "protocol": protocol_name,
+            "feature": feature,
+            "coefficient_mean": float(np.mean(values)),
+            "coefficient_std": float(np.std(values, ddof=1)),
+            "coefficient_median": float(np.median(values)),
+            "coefficient_min": float(np.min(values)),
+            "coefficient_max": float(np.max(values)),
+            "positive_fraction": positive_fraction,
+            "sign_consistency": max(positive_fraction, 1.0 - positive_fraction),
+            "fold_coverage": float(len(values) / expected_folds),
+            "observed_folds": int(len(values)),
+            "expected_folds": int(expected_folds),
+        })
+    stability = pd.DataFrame(stability_rows)
+    stability.to_csv(run_dir / "phase2_coefficient_stability.csv", index=False)
+
+    log("\n  REPEATED CV SUMMARY:")
+    log(summary.round(4).to_string(index=False))
+    return results
 
 
 # ============================================================
@@ -3551,6 +3741,20 @@ def run_experiment(config_input: Union[str, Path, dict] = "experiment_config.yam
                 .reset_index()
             )
             summary['phases']['phase_2_holdout'] = ph2_ho_summary.to_dict(orient='records')
+
+        ph2_repeated = phase_2_repeated_cv(
+            df_features, df_targets, config, run_dir, best_imp
+        )
+        if ph2_repeated is not None:
+            repeated_summary = (
+                ph2_repeated.groupby("protocol")["cindex"]
+                .agg(["mean", "std", "median", "count"])
+                .round(4)
+                .reset_index()
+            )
+            summary["phases"]["phase_2_repeated_cv"] = (
+                repeated_summary.to_dict(orient="records")
+            )
 
         # New Phase 2 External Baselines
         ph2_ext = phase_2_external_baselines(df_features, df_targets, config, run_dir, best_imp)

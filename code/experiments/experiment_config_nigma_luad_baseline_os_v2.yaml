@@ -52,6 +52,25 @@ phase_2_holdout:
       drop_features: [pathologic_stage]
     - name: stage_tnm_model
       drop_features: []
+phase_2_repeated_cv:
+  enabled: true
+  seeds: [42, 101, 202]
+  n_folds: 5
+  variants: [cox_baseline]
+  output_dim: 768
+  imputation: mean_median
+  onehot_features: [race]
+  onehot_drop_first: true
+  calibration_horizon_days: 730
+  ipcw_tau_days: 730
+  save_artifacts: false
+  protocols:
+    - name: stage_model
+      drop_features: [pathologic_T, pathologic_N, pathologic_M]
+    - name: tnm_model
+      drop_features: [pathologic_stage]
+    - name: stage_tnm_model
+      drop_features: []
 phase_2_external_baselines: {enabled: false}
 phase_2_external_holdout: {enabled: false}
 phase_2_mahootiha: {enabled: false}
