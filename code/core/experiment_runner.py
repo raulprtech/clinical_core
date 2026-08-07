@@ -48,7 +48,7 @@ import torch
 import yaml
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
-from lifelines import CoxPHFitter
+from lifelines import CoxPHFitter, KaplanMeierFitter
 from lifelines.utils import concordance_index
 
 warnings.filterwarnings('ignore')
@@ -184,6 +184,55 @@ def expected_calibration_error(predicted: np.ndarray, observed: np.ndarray, n_bi
 
 def brier_score(predicted: np.ndarray, observed: np.ndarray) -> float:
     return float(np.mean((predicted - observed) ** 2))
+
+
+def survival_ipcw_calibration(
+    predicted_event_probability: np.ndarray,
+    y_train: pd.DataFrame,
+    y_test: pd.DataFrame,
+    horizon: float,
+    n_bins: int = 5,
+) -> Tuple[float, float]:
+    """IPCW Brier score and weighted calibration error at a fixed horizon."""
+    train_time = y_train['survival_days'].to_numpy(dtype=float)
+    train_event = y_train['event'].to_numpy(dtype=int)
+    test_time = y_test['survival_days'].to_numpy(dtype=float)
+    test_event = y_test['event'].to_numpy(dtype=int)
+    predicted = np.asarray(predicted_event_probability, dtype=float)
+
+    censoring_km = KaplanMeierFitter().fit(
+        train_time,
+        event_observed=1 - train_event,
+    )
+    epsilon = 1e-8
+    g_horizon = max(float(censoring_km.predict(horizon)), epsilon)
+    event_before = (test_event == 1) & (test_time <= horizon)
+    known_survivor = test_time > horizon
+    weights = np.zeros(len(test_time), dtype=float)
+    observed = np.zeros(len(test_time), dtype=float)
+    observed[event_before] = 1.0
+    if event_before.any():
+        just_before = np.nextafter(test_time[event_before], -np.inf)
+        g_event = np.asarray(censoring_km.predict(just_before), dtype=float)
+        weights[event_before] = 1.0 / np.maximum(g_event, epsilon)
+    weights[known_survivor] = 1.0 / g_horizon
+
+    brier = float(np.sum(weights * (predicted - observed) ** 2) / len(test_time))
+    total_weight = float(weights.sum())
+    if total_weight <= 0:
+        return float('nan'), brier
+    edges = np.linspace(0.0, 1.0, n_bins + 1)
+    ece = 0.0
+    for idx in range(n_bins):
+        upper = predicted <= edges[idx + 1] if idx == n_bins - 1 else predicted < edges[idx + 1]
+        mask = (predicted >= edges[idx]) & upper & (weights > 0)
+        if not mask.any():
+            continue
+        bin_weight = float(weights[mask].sum())
+        predicted_mean = float(np.average(predicted[mask], weights=weights[mask]))
+        observed_mean = float(np.average(observed[mask], weights=weights[mask]))
+        ece += (bin_weight / total_weight) * abs(observed_mean - predicted_mean)
+    return float(ece), brier
 
 
 # ============================================================
@@ -635,16 +684,14 @@ def _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv,
     )
 
     # ---- 7. Calibration metrics (ECE, Brier) on validation ----
-    surv_func = cph.predict_survival_function(cox_df_va)
-    if median_surv in surv_func.index:
-        pred_probs = (1 - surv_func.loc[median_surv]).values
-    else:
-        pred_probs = np.full(len(cox_df_va), 0.5)
+    horizon = float(median_surv)
+    surv_at_horizon = cph.predict_survival_function(
+        cox_df_va, times=[horizon],
+    ).iloc[0].to_numpy(dtype=float)
+    pred_probs = 1.0 - surv_at_horizon
     pred_probs = np.clip(pred_probs, 0.01, 0.99)
-
-    # Helpers from the existing runner (imported in real file)
-    ece = expected_calibration_error(pred_probs, y_va['event'].values)
-    bs = brier_score(pred_probs, y_va['event'].values)
+    ece, bs = survival_ipcw_calibration(pred_probs, y_tr_f, y_va, horizon)
+    surv_func = cph.predict_survival_function(cox_df_va)
 
     # ---- 7b. Persist artifacts (predictions + checkpoint) ----
     _save_predictions_npz(
@@ -1027,9 +1074,6 @@ def phase_2_holdout(
     X = df_features.loc[valid].copy()
     y = df_targets.loc[valid].copy()
 
-    median_surv = y['survival_days'].median()
-    y['risk_group'] = (y['survival_days'] < median_surv).astype(int)
-
     seeds = phase_cfg.get('seeds', config['random']['seeds'])
     holdout_fraction = phase_cfg.get('holdout_fraction', 0.20)
     output_dim = phase_cfg.get('output_dim',
@@ -1089,19 +1133,24 @@ def phase_2_holdout(
             y_tr, y_ho = y.iloc[tr_idx].copy(), y.iloc[ho_idx].copy()
 
             # Two preprocessing passes mirroring phase_2_variants: baseline and advanced.
-            prep_base = TabularPreprocessor()
+            onehot_features = list(phase_cfg.get('onehot_features') or [])
+            prep_base = TabularPreprocessor(onehot_columns=onehot_features)
             X_tr_b, mask_tr_b, conf_tr_b = prep_base.fit_transform(
                 X_tr_raw, get_imputation(imp_for_baseline)
             )
             X_ho_b, mask_ho_b, conf_ho_b = prep_base.transform(X_ho_raw)
 
-            prep_adv = TabularPreprocessor()
+            prep_adv = TabularPreprocessor(onehot_columns=onehot_features)
             X_tr_a, mask_tr_a, conf_tr_a = prep_adv.fit_transform(
                 X_tr_raw, get_imputation(imp_for_variants)
             )
             X_ho_a, mask_ho_a, conf_ho_a = prep_adv.transform(X_ho_raw)
 
             input_dim = X_tr_a.shape[1]
+            calibration_horizon = float(
+                phase_cfg.get('calibration_horizon_days')
+                or y_tr['survival_days'].median()
+            )
             n_events_ho = int(y_ho['event'].sum())
             log(f"    n_train={len(tr_idx)}, n_holdout={len(ho_idx)}, events_holdout={n_events_ho}")
 
@@ -1127,7 +1176,7 @@ def phase_2_holdout(
                     y_tr=y_tr, y_va=y_ho,
                     mask_tr=mask_tr_a, mask_va=mask_ho_a,
                     conf_tr=conf_tr_a, conf_va=conf_ho_use,
-                    median_surv=median_surv,
+                    median_surv=calibration_horizon,
                     curves_ctx={
                         'run_dir': run_dir,
                         'seed': seed,
@@ -1149,7 +1198,8 @@ def phase_2_holdout(
                     'n_train': int(len(tr_idx)),
                     'n_holdout': int(len(ho_idx)),
                     'events_holdout': n_events_ho,
-                    'n_features': int(X_proto.shape[1]),
+                    'n_features': int(X_tr_use.shape[1]),
+                    'calibration_horizon_days': calibration_horizon,
                 })
 
     df_results = pd.DataFrame(rows)
@@ -3301,9 +3351,18 @@ def run_experiment(config_input: Union[str, Path, dict] = "experiment_config.yam
             'n_after_each_filter': cohort_audit['n_after_each_filter'],
         }
 
+    valid_survival = (
+        df_targets['survival_days'].notna()
+        & (df_targets['survival_days'] > 0)
+    )
     summary['n_cases'] = int(len(df_features))
+    summary['n_cases_extracted'] = int(len(df_features))
+    summary['n_cases_survival'] = int(valid_survival.sum())
     summary['n_features'] = int(df_features.shape[1])
     summary['n_events'] = int(df_targets['event'].sum())
+    summary['n_events_survival'] = int(
+        df_targets.loc[valid_survival, 'event'].sum()
+    )
     
     # ---- Phases ----
     fail_fast = config.get('runtime', {}).get('fail_fast', False)

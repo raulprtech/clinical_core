@@ -12,8 +12,8 @@ if str(CODE_ROOT) not in sys.path:
 
 from components.adapters.ingestion.tabular.utils.extractor import TCGAExtractor  # noqa: E402
 
-MAPPING = CODE_ROOT / "components/adapters/ingestion/tabular/configs/tabular_mapping_tcga_luad_postop_os_v1.yaml"
-EXPERIMENT = CODE_ROOT / "experiments/experiment_config_nigma_luad_postop_os_v1.yaml"
+MAPPING = CODE_ROOT / "components/adapters/ingestion/tabular/configs/tabular_mapping_tcga_luad_baseline_os_v2.yaml"
+EXPERIMENT = CODE_ROOT / "experiments/experiment_config_nigma_luad_baseline_os_v2.yaml"
 
 
 class LuadAdapterContractTests(unittest.TestCase):
@@ -22,11 +22,13 @@ class LuadAdapterContractTests(unittest.TestCase):
         self.mapping = yaml.safe_load(MAPPING.read_text(encoding="utf-8"))
         self.experiment = yaml.safe_load(EXPERIMENT.read_text(encoding="utf-8"))
 
-    def test_contract_is_luad_only_postoperative_and_sealed(self):
+    def test_contract_is_luad_only_retrospective_baseline_and_sealed(self):
         contract = self.mapping["contract"]
         self.assertEqual(contract["project_id"], "TCGA-LUAD")
         self.assertEqual(contract["excluded_project_ids"], ["TCGA-LUSC"])
-        self.assertEqual(contract["prediction_time"], "post_surgery")
+        self.assertEqual(contract["prediction_time"], "retrospective_pathology_baseline")
+        self.assertEqual(contract["time_origin"], "initial_pathologic_diagnosis")
+        self.assertIn("not_postoperative", contract["claim_scope"])
         self.assertEqual(
             self.experiment["disease_contract"]["source_status"],
             "local_verified_522_patient_xml",
@@ -37,6 +39,8 @@ class LuadAdapterContractTests(unittest.TestCase):
         self.assertEqual(holdout["seeds"], [42])
         self.assertEqual(holdout["variants"], ["cox_baseline"])
         self.assertFalse(holdout["save_artifacts"])
+        self.assertEqual(holdout["onehot_features"], ["race"])
+        self.assertEqual(holdout["calibration_horizon_days"], 730)
         self.assertFalse(self.experiment["output"]["save_raw_extraction"])
         enabled = [
             name for name, phase in self.experiment.items()
@@ -79,6 +83,27 @@ class LuadAdapterContractTests(unittest.TestCase):
             "target__source__days_to_follow_up": "400",
         }
         self.assertEqual(self.extractor._resolve_survival(raw), (250.0, 1))
+
+    def test_latest_longitudinal_follow_up_is_used(self):
+        with tempfile.TemporaryDirectory() as directory:
+            xml = Path(directory) / "case.xml"
+            xml.write_text(
+                "<patient>"
+                "<bcr_patient_barcode>TCGA-LU-0002</bcr_patient_barcode>"
+                "<vital_status>Alive</vital_status>"
+                "<days_to_last_followup>100</days_to_last_followup>"
+                "<follow_up><days_to_last_followup>650</days_to_last_followup></follow_up>"
+                "</patient>",
+                encoding="utf-8",
+            )
+            _, targets = self.extractor.extract_cohort(directory)
+        self.assertEqual(targets.loc["TCGA-LU-0002", "survival_days"], 650)
+
+    def test_race_onehot_is_required_by_experiment(self):
+        self.assertEqual(
+            self.experiment["phase_2_holdout"]["onehot_features"],
+            ["race"],
+        )
 
     def test_stage_fallback_prefers_most_specific_label(self):
         config = self.mapping["features"]["pathologic_stage"]
