@@ -1,0 +1,93 @@
+# TCGA-LUAD postoperative overall-survival contract.
+# Nigma plan: 8fc10f9f9062185cd985d4ee529b4291f15a
+contract:
+  id: tcga-luad-postop-os-v1
+  project_id: TCGA-LUAD
+  excluded_project_ids: [TCGA-LUSC]
+  task_type: prognosis
+  prediction_time: post_surgery
+  endpoint: overall_survival
+  source_policy: gdc_clinical_supplement_by_reference
+  nigma_plan_digest: 907581ea5e85b1f0c7cddc638160c63d229e581b4d91e83536f2bffe4b21c853
+
+targets:
+  survival_days:
+    sources: [days_to_death, days_to_last_follow_up, days_to_follow_up, days_to_last_followup]
+    description: "Event-aware overall-survival time."
+  vital_status:
+    sources: [vital_status]
+    mapping: {Dead: 1, Alive: 0}
+    description: "Overall-survival event indicator."
+
+features:
+  age:
+    sources: [age_at_initial_pathologic_diagnosis]
+    type: continuous
+    normalization: zscore
+  gender:
+    sources: [gender]
+    type: categorical
+    mapping: {MALE: 1, FEMALE: 0}
+  race:
+    sources: [race]
+    type: categorical
+    encoding: onehot
+    mapping:
+      WHITE: 0
+      BLACK OR AFRICAN AMERICAN: 1
+      ASIAN: 2
+      OTHER: 3
+  ethnicity:
+    sources: [ethnicity]
+    type: categorical
+    mapping:
+      HISPANIC OR LATINO: 1
+      NOT HISPANIC OR LATINO: 0
+  pathologic_stage:
+    sources: [ajcc_pathologic_stage, ajcc_pathologic_tumor_stage, pathologic_stage, tumor_stage]
+    type: categorical
+    encoding: ordinal
+    mapping:
+      Stage IA: 1
+      Stage IA1: 1
+      Stage IA2: 1
+      Stage IA3: 1
+      Stage IB: 1
+      Stage I: 1
+      Stage IIA: 2
+      Stage IIB: 2
+      Stage II: 2
+      Stage IIIA: 3
+      Stage IIIB: 3
+      Stage IIIC: 3
+      Stage III: 3
+      Stage IVA: 4
+      Stage IVB: 4
+      Stage IV: 4
+  pathologic_T:
+    sources: [ajcc_pathologic_t, ajcc_tumor_pathologic_pt, pathologic_t]
+    type: categorical
+    encoding: ordinal
+    mapping: {T1mi: 1, T1a: 1, T1b: 1, T1c: 1, T1: 1, T2a: 2, T2b: 2, T2: 2, T3: 3, T4: 4}
+  pathologic_N:
+    sources: [ajcc_pathologic_n, ajcc_nodes_pathologic_pn, pathologic_n]
+    type: categorical
+    encoding: ordinal
+    mapping: {N0: 0, N1: 1, N2: 2, N3: 3, NX: -1}
+  pathologic_M:
+    sources: [ajcc_pathologic_m, ajcc_metastasis_pathologic_pm, pathologic_m]
+    type: categorical
+    encoding: ordinal
+    mapping: {M0: 0, M1: 1, M1a: 1, M1b: 1, M1c: 1, MX: -1}
+  pack_years_smoked:
+    sources: [pack_years_smoked, number_pack_years_smoked]
+    type: continuous
+    normalization: zscore
+  cigarettes_per_day:
+    sources: [cigarettes_per_day]
+    type: continuous
+    normalization: zscore
+
+audit_candidates:
+  tobacco_smoking_status: {status: excluded_until_current_dictionary_harmonization}
+  asbestos_exposure_type: {status: excluded_until_luad_coverage_and_temporal_audit}

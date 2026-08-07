@@ -137,7 +137,7 @@ class TCGAExtractor:
             
             # For stage/grade: try regex extraction
             if 'Stage' in str(list(mapping.keys())):
-                for key, val in mapping.items():
+                for key, val in sorted(mapping.items(), key=lambda kv: -len(kv[0])):
                     if key.lower() in raw_value.lower():
                         return np.nan if val == -1 else float(val)
         
@@ -163,6 +163,15 @@ class TCGAExtractor:
         except (ValueError, TypeError):
             return np.nan
     
+    @staticmethod
+    def _raw_source(raw_values: dict, *sources: str):
+        # Resolve current GDC field names before legacy XML aliases.
+        for source in sources:
+            value = raw_values.get(f"target__source__{source}")
+            if value is not None:
+                return value
+        return None
+
     def _resolve_survival(self, raw_values: dict) -> Tuple[float, int]:
         """
         Resolve survival time and censoring status.
@@ -174,8 +183,13 @@ class TCGAExtractor:
         Falls back gracefully if the preferred source is missing.
         """
         vital_raw = raw_values.get('target__vital_status', None)
-        days_to_death = raw_values.get('target__source__days_to_death', None)
-        days_to_followup = raw_values.get('target__source__days_to_last_followup', None)
+        days_to_death = self._raw_source(raw_values, "days_to_death")
+        days_to_followup = self._raw_source(
+            raw_values,
+            "days_to_last_follow_up",
+            "days_to_last_followup",
+            "days_to_follow_up",
+        )
 
         # Determine event indicator
         if vital_raw is not None:
@@ -234,8 +248,13 @@ class TCGAExtractor:
         nte_indicator = raw_values.get('target__source__new_tumor_event_after_initial_treatment')
         nte_days = raw_values.get('target__source__days_to_new_tumor_event_after_initial_treatment')
         tumor_status = raw_values.get('target__source__person_neoplasm_cancer_status')
-        days_to_death = raw_values.get('target__source__days_to_death')
-        days_to_followup = raw_values.get('target__source__days_to_last_followup')
+        days_to_death = self._raw_source(raw_values, "days_to_death")
+        days_to_followup = self._raw_source(
+            raw_values,
+            "days_to_last_follow_up",
+            "days_to_last_followup",
+            "days_to_follow_up",
+        )
         vital_raw = raw_values.get('target__vital_status')
 
         nte_yes = isinstance(nte_indicator, str) and nte_indicator.strip().lower() == 'yes'
