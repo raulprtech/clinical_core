@@ -228,8 +228,10 @@ class MambaSequenceSurvival(nn.Module):
         expansion: int = 2,
         dropout: float = 0.1,
         use_position: bool = True,
+        bidirectional: bool = False,
     ):
         super().__init__()
+        self.bidirectional = bool(bidirectional)
         if n_blocks < 1:
             raise ValueError("n_blocks must be positive")
         self.projector = TokenProjector(
@@ -245,6 +247,24 @@ class MambaSequenceSurvival(nn.Module):
         self.pool = GatedAttentionPool(model_dim, attention_dim)
         self.risk_head = nn.Linear(model_dim, 1)
 
+    def _encode(self, tokens: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        for block in self.blocks:
+            tokens = block(tokens, mask)
+        return tokens
+
+    @staticmethod
+    def _reverse_valid_prefix(
+        tokens: torch.Tensor, mask: torch.Tensor
+    ) -> torch.Tensor:
+        length = mask.sum(dim=1, keepdim=True)
+        index = torch.arange(mask.shape[1], device=mask.device).unsqueeze(0)
+        expected = index < length
+        if not torch.equal(mask, expected):
+            raise ValueError("bidirectional Mamba requires left-aligned padding")
+        reverse_index = torch.where(mask, length - 1 - index, index)
+        gather_index = reverse_index.unsqueeze(-1).expand_as(tokens)
+        return torch.gather(tokens, dim=1, index=gather_index)
+
     def forward(
         self,
         features: torch.Tensor,
@@ -253,9 +273,13 @@ class MambaSequenceSurvival(nn.Module):
         return_attention: bool = False,
     ):
         _validate_sequence_inputs(features, positions, mask)
-        tokens = self.projector(features, positions) * mask.unsqueeze(-1)
-        for block in self.blocks:
-            tokens = block(tokens, mask)
+        projected = self.projector(features, positions) * mask.unsqueeze(-1)
+        tokens = self._encode(projected, mask)
+        if self.bidirectional:
+            reverse_input = self._reverse_valid_prefix(projected, mask)
+            reverse_output = self._encode(reverse_input, mask)
+            reverse_output = self._reverse_valid_prefix(reverse_output, mask)
+            tokens = 0.5 * (tokens + reverse_output)
         tokens = self.final_norm(tokens) * mask.unsqueeze(-1)
         pooled, weights = self.pool(tokens, mask)
         risk = self.risk_head(pooled).squeeze(-1)
@@ -283,6 +307,8 @@ def cox_ph_loss(
 def build_sequence_model(name: str, **kwargs) -> nn.Module:
     if name == "attention":
         return AttentionSequenceSurvival(**kwargs)
-    if name == "mamba":
+    if name in {"mamba", "mamba_bidirectional"}:
+        if name == "mamba_bidirectional":
+            kwargs["bidirectional"] = True
         return MambaSequenceSurvival(**kwargs)
     raise KeyError(f"Unknown sequence model: {name}")

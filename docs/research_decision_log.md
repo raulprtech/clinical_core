@@ -167,6 +167,25 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
 - **Detalle:** docs/sequence_factorial_ablation_results.md.
 - **Artefactos agregados:** results_vision/sequence_factorial_ablation/.
 
+## 2026-08-21 — Mamba bidireccional con pesos compartidos
+
+- **Pregunta:** ¿promediar recorridos axiales directo e inverso mejora
+  Mamba-64 sin posición sin aumentar parámetros?
+- **Protocolo:** misma semilla y splits de la ablación factorial; 5 outer folds
+  x 3 repeticiones, 3 inner folds, reajuste completo y 5,000 bootstraps.
+- **Control de reproducción:** la rama unidireccional reprodujo exactamente las
+  predicciones Mamba-64 sin posición anteriores.
+- **Resultado:** unidireccional 0.6868 y bidireccional 0.6731; delta -0.0136,
+  IC95% [-0.0313, +0.0033], p=0.1080. Ambas tienen 319,041 parámetros.
+- **Estabilidad:** la bidireccional ganó 8 folds, empató 2 y perdió 5, pero una
+  pérdida de -0.1281 dominó sus ganancias pequeñas. El outlier usó menos épocas
+  y tuvo validación interna similar, por lo que no se atribuye a una selección
+  simplemente más larga.
+- **Decisión:** rechazar la bidireccional como configuración operativa y
+  conservar Mamba-64 sin posición unidireccional. No aumentar capacidad.
+- **Detalle:** docs/mamba_bidirectional_ablation_results.md.
+- **Artefactos agregados:** results_vision/mamba_bidirectional_ablation/.
+
 ## Lista para la revisión final
 
 - [ ] Cada cifra agregada apunta a un CSV/JSON versionado; los artefactos a

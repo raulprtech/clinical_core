@@ -96,3 +96,10 @@ calcularon contrastes confirmatorios separados por modalidad.
 Se versionan `per_fold_metrics.csv`, `per_repeat_metrics.csv`,
 `paired_cluster_bootstrap.csv`, `summary.json` y `provenance.json`.
 Los tres CSV a nivel paciente permanecen locales y excluidos de Git.
+
+## Seguimiento bidireccional
+
+La variante posterior con recorridos directo e inverso y pesos compartidos no
+mejoró la configuración seleccionada: 0.6731 frente a 0.6868, delta -0.0136,
+IC95% [-0.0313, +0.0033]. Se conserva Mamba-64 sin posición unidireccional.
+Véase `docs/mamba_bidirectional_ablation_results.md`.

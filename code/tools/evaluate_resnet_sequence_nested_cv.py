@@ -71,7 +71,7 @@ def make_model(name: str, args: argparse.Namespace, device: torch.device) -> tor
         "dropout": args.dropout,
         "use_position": getattr(args, "use_position", True),
     }
-    if name == "mamba":
+    if name in {"mamba", "mamba_bidirectional"}:
         kwargs.update({"state_dim": args.state_dim, "n_blocks": args.mamba_blocks})
     return build_sequence_model(name, **kwargs).to(device)
 

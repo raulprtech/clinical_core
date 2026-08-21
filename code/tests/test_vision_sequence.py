@@ -91,6 +91,40 @@ class VisionSequenceTests(unittest.TestCase):
         self.assertTrue(torch.allclose(attention_first, attention_reversed, atol=1e-6))
         self.assertFalse(torch.allclose(mamba_first, mamba_reversed, atol=1e-5))
 
+    def test_shared_weight_bidirectional_mamba_is_reversal_invariant(self):
+        torch.manual_seed(13)
+        model = MambaSequenceSurvival(
+            input_dim=8,
+            model_dim=12,
+            attention_dim=6,
+            state_dim=4,
+            n_blocks=1,
+            dropout=0,
+            use_position=False,
+            bidirectional=True,
+        ).eval()
+        unidirectional = MambaSequenceSurvival(
+            input_dim=8,
+            model_dim=12,
+            attention_dim=6,
+            state_dim=4,
+            n_blocks=1,
+            dropout=0,
+            use_position=False,
+        )
+        self.assertEqual(
+            sum(parameter.numel() for parameter in model.parameters()),
+            sum(parameter.numel() for parameter in unidirectional.parameters()),
+        )
+        features = torch.randn(2, 5, 8)
+        positions = torch.linspace(0, 1, 5).repeat(2, 1)
+        mask = torch.ones(2, 5, dtype=torch.bool)
+        first = model(features, positions, mask)
+        second = model(
+            features.flip(1), positions.flip(1), mask.flip(1)
+        )
+        self.assertTrue(torch.allclose(first, second, atol=1e-6))
+
     def test_position_can_be_disabled_exactly(self):
         torch.manual_seed(11)
         model = AttentionSequenceSurvival(

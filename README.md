@@ -111,6 +111,8 @@ The repeated-CV correction is in [trimodal sequence nested-CV results](docs/trim
 The post-hoc training-stability analysis is in [Mamba epoch stability](docs/mamba_epoch_stability_diagnostic.md).
 The paired architecture/token/position study is in
 [sequence factorial ablation](docs/sequence_factorial_ablation_results.md).
+The shared-weight directionality test is reported in
+[Mamba bidirectional ablation](docs/mamba_bidirectional_ablation_results.md).
 
 For the complete TCGA-KIRC download, embedding-cache and three-modality run,
 see [trimodal data preparation](docs/trimodal_data_preparation.md).
