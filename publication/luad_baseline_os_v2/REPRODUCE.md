@@ -11,7 +11,9 @@ but no filenames, patient barcodes, extracted rows or predictions.
 ## Requirements
 
 - Linux or WSL with Python 3.12 and network access to api.gdc.cancer.gov.
-- Approximately 2 GB free for the isolated Python environment.
+- Approximately 6 GB free for the isolated Python environment. The verified
+  Linux PyTorch wheel currently brings CUDA runtime packages even for this
+  CPU-only baseline; reducing that footprint is tracked as packaging debt.
 - Approximately 50 MB free for source XML and aggregate results.
 
 ## Procedure
@@ -24,6 +26,8 @@ git switch codex/nigma-controlled-dry-run
 python3 -m venv .venv-luad
 .venv-luad/bin/python -m pip install --upgrade pip
 .venv-luad/bin/python -m pip install -r requirements-luad.lock
+.venv-luad/bin/python -m unittest discover -s tests -p 'test_*.py' -q
+.venv-luad/bin/python -m unittest discover -s code/tests -p 'test_*.py' -q
 
 .venv-luad/bin/python code/tools/restore_luad_source.py
 .venv-luad/bin/python code/tools/verify_luad_publication_package.py \

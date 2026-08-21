@@ -42,7 +42,11 @@ stability and an earlier-to-later internal transport stress test.
 - Python emitted non-standard NaN tokens in summary JSON.
 - The exact source was available only in an ignored local SOURCE.json.
 - There was no executable comparison of a new run against frozen tolerances.
-- The monolithic environment obscured the smaller LUAD dependency surface.
+- The LUAD dependencies were captured in an explicit, independently installable
+  lock file.
+- Cohort rows are now sorted by clinical case identifier, so seeded splits do
+  not change when GDC restores use UUID filenames instead of legacy filenames.
+- Fresh restorations are verified through their checksummed RESTORE.json receipt.
 
 ### Remaining non-blocking debt
 
@@ -51,6 +55,9 @@ stability and an earlier-to-later internal transport stress test.
 - The repository has no hosted CI workflow for the data-free test suite.
 - The lock describes the verified direct environment but is not a
   hash-validated wheel lock across platforms.
+- The verified Linux environment occupies about 5.1 GB because the default
+  PyTorch wheel installs CUDA runtime packages. A CPU-only, platform-specific
+  lock or removal of the unused Torch import is needed to reduce this.
 - Runtime seconds and run paths intentionally differ between reproductions;
   scientific comparison uses declared aggregate fields instead of byte identity.
 - GDC availability is an external dependency. Frozen UUID and MD5 failure must

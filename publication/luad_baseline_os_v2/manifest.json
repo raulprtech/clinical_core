@@ -50,7 +50,7 @@
     },
     {
       "path": "requirements-luad.lock",
-      "sha256": "825e45904c251a1d59967d37426b4b82bbdf83269e8e2ed1d949110c6079e919"
+      "sha256": "4bbf4f8ed486244944fc4ef1ad61a0f806976565594cc4079e1090517081bb27"
     },
     {
       "path": "code/tools/restore_luad_source.py",
@@ -62,11 +62,27 @@
     },
     {
       "path": "publication/luad_baseline_os_v2/REPRODUCE.md",
-      "sha256": "d55345afec0dc1fb0ff938233717553744470e611e90f8fea7490f58a6daf83e"
+      "sha256": "9490525126975c53d1468c82c2f2ec3fe3bee8c3d0c82b9157aa0ef7ddcab3fe"
     },
     {
       "path": "publication/luad_baseline_os_v2/METHODOLOGY_REVIEW.md",
-      "sha256": "38ce5cb19d7cf3447d3046b775552a6c98ca5c6f508a76a84b3c0e722fdf3399"
+      "sha256": "023e57707d6d32bc8dc6371aadc4dccff63456721a425c24f327cb9970ff126e"
+    },
+    {
+      "path": "code/core/experiment_runner.py",
+      "sha256": "5e82fe5fd962de106cf66de4e05021e1f6da3cfc3ceabd286418a1f731b66a3b"
+    },
+    {
+      "path": "code/core/reproducibility.py",
+      "sha256": "e9e2b1d98d18f15b481b91e9f7937ff1e5db96be5260402faf994e76036a9ba3"
+    },
+    {
+      "path": "code/components/adapters/ingestion/tabular/utils/extractor.py",
+      "sha256": "a14c6abf3e8dea1eb42f46b4f24eae0c0de728e7fd93f65f2394420068cd35e5"
+    },
+    {
+      "path": "code/tools/verify_luad_publication_package.py",
+      "sha256": "ba78a667cc94a19a5052dcb97e7ba68a4e0f53dd4d4bb6509016786e2b9e4de7"
     }
   ],
   "canonical_local_run": {
@@ -82,7 +98,7 @@
     }
   },
   "verification": {
-    "contract_tests": 7,
+    "contract_tests": 8,
     "component_tests": 34,
     "reproduction_cases": 522,
     "reproduction_survival_cases": 507,
@@ -91,7 +107,11 @@
     "restore_command": "python code/tools/restore_luad_source.py",
     "run_command": "python code/core/experiment_runner.py code/experiments/experiment_config_nigma_luad_baseline_os_v2.yaml",
     "compare_command": "python code/tools/compare_luad_reproduction.py RUN_DIR/summary.json",
-    "clean_reproduction_guide": "publication/luad_baseline_os_v2/REPRODUCE.md"
+    "clean_reproduction_guide": "publication/luad_baseline_os_v2/REPRODUCE.md",
+    "test_commands": [
+      "python -m unittest discover -s tests -p 'test_*.py' -q",
+      "python -m unittest discover -s code/tests -p 'test_*.py' -q"
+    ]
   },
   "claims": {
     "supported": [
@@ -109,7 +129,8 @@
   "environment": {
     "python": "3.12",
     "lock": "requirements-luad.lock",
-    "install_command": "python -m pip install -r requirements-luad.lock"
+    "install_command": "python -m pip install -r requirements-luad.lock",
+    "observed_clean_size": "5.1 GB on Linux/WSL with the default PyTorch CUDA dependencies"
   },
   "comparison_tolerances": {
     "cohort_counts": "exact",

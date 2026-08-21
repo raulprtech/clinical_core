@@ -118,6 +118,25 @@ class LuadAdapterContractTests(unittest.TestCase):
         self.assertEqual(targets.loc["TCGA-LU-0001", "diagnosis_year"], 2007)
         self.assertNotIn("diagnosis_year", features.columns)
 
+    def test_cohort_order_depends_on_case_id_not_filename(self):
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "a.xml").write_text(
+                "<patient><bcr_patient_barcode>TCGA-LU-0002</bcr_patient_barcode>"
+                "<vital_status>Alive</vital_status><days_to_follow_up>100</days_to_follow_up>"
+                "</patient>",
+                encoding="utf-8",
+            )
+            Path(directory, "z.xml").write_text(
+                "<patient><bcr_patient_barcode>TCGA-LU-0001</bcr_patient_barcode>"
+                "<vital_status>Alive</vital_status><days_to_follow_up>100</days_to_follow_up>"
+                "</patient>",
+                encoding="utf-8",
+            )
+            features, targets = self.extractor.extract_cohort(directory)
+        expected = ["TCGA-LU-0001", "TCGA-LU-0002"]
+        self.assertEqual(list(features.index), expected)
+        self.assertEqual(list(targets.index), expected)
+
     def test_death_time_has_priority_over_follow_up(self):
         raw = {
             "target__vital_status": "Dead",

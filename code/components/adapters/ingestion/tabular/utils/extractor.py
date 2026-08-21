@@ -390,6 +390,12 @@ class TCGAExtractor:
         # Deduplicate cases based on index (case_id). Some TCGA cases might have multiple XMLs.
         df_features = df_features[~df_features.index.duplicated(keep='last')]
         df_targets = df_targets[~df_targets.index.duplicated(keep='last')]
+
+        # GDC restores may use file UUIDs while legacy downloads use TCGA barcodes
+        # as filenames. Downstream seeded splits must therefore depend on the
+        # clinical case identifier, never on the incidental on-disk filename.
+        df_features = df_features.sort_index()
+        df_targets = df_targets.sort_index()
         
         # Handle days_to_birth → age conversion if age is missing
         # TCGA stores age as days_to_birth (negative number)
