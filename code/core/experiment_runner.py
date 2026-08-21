@@ -48,8 +48,11 @@ import torch
 import yaml
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
-from lifelines import CoxPHFitter
+from lifelines import CoxPHFitter, KaplanMeierFitter
+from lifelines.statistics import proportional_hazard_test
 from lifelines.utils import concordance_index
+from sksurv.metrics import concordance_index_ipcw
+from sksurv.util import Surv
 
 warnings.filterwarnings('ignore')
 
@@ -69,6 +72,7 @@ from core.model_utils import (
 from components.adapters.ingestion.tabular.models.linear_compact import VariantC_LinearEncoder
 from core.registry import get_imputation, get_variant, list_components
 from core.main import MultimodalPipeline, discover_modality_files
+from core.reproducibility import resolve_runtime_paths, strict_json_dump
 
 
 def validate_clinical_moment(
@@ -112,12 +116,16 @@ def compute_config_hash(config_dict: dict) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()[:8]
 
 
-def create_run_directory(config: dict, config_path: Optional[Union[str, Path]] = None) -> Path:
+def create_run_directory(
+    config: dict,
+    config_path: Optional[Union[str, Path]] = None,
+    hash_source: Optional[dict] = None,
+) -> Path:
     """Create timestamped + hashed run directory and save config into it."""
     base_dir = Path(config['output']['base_dir'])
     base_dir.mkdir(parents=True, exist_ok=True)
     
-    config_hash = compute_config_hash(config)
+    config_hash = compute_config_hash(hash_source if hash_source is not None else config)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     run_id = f"{timestamp}_{config_hash}"
     run_dir = base_dir / run_id
@@ -152,7 +160,7 @@ def create_run_directory(config: dict, config_path: Optional[Union[str, Path]] =
         'registered_components': list_components(),
     }
     with open(run_dir / "run_metadata.json", 'w') as f:
-        json.dump(metadata, f, indent=2)
+        strict_json_dump(metadata, f)
     
     return run_dir
 
@@ -184,6 +192,124 @@ def expected_calibration_error(predicted: np.ndarray, observed: np.ndarray, n_bi
 
 def brier_score(predicted: np.ndarray, observed: np.ndarray) -> float:
     return float(np.mean((predicted - observed) ** 2))
+
+
+def survival_ipcw_calibration(
+    predicted_event_probability: np.ndarray,
+    y_train: pd.DataFrame,
+    y_test: pd.DataFrame,
+    horizon: float,
+    n_bins: int = 5,
+) -> Tuple[float, float]:
+    """IPCW Brier score and weighted calibration error at a fixed horizon."""
+    train_time = y_train['survival_days'].to_numpy(dtype=float)
+    train_event = y_train['event'].to_numpy(dtype=int)
+    test_time = y_test['survival_days'].to_numpy(dtype=float)
+    test_event = y_test['event'].to_numpy(dtype=int)
+    predicted = np.asarray(predicted_event_probability, dtype=float)
+
+    censoring_km = KaplanMeierFitter().fit(
+        train_time,
+        event_observed=1 - train_event,
+    )
+    epsilon = 1e-8
+    g_horizon = max(float(censoring_km.predict(horizon)), epsilon)
+    event_before = (test_event == 1) & (test_time <= horizon)
+    known_survivor = test_time > horizon
+    weights = np.zeros(len(test_time), dtype=float)
+    observed = np.zeros(len(test_time), dtype=float)
+    observed[event_before] = 1.0
+    if event_before.any():
+        just_before = np.nextafter(test_time[event_before], -np.inf)
+        g_event = np.asarray(censoring_km.predict(just_before), dtype=float)
+        weights[event_before] = 1.0 / np.maximum(g_event, epsilon)
+    weights[known_survivor] = 1.0 / g_horizon
+
+    brier = float(np.sum(weights * (predicted - observed) ** 2) / len(test_time))
+    total_weight = float(weights.sum())
+    if total_weight <= 0:
+        return float('nan'), brier
+    edges = np.linspace(0.0, 1.0, n_bins + 1)
+    ece = 0.0
+    for idx in range(n_bins):
+        upper = predicted <= edges[idx + 1] if idx == n_bins - 1 else predicted < edges[idx + 1]
+        mask = (predicted >= edges[idx]) & upper & (weights > 0)
+        if not mask.any():
+            continue
+        bin_weight = float(weights[mask].sum())
+        predicted_mean = float(np.average(predicted[mask], weights=weights[mask]))
+        observed_mean = float(np.average(observed[mask], weights=weights[mask]))
+        ece += (bin_weight / total_weight) * abs(observed_mean - predicted_mean)
+    return float(ece), brier
+
+
+def bootstrap_concordance_interval(
+    survival_days: np.ndarray,
+    events: np.ndarray,
+    risk_scores: np.ndarray,
+    iterations: int = 1000,
+    confidence_level: float = 0.95,
+    seed: int = 42,
+) -> Tuple[float, float, int]:
+    """Patient-level bootstrap CI for Harrell's C; only aggregates are returned."""
+    times = np.asarray(survival_days, dtype=float)
+    observed = np.asarray(events, dtype=int)
+    risk = np.asarray(risk_scores, dtype=float)
+    if len(times) < 2 or observed.sum() == 0 or iterations <= 0:
+        return float('nan'), float('nan'), 0
+    rng = np.random.default_rng(seed)
+    estimates = []
+    for _ in range(int(iterations)):
+        sample = rng.integers(0, len(times), size=len(times))
+        try:
+            estimate = concordance_index(
+                times[sample], -risk[sample], observed[sample]
+            )
+        except (ValueError, ZeroDivisionError):
+            continue
+        if np.isfinite(estimate):
+            estimates.append(float(estimate))
+    if not estimates:
+        return float('nan'), float('nan'), 0
+    alpha = 1.0 - float(confidence_level)
+    lower, upper = np.quantile(estimates, [alpha / 2.0, 1.0 - alpha / 2.0])
+    return float(lower), float(upper), len(estimates)
+
+
+def ipcw_concordance(
+    y_train: pd.DataFrame,
+    y_test: pd.DataFrame,
+    risk_scores: np.ndarray,
+    tau: float,
+) -> float:
+    """Uno's IPCW concordance at a fixed, predeclared evaluation horizon."""
+    train_survival = Surv.from_arrays(
+        event=y_train['event'].to_numpy(dtype=bool),
+        time=y_train['survival_days'].to_numpy(dtype=float),
+    )
+    test_survival = Surv.from_arrays(
+        event=y_test['event'].to_numpy(dtype=bool),
+        time=y_test['survival_days'].to_numpy(dtype=float),
+    )
+    try:
+        result = concordance_index_ipcw(
+            train_survival,
+            test_survival,
+            np.asarray(risk_scores, dtype=float),
+            tau=float(tau),
+        )
+    except (ValueError, ZeroDivisionError):
+        return float('nan')
+    return float(result[0])
+
+
+def _safe_float(value, default=float('nan')) -> float:
+    """Convert optional diagnostic values without leaking row-level material."""
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return result if np.isfinite(result) else default
 
 
 # ============================================================
@@ -468,6 +594,7 @@ def _evaluate_variant(
     curves_ctx: Optional[dict] = None,
     artifacts_dir: Optional[Path] = None,
     artifacts_key: str = '',
+    evaluation_details: Optional[dict] = None,
 ) -> Tuple[float, float, float, bool]:
     """Evaluate a single variant on a single fold. Returns (cindex, ece, brier, contract_ok)."""
     try:
@@ -475,6 +602,7 @@ def _evaluate_variant(
             return _eval_cox_baseline(
                 X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv,
                 artifacts_dir=artifacts_dir, artifacts_key=artifacts_key,
+                evaluation_details=evaluation_details,
             )
         elif variant_name == 'linear_compact':
             return _eval_linear_compact(
@@ -565,7 +693,8 @@ def _save_neural_checkpoint(artifacts_dir, artifacts_key, encoder, risk_head, fe
 
 
 def _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv,
-                       artifacts_dir: Optional[Path] = None, artifacts_key: str = ''):
+                       artifacts_dir: Optional[Path] = None, artifacts_key: str = '',
+                       evaluation_details: Optional[dict] = None):
     """
     Cox baseline aligned with diagnostic_cox_raw.py protocol.
  
@@ -614,9 +743,11 @@ def _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv,
     cox_df_va = pd.DataFrame(X_va_s, columns=keep_var)
  
     cph = None
+    selected_penalizer = None
     for pen_try in [0.5, 1.0, 5.0, 20.0]:
         try:
             cph = CoxPHFitter(penalizer=pen_try, l1_ratio=0.0)
+            selected_penalizer = float(pen_try)
             cph.fit(
                 cox_df_tr, duration_col='T', event_col='E',
                 show_progress=False,
@@ -633,18 +764,64 @@ def _eval_cox_baseline(X_tr, X_va, y_tr, y_va, conf_va, output_dim, median_surv,
     ci = concordance_index(
         y_va['survival_days'].values, -risk, y_va['event'].values
     )
+    details = evaluation_details if evaluation_details is not None else {}
+    bootstrap_iterations = int(details.get('bootstrap_iterations', 1000))
+    bootstrap_confidence = float(details.get('bootstrap_confidence_level', 0.95))
+    bootstrap_seed = int(details.get('bootstrap_seed', 42))
+    ci_lower, ci_upper, ci_valid = bootstrap_concordance_interval(
+        y_va['survival_days'].values,
+        y_va['event'].values,
+        risk,
+        iterations=bootstrap_iterations,
+        confidence_level=bootstrap_confidence,
+        seed=bootstrap_seed,
+    )
+    ipcw_tau = float(details.get('ipcw_tau_days', median_surv))
+    ci_ipcw = ipcw_concordance(y_tr_f, y_va, risk, tau=ipcw_tau)
+    condition_number = _safe_float(np.linalg.cond(X_tr_s))
+    design_rank = int(np.linalg.matrix_rank(X_tr_s))
+    design_columns = int(X_tr_s.shape[1])
+    design_rank_deficient = design_rank < design_columns
+    ph_min_p = float('nan')
+    ph_violations = -1
+    try:
+        ph_result = proportional_hazard_test(
+            cph, cox_df_tr, time_transform='rank'
+        )
+        ph_values = np.asarray(ph_result.summary['p'], dtype=float)
+        ph_min_p = _safe_float(np.min(ph_values))
+        ph_violations = int(np.sum(ph_values < 0.05))
+    except Exception:
+        pass
+    details.update({
+        'cindex_bootstrap_lower': ci_lower,
+        'cindex_bootstrap_upper': ci_upper,
+        'cindex_bootstrap_confidence_level': bootstrap_confidence,
+        'cindex_bootstrap_valid_iterations': int(ci_valid),
+        'cindex_ipcw': ci_ipcw,
+        'ipcw_tau_days': ipcw_tau,
+        'cox_penalizer': selected_penalizer,
+        'design_condition_number': condition_number,
+        'design_rank': design_rank,
+        'design_columns': design_columns,
+        'design_rank_deficient': design_rank_deficient,
+        'ph_min_p_value': ph_min_p,
+        'ph_violations_p_lt_0_05': ph_violations,
+        'cox_coefficients': {
+            str(feature): float(coefficient)
+            for feature, coefficient in cph.params_.items()
+        },
+    })
 
     # ---- 7. Calibration metrics (ECE, Brier) on validation ----
-    surv_func = cph.predict_survival_function(cox_df_va)
-    if median_surv in surv_func.index:
-        pred_probs = (1 - surv_func.loc[median_surv]).values
-    else:
-        pred_probs = np.full(len(cox_df_va), 0.5)
+    horizon = float(median_surv)
+    surv_at_horizon = cph.predict_survival_function(
+        cox_df_va, times=[horizon],
+    ).iloc[0].to_numpy(dtype=float)
+    pred_probs = 1.0 - surv_at_horizon
     pred_probs = np.clip(pred_probs, 0.01, 0.99)
-
-    # Helpers from the existing runner (imported in real file)
-    ece = expected_calibration_error(pred_probs, y_va['event'].values)
-    bs = brier_score(pred_probs, y_va['event'].values)
+    ece, bs = survival_ipcw_calibration(pred_probs, y_tr_f, y_va, horizon)
+    surv_func = cph.predict_survival_function(cox_df_va)
 
     # ---- 7b. Persist artifacts (predictions + checkpoint) ----
     _save_predictions_npz(
@@ -1027,9 +1204,6 @@ def phase_2_holdout(
     X = df_features.loc[valid].copy()
     y = df_targets.loc[valid].copy()
 
-    median_surv = y['survival_days'].median()
-    y['risk_group'] = (y['survival_days'] < median_surv).astype(int)
-
     seeds = phase_cfg.get('seeds', config['random']['seeds'])
     holdout_fraction = phase_cfg.get('holdout_fraction', 0.20)
     output_dim = phase_cfg.get('output_dim',
@@ -1089,19 +1263,31 @@ def phase_2_holdout(
             y_tr, y_ho = y.iloc[tr_idx].copy(), y.iloc[ho_idx].copy()
 
             # Two preprocessing passes mirroring phase_2_variants: baseline and advanced.
-            prep_base = TabularPreprocessor()
+            onehot_features = list(phase_cfg.get('onehot_features') or [])
+            onehot_drop_first = bool(phase_cfg.get('onehot_drop_first', False))
+            prep_base = TabularPreprocessor(
+                onehot_columns=onehot_features,
+                onehot_drop_first=onehot_drop_first,
+            )
             X_tr_b, mask_tr_b, conf_tr_b = prep_base.fit_transform(
                 X_tr_raw, get_imputation(imp_for_baseline)
             )
             X_ho_b, mask_ho_b, conf_ho_b = prep_base.transform(X_ho_raw)
 
-            prep_adv = TabularPreprocessor()
+            prep_adv = TabularPreprocessor(
+                onehot_columns=onehot_features,
+                onehot_drop_first=onehot_drop_first,
+            )
             X_tr_a, mask_tr_a, conf_tr_a = prep_adv.fit_transform(
                 X_tr_raw, get_imputation(imp_for_variants)
             )
             X_ho_a, mask_ho_a, conf_ho_a = prep_adv.transform(X_ho_raw)
 
             input_dim = X_tr_a.shape[1]
+            calibration_horizon = float(
+                phase_cfg.get('calibration_horizon_days')
+                or y_tr['survival_days'].median()
+            )
             n_events_ho = int(y_ho['event'].sum())
             log(f"    n_train={len(tr_idx)}, n_holdout={len(ho_idx)}, events_holdout={n_events_ho}")
 
@@ -1117,6 +1303,14 @@ def phase_2_holdout(
                     f"{proto_tag}_seed{int(seed)}_{variant_name}"
                     if save_artifacts else ''
                 )
+                evaluation_details = {
+                    'bootstrap_iterations': int(phase_cfg.get('bootstrap_iterations', 1000)),
+                    'bootstrap_confidence_level': float(
+                        phase_cfg.get('bootstrap_confidence_level', 0.95)
+                    ),
+                    'bootstrap_seed': int(seed),
+                    'ipcw_tau_days': float(phase_cfg.get('ipcw_tau_days', calibration_horizon)),
+                }
 
                 ci, ece, bs, contract_ok = _evaluate_variant(
                     variant_name=variant_name,
@@ -1127,7 +1321,7 @@ def phase_2_holdout(
                     y_tr=y_tr, y_va=y_ho,
                     mask_tr=mask_tr_a, mask_va=mask_ho_a,
                     conf_tr=conf_tr_a, conf_va=conf_ho_use,
-                    median_surv=median_surv,
+                    median_surv=calibration_horizon,
                     curves_ctx={
                         'run_dir': run_dir,
                         'seed': seed,
@@ -1136,6 +1330,7 @@ def phase_2_holdout(
                     },
                     artifacts_dir=artifacts_dir,
                     artifacts_key=artifacts_key,
+                    evaluation_details=evaluation_details,
                 )
 
                 rows.append({
@@ -1146,10 +1341,24 @@ def phase_2_holdout(
                     'ece': float(ece) if ece == ece else float('nan'),
                     'brier_score': float(bs) if bs == bs else float('nan'),
                     'contract_satisfied': bool(contract_ok),
+                    'cindex_bootstrap_lower': evaluation_details.get('cindex_bootstrap_lower', float('nan')),
+                    'cindex_bootstrap_upper': evaluation_details.get('cindex_bootstrap_upper', float('nan')),
+                    'cindex_bootstrap_confidence_level': evaluation_details.get('cindex_bootstrap_confidence_level', float('nan')),
+                    'cindex_bootstrap_valid_iterations': evaluation_details.get('cindex_bootstrap_valid_iterations', 0),
+                    'cindex_ipcw': evaluation_details.get('cindex_ipcw', float('nan')),
+                    'ipcw_tau_days': evaluation_details.get('ipcw_tau_days', float('nan')),
+                    'cox_penalizer': evaluation_details.get('cox_penalizer', float('nan')),
+                    'design_condition_number': evaluation_details.get('design_condition_number', float('nan')),
+                    'design_rank': evaluation_details.get('design_rank', 0),
+                    'design_columns': evaluation_details.get('design_columns', 0),
+                    'design_rank_deficient': evaluation_details.get('design_rank_deficient', False),
+                    'ph_min_p_value': evaluation_details.get('ph_min_p_value', float('nan')),
+                    'ph_violations_p_lt_0_05': evaluation_details.get('ph_violations_p_lt_0_05', -1),
                     'n_train': int(len(tr_idx)),
                     'n_holdout': int(len(ho_idx)),
                     'events_holdout': n_events_ho,
-                    'n_features': int(X_proto.shape[1]),
+                    'n_features': int(X_tr_use.shape[1]),
+                    'calibration_horizon_days': calibration_horizon,
                 })
 
     df_results = pd.DataFrame(rows)
@@ -1162,8 +1371,14 @@ def phase_2_holdout(
             cindex_mean=('cindex_holdout', 'mean'),
             cindex_std=('cindex_holdout', 'std'),
             cindex_median=('cindex_holdout', 'median'),
+            cindex_bootstrap_lower=('cindex_bootstrap_lower', 'mean'),
+            cindex_bootstrap_upper=('cindex_bootstrap_upper', 'mean'),
+            cindex_ipcw=('cindex_ipcw', 'mean'),
             ece_mean=('ece', 'mean'),
             brier_mean=('brier_score', 'mean'),
+            design_rank_deficient=('design_rank_deficient', 'any'),
+            ph_min_p_value=('ph_min_p_value', 'min'),
+            ph_violations_p_lt_0_05=('ph_violations_p_lt_0_05', 'max'),
             contract_satisfied=('contract_satisfied', 'all'),
             n_seeds=('cindex_holdout', 'count'),
         )
@@ -1174,6 +1389,342 @@ def phase_2_holdout(
     log(summary.to_string())
 
     return df_results
+
+
+# ============================================================
+# PHASE 2 REPEATED CV — aggregate Cox stability evidence
+# ============================================================
+
+def phase_2_repeated_cv(
+    df_features: pd.DataFrame,
+    df_targets: pd.DataFrame,
+    config: dict,
+    run_dir: Path,
+    best_imputation: str,
+) -> Optional[pd.DataFrame]:
+    phase_cfg = config.get("phase_2_repeated_cv", {})
+    if not phase_cfg.get("enabled", False):
+        log("[PHASE 2 REPEATED CV] DISABLED")
+        return None
+
+    log("\n[PHASE 2 REPEATED CV] Stratified repeated Cox evaluation")
+    valid = df_targets["survival_days"].notna() & (
+        df_targets["survival_days"] > 0
+    )
+    X = df_features.loc[valid].copy()
+    y = df_targets.loc[valid].copy()
+    seeds = [int(seed) for seed in phase_cfg.get("seeds", [42, 101, 202])]
+    n_folds = int(phase_cfg.get("n_folds", 5))
+    output_dim = int(phase_cfg.get("output_dim", 768))
+    imputation = phase_cfg.get("imputation", "mean_median")
+    if imputation == "auto":
+        imputation = best_imputation
+    onehot_features = list(phase_cfg.get("onehot_features") or [])
+    onehot_drop_first = bool(phase_cfg.get("onehot_drop_first", False))
+    horizon = float(phase_cfg.get("calibration_horizon_days", 730))
+    ipcw_tau = float(phase_cfg.get("ipcw_tau_days", horizon))
+    protocols = list(phase_cfg.get("protocols") or [{"name": "default", "drop_features": []}])
+    expected_folds = len(seeds) * n_folds
+
+    log(f"  Cases: {len(X)}, events: {int(y["event"].sum())}")
+    log(f"  Seeds: {seeds}, folds per seed: {n_folds}")
+    log(f"  Protocols: {[item["name"] for item in protocols]}")
+
+    rows = []
+    coefficient_rows = []
+    for protocol in protocols:
+        protocol_name = str(protocol["name"])
+        drop_features = list(protocol.get("drop_features") or [])
+        X_protocol = X.drop(
+            columns=[column for column in drop_features if column in X.columns],
+            errors="ignore",
+        )
+        for seed in seeds:
+            splitter = StratifiedKFold(
+                n_splits=n_folds,
+                shuffle=True,
+                random_state=seed,
+            )
+            for fold, (train_index, validation_index) in enumerate(
+                splitter.split(X_protocol, y["event"])
+            ):
+                X_train_raw = X_protocol.iloc[train_index].copy()
+                X_validation_raw = X_protocol.iloc[validation_index].copy()
+                y_train = y.iloc[train_index].copy()
+                y_validation = y.iloc[validation_index].copy()
+                preprocessor = TabularPreprocessor(
+                    onehot_columns=onehot_features,
+                    onehot_drop_first=onehot_drop_first,
+                )
+                X_train, mask_train, confidence_train = preprocessor.fit_transform(
+                    X_train_raw, get_imputation(imputation)
+                )
+                X_validation, mask_validation, confidence_validation = (
+                    preprocessor.transform(X_validation_raw)
+                )
+                details = {
+                    "bootstrap_iterations": 0,
+                    "bootstrap_confidence_level": 0.95,
+                    "bootstrap_seed": seed,
+                    "ipcw_tau_days": ipcw_tau,
+                }
+                cindex, ece, brier, contract_ok = _evaluate_variant(
+                    variant_name="cox_baseline",
+                    input_dim=X_train.shape[1],
+                    output_dim=output_dim,
+                    variant_params={},
+                    X_tr=X_train,
+                    X_va=X_validation,
+                    y_tr=y_train,
+                    y_va=y_validation,
+                    mask_tr=mask_train,
+                    mask_va=mask_validation,
+                    conf_tr=confidence_train,
+                    conf_va=confidence_validation,
+                    median_surv=horizon,
+                    evaluation_details=details,
+                )
+                rows.append({
+                    "protocol": protocol_name,
+                    "seed": seed,
+                    "fold": int(fold),
+                    "cindex": float(cindex),
+                    "cindex_ipcw": details.get("cindex_ipcw", float("nan")),
+                    "ece": float(ece),
+                    "brier_score": float(brier),
+                    "contract_satisfied": bool(contract_ok),
+                    "n_train": int(len(train_index)),
+                    "n_validation": int(len(validation_index)),
+                    "events_validation": int(y_validation["event"].sum()),
+                    "n_features": int(X_train.shape[1]),
+                    "design_condition_number": details.get(
+                        "design_condition_number", float("nan")
+                    ),
+                    "design_rank": details.get("design_rank", 0),
+                    "design_columns": details.get("design_columns", 0),
+                    "design_rank_deficient": details.get(
+                        "design_rank_deficient", True
+                    ),
+                    "ph_min_p_value": details.get("ph_min_p_value", float("nan")),
+                    "ph_violations_p_lt_0_05": details.get(
+                        "ph_violations_p_lt_0_05", -1
+                    ),
+                })
+                for feature, coefficient in details.get(
+                    "cox_coefficients", {}
+                ).items():
+                    coefficient_rows.append({
+                        "protocol": protocol_name,
+                        "seed": seed,
+                        "fold": int(fold),
+                        "feature": feature,
+                        "coefficient": float(coefficient),
+                    })
+
+    results = pd.DataFrame(rows)
+    results.to_csv(run_dir / "phase2_repeated_cv.csv", index=False)
+
+    summary_rows = []
+    for protocol_name, group in results.groupby("protocol", sort=True):
+        valid_cindex = group["cindex"].dropna().to_numpy(dtype=float)
+        valid_ipcw = group["cindex_ipcw"].dropna().to_numpy(dtype=float)
+        summary_rows.append({
+            "protocol": protocol_name,
+            "cindex_mean": float(np.mean(valid_cindex)),
+            "cindex_std": float(np.std(valid_cindex, ddof=1)),
+            "cindex_median": float(np.median(valid_cindex)),
+            "cindex_fold_p02_5": float(np.quantile(valid_cindex, 0.025)),
+            "cindex_fold_p97_5": float(np.quantile(valid_cindex, 0.975)),
+            "cindex_ipcw_mean": float(np.mean(valid_ipcw)),
+            "cindex_ipcw_std": float(np.std(valid_ipcw, ddof=1)),
+            "ece_mean": float(group["ece"].mean()),
+            "brier_mean": float(group["brier_score"].mean()),
+            "successful_folds": int(group["cindex"].notna().sum()),
+            "expected_folds": int(expected_folds),
+            "all_contracts_satisfied": bool(group["contract_satisfied"].all()),
+            "any_rank_deficient": bool(group["design_rank_deficient"].any()),
+            "ph_violations_total": int(group["ph_violations_p_lt_0_05"].sum()),
+        })
+    summary = pd.DataFrame(summary_rows)
+    summary.to_csv(run_dir / "phase2_repeated_cv_summary.csv", index=False)
+
+    coefficient_data = pd.DataFrame(coefficient_rows)
+    stability_rows = []
+    for (protocol_name, feature), group in coefficient_data.groupby(
+        ["protocol", "feature"], sort=True
+    ):
+        values = group["coefficient"].to_numpy(dtype=float)
+        positive_fraction = float(np.mean(values > 0))
+        stability_rows.append({
+            "protocol": protocol_name,
+            "feature": feature,
+            "coefficient_mean": float(np.mean(values)),
+            "coefficient_std": float(np.std(values, ddof=1)),
+            "coefficient_median": float(np.median(values)),
+            "coefficient_min": float(np.min(values)),
+            "coefficient_max": float(np.max(values)),
+            "positive_fraction": positive_fraction,
+            "sign_consistency": max(positive_fraction, 1.0 - positive_fraction),
+            "fold_coverage": float(len(values) / expected_folds),
+            "observed_folds": int(len(values)),
+            "expected_folds": int(expected_folds),
+        })
+    stability = pd.DataFrame(stability_rows)
+    stability.to_csv(run_dir / "phase2_coefficient_stability.csv", index=False)
+
+    log("\n  REPEATED CV SUMMARY:")
+    log(summary.round(4).to_string(index=False))
+    return results
+
+
+# ============================================================
+# PHASE 2 TEMPORAL VALIDATION — earlier diagnosis years to later years
+# ============================================================
+
+def phase_2_temporal_validation(
+    df_features: pd.DataFrame,
+    df_targets: pd.DataFrame,
+    config: dict,
+    run_dir: Path,
+    best_imputation: str,
+) -> Optional[pd.DataFrame]:
+    """Evaluate transport from earlier to later diagnosis years.
+
+    This is an internal temporal stress test, not external validation. The
+    diagnosis year is partition-only metadata and is never included in X.
+    """
+    phase_cfg = config.get("phase_2_temporal_validation", {})
+    if not phase_cfg.get("enabled", False):
+        log("[PHASE 2 TEMPORAL VALIDATION] DISABLED")
+        return None
+    if "diagnosis_year" not in df_targets.columns:
+        raise KeyError(
+            "phase_2_temporal_validation requires diagnosis_year target metadata"
+        )
+
+    cutoff_year = int(phase_cfg["cutoff_year"])
+    valid = (
+        df_targets["survival_days"].notna()
+        & (df_targets["survival_days"] > 0)
+        & df_targets["diagnosis_year"].notna()
+    )
+    X = df_features.loc[valid].copy()
+    y = df_targets.loc[valid].copy()
+    train_mask = y["diagnosis_year"] <= cutoff_year
+    validation_mask = y["diagnosis_year"] > cutoff_year
+    if not train_mask.any() or not validation_mask.any():
+        raise ValueError(
+            f"Temporal cutoff {cutoff_year} produced an empty partition"
+        )
+
+    output_dim = int(phase_cfg.get("output_dim", 768))
+    imputation = phase_cfg.get("imputation", "mean_median")
+    if imputation == "auto":
+        imputation = best_imputation
+    onehot_features = list(phase_cfg.get("onehot_features") or [])
+    onehot_drop_first = bool(phase_cfg.get("onehot_drop_first", False))
+    horizon = float(phase_cfg.get("calibration_horizon_days", 730))
+    ipcw_tau = float(phase_cfg.get("ipcw_tau_days", horizon))
+    bootstrap_iterations = int(phase_cfg.get("bootstrap_iterations", 1000))
+    bootstrap_confidence = float(
+        phase_cfg.get("bootstrap_confidence_level", 0.95)
+    )
+    bootstrap_seed = int(phase_cfg.get("bootstrap_seed", 42))
+    protocols = list(
+        phase_cfg.get("protocols")
+        or [{"name": "default", "drop_features": []}]
+    )
+
+    y_train = y.loc[train_mask].copy()
+    y_validation = y.loc[validation_mask].copy()
+    log("")
+    log("[PHASE 2 TEMPORAL VALIDATION] Earlier-to-later transport stress test")
+    log(
+        f"  Cutoff: <= {cutoff_year} train, > {cutoff_year} validation; "
+        f"n={len(y_train)}/{len(y_validation)}, "
+        f"events={int(y_train['event'].sum())}/{int(y_validation['event'].sum())}"
+    )
+
+    rows = []
+    for protocol in protocols:
+        protocol_name = str(protocol["name"])
+        drop_features = list(protocol.get("drop_features") or [])
+        X_protocol = X.drop(
+            columns=[column for column in drop_features if column in X.columns],
+            errors="ignore",
+        )
+        X_train_raw = X_protocol.loc[train_mask].copy()
+        X_validation_raw = X_protocol.loc[validation_mask].copy()
+        preprocessor = TabularPreprocessor(
+            onehot_columns=onehot_features,
+            onehot_drop_first=onehot_drop_first,
+        )
+        X_train, mask_train, confidence_train = preprocessor.fit_transform(
+            X_train_raw, get_imputation(imputation)
+        )
+        X_validation, mask_validation, confidence_validation = (
+            preprocessor.transform(X_validation_raw)
+        )
+        details = {
+            "bootstrap_iterations": bootstrap_iterations,
+            "bootstrap_confidence_level": bootstrap_confidence,
+            "bootstrap_seed": bootstrap_seed,
+            "ipcw_tau_days": ipcw_tau,
+        }
+        cindex, ece, brier, contract_ok = _evaluate_variant(
+            variant_name="cox_baseline",
+            input_dim=X_train.shape[1],
+            output_dim=output_dim,
+            variant_params={},
+            X_tr=X_train,
+            X_va=X_validation,
+            y_tr=y_train,
+            y_va=y_validation,
+            mask_tr=mask_train,
+            mask_va=mask_validation,
+            conf_tr=confidence_train,
+            conf_va=confidence_validation,
+            median_surv=horizon,
+            evaluation_details=details,
+        )
+        rows.append({
+            "protocol": protocol_name,
+            "cutoff_year": cutoff_year,
+            "train_year_min": int(y_train["diagnosis_year"].min()),
+            "train_year_max": int(y_train["diagnosis_year"].max()),
+            "validation_year_min": int(y_validation["diagnosis_year"].min()),
+            "validation_year_max": int(y_validation["diagnosis_year"].max()),
+            "n_train": int(len(y_train)),
+            "events_train": int(y_train["event"].sum()),
+            "n_validation": int(len(y_validation)),
+            "events_validation": int(y_validation["event"].sum()),
+            "cindex": float(cindex),
+            "cindex_bootstrap_lower": details.get("cindex_bootstrap_lower", float("nan")),
+            "cindex_bootstrap_upper": details.get("cindex_bootstrap_upper", float("nan")),
+            "cindex_bootstrap_confidence_level": details.get("cindex_bootstrap_confidence_level", float("nan")),
+            "cindex_bootstrap_valid_iterations": details.get("cindex_bootstrap_valid_iterations", 0),
+            "cindex_ipcw": details.get("cindex_ipcw", float("nan")),
+            "ipcw_tau_days": details.get("ipcw_tau_days", float("nan")),
+            "cox_penalizer": details.get("cox_penalizer", float("nan")),
+            "ece": float(ece),
+            "brier_score": float(brier),
+            "contract_satisfied": bool(contract_ok),
+            "n_features": int(X_train.shape[1]),
+            "design_condition_number": details.get("design_condition_number", float("nan")),
+            "design_rank": details.get("design_rank", 0),
+            "design_columns": details.get("design_columns", 0),
+            "design_rank_deficient": details.get("design_rank_deficient", True),
+            "ph_min_p_value": details.get("ph_min_p_value", float("nan")),
+            "ph_violations_p_lt_0_05": details.get("ph_violations_p_lt_0_05", -1),
+            "interpretation": "internal_temporal_transport_not_external_validation",
+        })
+
+    results = pd.DataFrame(rows)
+    results.to_csv(run_dir / "phase2_temporal_validation.csv", index=False)
+    log("")
+    log("  TEMPORAL VALIDATION RESULTS:")
+    log(results[["protocol", "cindex", "cindex_ipcw", "contract_satisfied"]].round(4).to_string(index=False))
+    return results
 
 
 # ============================================================
@@ -3245,7 +3796,7 @@ def run_experiment(config_input: Union[str, Path, dict] = "experiment_config.yam
     Executes all enabled phases and returns a summary dictionary.
     """
     if isinstance(config_input, dict):
-        config = config_input
+        manifest_config = config_input
         config_path = None
     else:
         config_path = Path(config_input).resolve()
@@ -3253,26 +3804,19 @@ def run_experiment(config_input: Union[str, Path, dict] = "experiment_config.yam
             raise FileNotFoundError(f"Experiment config not found: {config_path}")
         
         with open(config_path) as f:
-            config = yaml.safe_load(f)
+            manifest_config = yaml.safe_load(f)
     
-    # Resolve feature_config relative to experiment_config dir if not absolute
-    feat_path = Path(config['data']['feature_config'])
-    if not feat_path.is_absolute():
-        # If we have a config_path, resolve relative to it. 
-        # Otherwise assume relative to current working directory.
-        base_dir = config_path.parent if config_path else Path.cwd()
-        feat_path = (base_dir / feat_path).resolve()
-        config['data']['feature_config'] = str(feat_path)
+    config = resolve_runtime_paths(manifest_config, config_path)
     
     verbosity = config.get('runtime', {}).get('verbosity', 'normal')
     
     # ---- Run setup ----
-    run_dir = create_run_directory(config, config_path)
+    run_dir = create_run_directory(config, config_path, hash_source=manifest_config)
     
     print("=" * 70)
     print(f"CLINICAL-CORE / TABULAR-CONN EXPERIMENT")
     print(f"Name:      {config['experiment']['name']}")
-    print(f"Hash:      {compute_config_hash(config)}")
+    print(f"Hash:      {compute_config_hash(manifest_config)}")
     print(f"Run dir:   {run_dir}")
     print("=" * 70)
     
@@ -3301,9 +3845,18 @@ def run_experiment(config_input: Union[str, Path, dict] = "experiment_config.yam
             'n_after_each_filter': cohort_audit['n_after_each_filter'],
         }
 
+    valid_survival = (
+        df_targets['survival_days'].notna()
+        & (df_targets['survival_days'] > 0)
+    )
     summary['n_cases'] = int(len(df_features))
+    summary['n_cases_extracted'] = int(len(df_features))
+    summary['n_cases_survival'] = int(valid_survival.sum())
     summary['n_features'] = int(df_features.shape[1])
     summary['n_events'] = int(df_targets['event'].sum())
+    summary['n_events_survival'] = int(
+        df_targets.loc[valid_survival, 'event'].sum()
+    )
     
     # ---- Phases ----
     fail_fast = config.get('runtime', {}).get('fail_fast', False)
@@ -3336,6 +3889,32 @@ def run_experiment(config_input: Union[str, Path, dict] = "experiment_config.yam
                 .reset_index()
             )
             summary['phases']['phase_2_holdout'] = ph2_ho_summary.to_dict(orient='records')
+
+        ph2_repeated = phase_2_repeated_cv(
+            df_features, df_targets, config, run_dir, best_imp
+        )
+        if ph2_repeated is not None:
+            repeated_summary = (
+                ph2_repeated.groupby("protocol")["cindex"]
+                .agg(["mean", "std", "median", "count"])
+                .round(4)
+                .reset_index()
+            )
+            summary["phases"]["phase_2_repeated_cv"] = (
+                repeated_summary.to_dict(orient="records")
+            )
+
+        ph2_temporal = phase_2_temporal_validation(
+            df_features, df_targets, config, run_dir, best_imp
+        )
+        if ph2_temporal is not None:
+            summary["phases"]["phase_2_temporal_validation"] = (
+                ph2_temporal[[
+                    "protocol", "cutoff_year", "n_train",
+                    "n_validation", "cindex", "cindex_ipcw",
+                    "contract_satisfied",
+                ]].to_dict(orient="records")
+            )
 
         # New Phase 2 External Baselines
         ph2_ext = phase_2_external_baselines(df_features, df_targets, config, run_dir, best_imp)
@@ -3474,7 +4053,7 @@ def run_experiment(config_input: Union[str, Path, dict] = "experiment_config.yam
     summary['run_dir'] = str(run_dir)
     
     with open(run_dir / "summary.json", 'w') as f:
-        json.dump(summary, f, indent=2, default=str)
+        strict_json_dump(summary, f)
     
     print("\n" + "=" * 70)
     print(f"EXPERIMENT COMPLETE in {summary['runtime_seconds']}s")

@@ -8,7 +8,7 @@ Metrics: K-S fidelity + C-index downstream with fixed Cox predictor
 
 import numpy as np
 import pandas as pd
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple, List, Optional
 from scipy import stats
 from sklearn.impute import KNNImputer, SimpleImputer
 from sklearn.experimental import enable_iterative_imputer  # noqa
@@ -170,12 +170,19 @@ class TabularPreprocessor:
     5. Computes confidence score
     """
     
-    def __init__(self):
+    def __init__(
+        self,
+        onehot_columns: Optional[List[str]] = None,
+        onehot_drop_first: bool = False,
+    ):
         self.scaler = StandardScaler()
         self.numeric_cols = []
         self.all_cols = []
         self.categorical_cols = []
         self.scaler_cols = []
+        self.onehot_columns = list(onehot_columns or [])
+        self.onehot_drop_first = bool(onehot_drop_first)
+        self.output_cols = []
         self.fitted = False
     
     def identify_column_types(self, df: pd.DataFrame) -> Tuple[List[str], List[str]]:
@@ -261,16 +268,22 @@ class TabularPreprocessor:
             self.scaler_cols = cols_present
             if self.scaler_cols:
                 df_imputed[self.scaler_cols] = self.scaler.fit_transform(df_imputed[self.scaler_cols])
+
+        encoded = [c for c in self.onehot_columns if c in df_imputed.columns]
+        if encoded:
+            df_imputed = pd.get_dummies(
+                df_imputed,
+                columns=encoded,
+                prefix=encoded,
+                dtype=float,
+                drop_first=self.onehot_drop_first,
+            )
+        self.output_cols = df_imputed.columns.tolist()
         
         self.fitted = True
         self.imputer = imputation_strategy
 
-        # Ensure output columns match input columns exactly
-        # (guards against columns lost during imputation, e.g. race with 0% data)
-        for col in self.all_cols:
-            if col not in df_imputed.columns:
-                df_imputed[col] = 0.0
-        df_imputed = df_imputed[self.all_cols]
+        df_imputed = df_imputed.reindex(columns=self.output_cols, fill_value=0.0)
 
         return df_imputed, mask, confidence
     
@@ -292,6 +305,17 @@ class TabularPreprocessor:
 
         if self.scaler_cols:
             df_imputed[self.scaler_cols] = self.scaler.transform(df_imputed[self.scaler_cols])
+
+        encoded = [c for c in self.onehot_columns if c in df_imputed.columns]
+        if encoded:
+            df_imputed = pd.get_dummies(
+                df_imputed,
+                columns=encoded,
+                prefix=encoded,
+                dtype=float,
+                drop_first=self.onehot_drop_first,
+            )
+        df_imputed = df_imputed.reindex(columns=self.output_cols, fill_value=0.0)
         
         return df_imputed, mask, confidence
 

@@ -1,0 +1,148 @@
+{
+  "schema": "clinical-core.publication-manifest/v1",
+  "experiment_id": "nigma_tcga_luad_baseline_os_v2",
+  "status": "internal_validation_complete_external_validation_pending",
+  "created_at": "2026-08-20",
+  "nigma_plan": {
+    "id": "8fc10f9f9062185cd985d4ee529b4291f15a",
+    "digest": "907581ea5e85b1f0c7cddc638160c63d229e581b4d91e83536f2bffe4b21c853",
+    "receipt_status": "downstream_reference_pending_upstream_export"
+  },
+  "implementation": {
+    "repository": "raulprtech/clinical_core",
+    "branch": "codex/nigma-controlled-dry-run",
+    "baseline_commit": "b53ecf4",
+    "prediction_time": "retrospective_pathology_baseline",
+    "endpoint": "overall_survival",
+    "claim_scope": "retrospective_association_not_postoperative_landmark"
+  },
+  "source": {
+    "project_id": "TCGA-LUAD",
+    "access": "open",
+    "provider": "NCI GDC",
+    "frozen_source_label": "GDC Data Release 45",
+    "patient_xml_count": 522,
+    "tracked_inventory": "publication/luad_baseline_os_v2/source_inventory.json",
+    "tracked_inventory_sha256": "1dfb59cdf4c3e5210d96c28c2b1fb546f957f5e82be3e25a65147f2130a4c60f",
+    "local_manifest": "data/raw/TCGA-LUAD/SOURCE.json",
+    "local_manifest_sha256": "d44ecdaf1c8690fb823517dee627adb59a38c1c6daac2b127fadf19be601271e"
+  },
+  "tracked_files": [
+    {
+      "path": "code/experiments/experiment_config_nigma_luad_baseline_os_v2.yaml",
+      "sha256": "089b27e388a564c501bdf7cbdbc919e8c503076c201bbca525540223bbaec752"
+    },
+    {
+      "path": "code/components/adapters/ingestion/tabular/configs/tabular_mapping_tcga_luad_baseline_os_v2.yaml",
+      "sha256": "4b76180e0179f7538e435aae91ef0919184109e60b32d0048af33889dd1868af"
+    },
+    {
+      "path": "publication/luad_baseline_os_v2/canonical_summary.json",
+      "sha256": "5cad369caca5b2231ace16bc820ac2ab48f9344e05f5286d51a02d3d537c7c18"
+    },
+    {
+      "path": "publication/luad_baseline_os_v2/experiment_registry.json",
+      "sha256": "b08fc60ba30748087792cacfb9352cb9a50270895b6d3eb3f4194333405d8529"
+    },
+    {
+      "path": "publication/luad_baseline_os_v2/source_inventory.json",
+      "sha256": "1dfb59cdf4c3e5210d96c28c2b1fb546f957f5e82be3e25a65147f2130a4c60f"
+    },
+    {
+      "path": "requirements-luad.lock",
+      "sha256": "ac27c7075f4e6be6f994d464733eb6c299e10b0ce5666c3a16f8bcd985c9b5ed"
+    },
+    {
+      "path": "code/tools/restore_luad_source.py",
+      "sha256": "25a6c168c771f34dc2bf0cde0d3f192b41769c16b08090e0fed2f80652116b80"
+    },
+    {
+      "path": "code/tools/compare_luad_reproduction.py",
+      "sha256": "ab157a56f6e68d59b2f13b7c4117a08b6118312e0ded19fb8ac85f4e33f76334"
+    },
+    {
+      "path": "publication/luad_baseline_os_v2/REPRODUCE.md",
+      "sha256": "5bc984112b7e95c045c7a0f2a53fca42c5399de147190a9d36998f82e95aa045"
+    },
+    {
+      "path": "publication/luad_baseline_os_v2/METHODOLOGY_REVIEW.md",
+      "sha256": "89239efedf84928397a3e5c1232077fc46e88f8c9bdd7a59fe6459901dd2fa8d"
+    },
+    {
+      "path": "code/core/experiment_runner.py",
+      "sha256": "5e82fe5fd962de106cf66de4e05021e1f6da3cfc3ceabd286418a1f731b66a3b"
+    },
+    {
+      "path": "code/core/reproducibility.py",
+      "sha256": "e9e2b1d98d18f15b481b91e9f7937ff1e5db96be5260402faf994e76036a9ba3"
+    },
+    {
+      "path": "code/components/adapters/ingestion/tabular/utils/extractor.py",
+      "sha256": "a14c6abf3e8dea1eb42f46b4f24eae0c0de728e7fd93f65f2394420068cd35e5"
+    },
+    {
+      "path": "code/tools/verify_luad_publication_package.py",
+      "sha256": "ba78a667cc94a19a5052dcb97e7ba68a4e0f53dd4d4bb6509016786e2b9e4de7"
+    },
+    {
+      "path": ".github/workflows/luad-publication.yml",
+      "sha256": "f60483ac7f01b97f862a1b5f84e75683ae422683655693121c52ee5f767ba6a9"
+    }
+  ],
+  "canonical_local_run": {
+    "path": "results_nigma_dry_run/luad_baseline_os_v2/20260820_205911_6e2e7ac2",
+    "strict_summary_sha256": "a1fc3d913a7add340e51e0309217f3a5bbe440b7bab9a2fc57e4de9f7040f2c2",
+    "aggregate_artifacts": {
+      "phase2_coefficient_stability.csv": "afada71d0711f491eded34382aae547ce46863579800a217634bb6a6f0241279",
+      "phase2_holdout.csv": "fb8832e594110b1e3450c412a18db5efcfafbcaf6b72a7c81ddd818bcf0b783e",
+      "phase2_holdout_summary.csv": "4f8a1ad27390666fb5df663d69be371180bfaa43385e84eb610e95b4356c7b50",
+      "phase2_repeated_cv.csv": "296da6565f3ca6744db97487fd65d2c97ffe4a351e6480988d5b38ea3647402c",
+      "phase2_repeated_cv_summary.csv": "98fa92ba6de8c652a274995586c031a693b7f1d0af681e3f388de23c7ae5873f",
+      "phase2_temporal_validation.csv": "8ffea95c66375da666585882d644e2b2078f8e2be611fbcdf871936fa2ea72ac"
+    }
+  },
+  "verification": {
+    "contract_tests": 8,
+    "component_tests": 34,
+    "reproduction_cases": 522,
+    "reproduction_survival_cases": 507,
+    "reproduction_events": 122,
+    "errors": 0,
+    "restore_command": "python code/tools/restore_luad_source.py",
+    "run_command": "python code/core/experiment_runner.py code/experiments/experiment_config_nigma_luad_baseline_os_v2.yaml",
+    "compare_command": "python code/tools/compare_luad_reproduction.py RUN_DIR/summary.json",
+    "clean_reproduction_guide": "publication/luad_baseline_os_v2/REPRODUCE.md",
+    "test_commands": [
+      "python -m unittest discover -s tests -p 'test_*.py' -q",
+      "python -m unittest discover -s code/tests -p 'test_*.py' -q"
+    ],
+    "hosted_ci": ".github/workflows/luad-publication.yml"
+  },
+  "claims": {
+    "supported": [
+      "internal_holdout_discrimination",
+      "repeated_cross_validation_stability",
+      "internal_temporal_transport"
+    ],
+    "not_supported": [
+      "external_validation_of_current_line",
+      "clinical_utility",
+      "prospective_performance",
+      "postoperative_landmark_prediction"
+    ]
+  },
+  "environment": {
+    "python": "3.12",
+    "lock": "requirements-luad.lock",
+    "install_command": "python -m pip install -r requirements-luad.lock",
+    "observed_clean_size": "1.6 GB on Linux/WSL with the official PyTorch CPU wheel",
+    "torch": "2.12.0+cpu",
+    "cuda_runtime": false
+  },
+  "comparison_tolerances": {
+    "cohort_counts": "exact",
+    "errors": "exact_empty",
+    "cindex_absolute": 0.0001,
+    "repeated_cv_fold_counts": "exact"
+  }
+}

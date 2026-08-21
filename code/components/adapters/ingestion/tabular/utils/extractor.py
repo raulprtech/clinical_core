@@ -90,15 +90,13 @@ class TCGAExtractor:
             if tag in self.tag_lookup:
                 for var_name, section, var_config in self.tag_lookup[tag]:
                     key = f"{section}__{var_name}"
-                    if key not in raw_values:
-                        raw_values[key] = text
+                    self._store_raw_value(raw_values, key, text)
 
             # Match by preferred_name
             if preferred_name and preferred_name in self.tag_lookup:
                 for var_name, section, var_config in self.tag_lookup[preferred_name]:
                     key = f"{section}__{var_name}"
-                    if key not in raw_values:
-                        raw_values[key] = text
+                    self._store_raw_value(raw_values, key, text)
         
         if case_id is None:
             # Try filename
@@ -107,7 +105,19 @@ class TCGAExtractor:
         
         raw_values['case_id'] = case_id
         return raw_values
-    
+
+    @staticmethod
+    def _store_raw_value(raw_values: dict, key: str, text: str) -> None:
+        """Keep every longitudinal time observation; scalar fields keep first value."""
+        if key.startswith("target__source__days_to_"):
+            existing = raw_values.get(key)
+            if existing is None:
+                raw_values[key] = [text]
+            elif text not in existing:
+                existing.append(text)
+        elif key not in raw_values:
+            raw_values[key] = text
+
     def _apply_mapping(self, raw_value: str, var_config: dict) -> Optional[float]:
         """Convert raw string to numeric using config mapping."""
         if raw_value is None:
@@ -137,7 +147,7 @@ class TCGAExtractor:
             
             # For stage/grade: try regex extraction
             if 'Stage' in str(list(mapping.keys())):
-                for key, val in mapping.items():
+                for key, val in sorted(mapping.items(), key=lambda kv: -len(kv[0])):
                     if key.lower() in raw_value.lower():
                         return np.nan if val == -1 else float(val)
         
@@ -163,6 +173,29 @@ class TCGAExtractor:
         except (ValueError, TypeError):
             return np.nan
     
+    @staticmethod
+    def _raw_source(raw_values: dict, *sources: str):
+        """Resolve the latest valid longitudinal value across source aliases."""
+        numeric_values = []
+        fallback = None
+        for source in sources:
+            value = raw_values.get(f"target__source__{source}")
+            if value is None:
+                continue
+            values = value if isinstance(value, list) else [value]
+            for item in values:
+                if fallback is None:
+                    fallback = item
+                try:
+                    parsed = float(item)
+                except (TypeError, ValueError):
+                    continue
+                if np.isfinite(parsed) and parsed > 0:
+                    numeric_values.append(parsed)
+        if numeric_values:
+            return max(numeric_values)
+        return fallback
+
     def _resolve_survival(self, raw_values: dict) -> Tuple[float, int]:
         """
         Resolve survival time and censoring status.
@@ -174,8 +207,13 @@ class TCGAExtractor:
         Falls back gracefully if the preferred source is missing.
         """
         vital_raw = raw_values.get('target__vital_status', None)
-        days_to_death = raw_values.get('target__source__days_to_death', None)
-        days_to_followup = raw_values.get('target__source__days_to_last_followup', None)
+        days_to_death = self._raw_source(raw_values, "days_to_death")
+        days_to_followup = self._raw_source(
+            raw_values,
+            "days_to_last_follow_up",
+            "days_to_last_followup",
+            "days_to_follow_up",
+        )
 
         # Determine event indicator
         if vital_raw is not None:
@@ -232,10 +270,18 @@ class TCGAExtractor:
         never as a training target.
         """
         nte_indicator = raw_values.get('target__source__new_tumor_event_after_initial_treatment')
-        nte_days = raw_values.get('target__source__days_to_new_tumor_event_after_initial_treatment')
+        nte_days = self._raw_source(
+            raw_values,
+            'days_to_new_tumor_event_after_initial_treatment',
+        )
         tumor_status = raw_values.get('target__source__person_neoplasm_cancer_status')
-        days_to_death = raw_values.get('target__source__days_to_death')
-        days_to_followup = raw_values.get('target__source__days_to_last_followup')
+        days_to_death = self._raw_source(raw_values, "days_to_death")
+        days_to_followup = self._raw_source(
+            raw_values,
+            "days_to_last_follow_up",
+            "days_to_last_followup",
+            "days_to_follow_up",
+        )
         vital_raw = raw_values.get('target__vital_status')
 
         nte_yes = isinstance(nte_indicator, str) and nte_indicator.strip().lower() == 'yes'
@@ -321,6 +367,10 @@ class TCGAExtractor:
             # Extract targets
             survival_days, event = self._resolve_survival(raw)
             dfs_days, dfs_event, dfs_valid = self._resolve_dfs(raw)
+            diagnosis_year_config = self.config['targets'].get('diagnosis_year', {})
+            diagnosis_year = self._apply_mapping(
+                raw.get('target__diagnosis_year'), diagnosis_year_config
+            )
             target_rows.append({
                 'case_id': case_id,
                 'survival_days': survival_days,
@@ -328,6 +378,7 @@ class TCGAExtractor:
                 'dfs_days': dfs_days,
                 'dfs_event': dfs_event,
                 'dfs_valid': dfs_valid,
+                'diagnosis_year': diagnosis_year,
             })
         
         if not feature_rows:
@@ -339,6 +390,12 @@ class TCGAExtractor:
         # Deduplicate cases based on index (case_id). Some TCGA cases might have multiple XMLs.
         df_features = df_features[~df_features.index.duplicated(keep='last')]
         df_targets = df_targets[~df_targets.index.duplicated(keep='last')]
+
+        # GDC restores may use file UUIDs while legacy downloads use TCGA barcodes
+        # as filenames. Downstream seeded splits must therefore depend on the
+        # clinical case identifier, never on the incidental on-disk filename.
+        df_features = df_features.sort_index()
+        df_targets = df_targets.sort_index()
         
         # Handle days_to_birth → age conversion if age is missing
         # TCGA stores age as days_to_birth (negative number)

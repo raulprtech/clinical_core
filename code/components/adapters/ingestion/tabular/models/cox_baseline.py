@@ -32,12 +32,27 @@ class VariantA_CoxBaseline:
         
         # Pad to output_dim
         if self.input_dim < self.output_dim:
-            padding = np.zeros((batch_size, self.output_dim - self.input_dim))
+            padding = np.zeros(
+                (batch_size, self.output_dim - self.input_dim),
+                dtype=np.float32,
+            )
             embedding = np.concatenate([features, padding], axis=1)
         else:
             embedding = features[:, :self.output_dim]
+
+        # The ingestion contract requires unit L2 norm. Cox predictions do not
+        # use this projection; normalization only makes the reusable embedding
+        # compatible with downstream connectors.
+        embedding = embedding.astype(np.float32, copy=False)
+        norms = np.linalg.norm(embedding, axis=1, keepdims=True)
+        zero_rows = norms[:, 0] == 0
+        if np.any(zero_rows):
+            embedding = embedding.copy()
+            embedding[zero_rows, 0] = 1.0
+            norms = np.linalg.norm(embedding, axis=1, keepdims=True)
+        embedding = embedding / norms
         
         return (
-            torch.tensor(embedding, dtype=torch.float32),
+            torch.from_numpy(embedding),
             torch.tensor(confidence, dtype=torch.float32).unsqueeze(-1)
         )
