@@ -109,6 +109,8 @@ The append-only experiment history and review checklist are maintained in the
 The Mamba risk integration is summarized in [trimodal Mamba fusion results](docs/trimodal_mamba_fusion_results.md).
 The repeated-CV correction is in [trimodal sequence nested-CV results](docs/trimodal_sequence_nested_cv_results.md).
 The post-hoc training-stability analysis is in [Mamba epoch stability](docs/mamba_epoch_stability_diagnostic.md).
+The paired architecture/token/position study is in
+[sequence factorial ablation](docs/sequence_factorial_ablation_results.md).
 
 For the complete TCGA-KIRC download, embedding-cache and three-modality run,
 see [trimodal data preparation](docs/trimodal_data_preparation.md).

@@ -100,3 +100,11 @@ Se versionan únicamente agregados no identificables:
 cohort_common.csv, splits.csv y heldout_predictions.csv se conservan
 localmente y están excluidos de Git porque contienen información a nivel
 paciente.
+
+## Ablación posterior de diseño
+
+Una corrida posterior comparó attention/Mamba, 32/64 tokens y posición on/off.
+Mamba-64 sin posición encabezó esa corrida con 0.6868, pero ninguno de los 12
+intervalos factoriales excluyó cero. Se conserva el 0.7030 de este informe como
+estimación confirmatoria del protocolo original; la ablación sólo fija una
+configuración operativa. Véase `docs/sequence_factorial_ablation_results.md`.

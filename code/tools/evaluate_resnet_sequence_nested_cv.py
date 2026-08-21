@@ -69,6 +69,7 @@ def make_model(name: str, args: argparse.Namespace, device: torch.device) -> tor
         "model_dim": args.model_dim,
         "attention_dim": args.attention_dim,
         "dropout": args.dropout,
+        "use_position": getattr(args, "use_position", True),
     }
     if name == "mamba":
         kwargs.update({"state_dim": args.state_dim, "n_blocks": args.mamba_blocks})

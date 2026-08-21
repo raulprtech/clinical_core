@@ -146,6 +146,27 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
   registrar cap 5 únicamente como hipótesis predeclarable.
 - **Detalle:** docs/mamba_epoch_stability_diagnostic.md.
 
+## 2026-08-21 — Ablación factorial de arquitectura, tokens y posición
+
+- **Pregunta:** ¿el resultado secuencial depende de attention/Mamba, 32/64
+  tokens o de coordenadas axiales explícitas?
+- **Protocolo:** ocho configuraciones en los mismos 5 outer folds x 3
+  repeticiones, 3 inner folds, reajuste completo y 5,000 bootstraps agrupados.
+- **Resultado:** Mamba-64 sin posición encabezó la media global con 0.6868 y
+  CT con 0.7076. Attention-32 sin posición quedó segundo con 0.6751. MR tuvo
+  0.5676 para la primera, pero sólo hay 24 casos y 11 eventos.
+- **Incertidumbre:** ninguno de 12 contrastes excluyó cero. Mamba vs attention
+  a 64 sin posición fue +0.0130, IC95% [-0.0161, +0.0405]; 64 vs 32 para Mamba
+  sin posición fue +0.0146, IC95% [-0.0076, +0.0365].
+- **Decisión:** adoptar Mamba-64 sin posición como configuración operativa
+  predeclarable, no como ganador confirmado. Mantener attention-32 sin posición
+  como control compacto y no hacer afirmaciones sobre MR.
+- **Relación con la fusión:** no revierte la decisión histórica. La
+  concatenación tardía fue un diagnóstico del VAE y la concatenación cruda
+  quedó desaconsejada por `p >> n`; la fusión convexa sigue como referencia.
+- **Detalle:** docs/sequence_factorial_ablation_results.md.
+- **Artefactos agregados:** results_vision/sequence_factorial_ablation/.
+
 ## Lista para la revisión final
 
 - [ ] Cada cifra agregada apunta a un CSV/JSON versionado; los artefactos a

@@ -91,6 +91,21 @@ class VisionSequenceTests(unittest.TestCase):
         self.assertTrue(torch.allclose(attention_first, attention_reversed, atol=1e-6))
         self.assertFalse(torch.allclose(mamba_first, mamba_reversed, atol=1e-5))
 
+    def test_position_can_be_disabled_exactly(self):
+        torch.manual_seed(11)
+        model = AttentionSequenceSurvival(
+            input_dim=8,
+            model_dim=12,
+            attention_dim=6,
+            dropout=0,
+            use_position=False,
+        ).eval()
+        features = torch.randn(2, 5, 8)
+        mask = torch.ones(2, 5, dtype=torch.bool)
+        first = model(features, torch.zeros(2, 5), mask)
+        second = model(features, torch.rand(2, 5), mask)
+        self.assertTrue(torch.allclose(first, second, atol=1e-7))
+
     def test_cox_loss_is_finite_and_differentiable(self):
         risk = torch.tensor([0.2, -0.1, 0.5, 0.0], requires_grad=True)
         loss = cox_ph_loss(

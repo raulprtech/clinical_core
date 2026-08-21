@@ -39,8 +39,15 @@ def _validate_sequence_inputs(
 class TokenProjector(nn.Module):
     """Project frozen features and inject scanner-independent relative position."""
 
-    def __init__(self, input_dim: int = 512, model_dim: int = 128, dropout: float = 0.1):
+    def __init__(
+        self,
+        input_dim: int = 512,
+        model_dim: int = 128,
+        dropout: float = 0.1,
+        use_position: bool = True,
+    ):
         super().__init__()
+        self.use_position = bool(use_position)
         self.feature_norm = nn.LayerNorm(input_dim)
         self.feature_projection = nn.Linear(input_dim, model_dim)
         self.position_projection = nn.Linear(3, model_dim, bias=False)
@@ -48,16 +55,17 @@ class TokenProjector(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, features: torch.Tensor, positions: torch.Tensor) -> torch.Tensor:
-        position_features = torch.stack(
-            (
-                positions,
-                torch.sin(math.pi * positions),
-                torch.cos(math.pi * positions),
-            ),
-            dim=-1,
-        )
         tokens = self.feature_projection(self.feature_norm(features))
-        tokens = tokens + self.position_projection(position_features)
+        if self.use_position:
+            position_features = torch.stack(
+                (
+                    positions,
+                    torch.sin(math.pi * positions),
+                    torch.cos(math.pi * positions),
+                ),
+                dim=-1,
+            )
+            tokens = tokens + self.position_projection(position_features)
         return self.dropout(self.output_norm(F.gelu(tokens)))
 
 
@@ -91,9 +99,12 @@ class AttentionSequenceSurvival(nn.Module):
         model_dim: int = 128,
         attention_dim: int = 64,
         dropout: float = 0.1,
+        use_position: bool = True,
     ):
         super().__init__()
-        self.projector = TokenProjector(input_dim, model_dim, dropout)
+        self.projector = TokenProjector(
+            input_dim, model_dim, dropout, use_position=use_position
+        )
         self.pool = GatedAttentionPool(model_dim, attention_dim)
         self.risk_head = nn.Linear(model_dim, 1)
 
@@ -216,11 +227,14 @@ class MambaSequenceSurvival(nn.Module):
         conv_width: int = 4,
         expansion: int = 2,
         dropout: float = 0.1,
+        use_position: bool = True,
     ):
         super().__init__()
         if n_blocks < 1:
             raise ValueError("n_blocks must be positive")
-        self.projector = TokenProjector(input_dim, model_dim, dropout)
+        self.projector = TokenProjector(
+            input_dim, model_dim, dropout, use_position=use_position
+        )
         self.blocks = nn.ModuleList(
             MambaResidualBlock(
                 model_dim, state_dim, conv_width, expansion, dropout
