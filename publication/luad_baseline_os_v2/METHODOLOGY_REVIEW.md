@@ -52,12 +52,12 @@ stability and an earlier-to-later internal transport stress test.
 
 - Historical KIRC and deprecated LUAD configurations still contain absolute
   paths; they are outside the active publication route.
-- The repository has no hosted CI workflow for the data-free test suite.
-- The lock describes the verified direct environment but is not a
-  hash-validated wheel lock across platforms.
-- The verified Linux environment occupies about 5.1 GB because the default
-  PyTorch wheel installs CUDA runtime packages. A CPU-only, platform-specific
-  lock or removal of the unused Torch import is needed to reduce this.
+- A hosted GitHub Actions workflow now runs the data-free contract,
+  component and aggregate-package verification suites on pull requests.
+- The Linux/WSL lock now resolves the official PyTorch 2.12.0 CPU wheel. The
+  measured clean environment is about 1.6 GB and reports no CUDA runtime.
+- The lock describes verified direct dependencies but is not yet a
+  hash-validated transitive wheel lock across platforms.
 - Runtime seconds and run paths intentionally differ between reproductions;
   scientific comparison uses declared aggregate fields instead of byte identity.
 - GDC availability is an external dependency. Frozen UUID and MD5 failure must

@@ -11,9 +11,9 @@ but no filenames, patient barcodes, extracted rows or predictions.
 ## Requirements
 
 - Linux or WSL with Python 3.12 and network access to api.gdc.cancer.gov.
-- Approximately 6 GB free for the isolated Python environment. The verified
-  Linux PyTorch wheel currently brings CUDA runtime packages even for this
-  CPU-only baseline; reducing that footprint is tracked as packaging debt.
+- Approximately 2 GB free for the isolated Python environment. The verified
+  Linux/WSL lock resolves the official PyTorch CPU wheel and occupies about
+  1.6 GB without CUDA runtime packages.
 - Approximately 50 MB free for source XML and aggregate results.
 
 ## Procedure
