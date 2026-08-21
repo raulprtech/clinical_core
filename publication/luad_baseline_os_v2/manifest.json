@@ -86,7 +86,7 @@
     },
     {
       "path": ".github/workflows/luad-publication.yml",
-      "sha256": "691f430423859c1aa14d02437b200e34579b4546855cadba9f3db4f339d58113"
+      "sha256": "f60483ac7f01b97f862a1b5f84e75683ae422683655693121c52ee5f767ba6a9"
     }
   ],
   "canonical_local_run": {
