@@ -1,0 +1,79 @@
+{
+  "status": "exploratory_paired_repeated_holdout",
+  "cohort": {
+    "n_cases": 214,
+    "n_events": 64,
+    "heldout_per_seed": 43
+  },
+  "protocol": {
+    "official_baseline": "train-only StandardScaler + PCA + Cox ridge",
+    "inner_folds": 3,
+    "pca_dims": [
+      4,
+      8,
+      16,
+      24,
+      32,
+      48
+    ],
+    "penalizers": [
+      0.01,
+      0.05,
+      0.1,
+      0.5,
+      1.0,
+      5.0,
+      20.0
+    ],
+    "bootstrap_iterations_per_seed": 5000,
+    "same_outer_splits_as_sequence_models": true
+  },
+  "models": {
+    "official_resnet18_2p5d_pca_cox": {
+      "cindex_mean": 0.7170335432604827,
+      "cindex_std_across_seeds": 0.09873295921131088,
+      "cindex_per_seed": [
+        0.8717105263157895,
+        0.7537537537537538,
+        0.6220735785953178,
+        0.6637168141592921,
+        0.6739130434782609
+      ]
+    },
+    "resnet18_2p5d_attention": {
+      "cindex_mean": 0.7252214479824796,
+      "cindex_std_across_seeds": 0.053944635745795354,
+      "cindex_per_seed": [
+        0.7664473684210527,
+        0.7537537537537538,
+        0.7391304347826086,
+        0.6312684365781711,
+        0.7355072463768116
+      ]
+    },
+    "resnet18_2p5d_mamba": {
+      "cindex_mean": 0.756263299698781,
+      "cindex_std_across_seeds": 0.012671557150972176,
+      "cindex_per_seed": [
+        0.7467105263157895,
+        0.7747747747747747,
+        0.745819397993311,
+        0.7640117994100295,
+        0.75
+      ]
+    }
+  },
+  "mamba_minus_official": {
+    "mean_delta": 0.03922975643829816,
+    "std_delta_across_seeds": 0.09941497775912923,
+    "wins": 4,
+    "losses": 1,
+    "individual_seed_bootstrap_ci_excludes_zero": 0
+  },
+  "limitations": [
+    "Repeated holdouts overlap and are not independent replications.",
+    "No individual Mamba-minus-official bootstrap interval excludes zero.",
+    "PCA+Cox refits on the full outer-train; neural models reserve validation for early stopping.",
+    "External or nested repeated validation is required for a confirmatory claim."
+  ]
+}

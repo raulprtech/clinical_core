@@ -1,0 +1,71 @@
+{
+  "status": "paired_repeated_holdout",
+  "cohort": {
+    "n_cases": 214,
+    "n_events": 64
+  },
+  "protocol": {
+    "outer_split": "event-stratified repeated holdout",
+    "holdout_fraction": 0.2,
+    "inner_validation_fraction": 0.2,
+    "seeds": [
+      42,
+      123,
+      456,
+      789,
+      1024
+    ],
+    "frozen_encoder": "ResNet18 ImageNet1K V1",
+    "attention_and_mamba_same_axial_tokens": true,
+    "heldout_used_for_selection": false,
+    "device": "cuda",
+    "epochs": 200,
+    "patience": 20
+  },
+  "results": {
+    "resnet18_2p5d_baseline": {
+      "cindex_mean": 0.6774982266132709,
+      "cindex_std_across_seeds": 0.04651209283485872,
+      "cindex_per_seed": [
+        0.75,
+        0.6336336336336337,
+        0.6555183946488294,
+        0.696165191740413,
+        0.6521739130434783
+      ]
+    },
+    "resnet18_2p5d_attention": {
+      "cindex_mean": 0.7252214479824796,
+      "cindex_std_across_seeds": 0.053944635745795354,
+      "cindex_per_seed": [
+        0.7664473684210527,
+        0.7537537537537538,
+        0.7391304347826086,
+        0.6312684365781711,
+        0.7355072463768116
+      ]
+    },
+    "resnet18_2p5d_mamba": {
+      "cindex_mean": 0.756263299698781,
+      "cindex_std_across_seeds": 0.012671557150972176,
+      "cindex_per_seed": [
+        0.7467105263157895,
+        0.7747747747747747,
+        0.745819397993311,
+        0.7640117994100295,
+        0.75
+      ]
+    }
+  },
+  "mean_deltas": {
+    "attention_minus_baseline": 0.04772322136920868,
+    "mamba_minus_baseline": 0.07876507308551006,
+    "mamba_minus_attention": 0.03104185171630138
+  },
+  "limitations": [
+    "Repeated holdouts overlap and are not independent confidence intervals.",
+    "The baseline uses three central anatomical views; sequence variants use axial tokens.",
+    "The PyTorch selective scan is mathematically Mamba-style but not the fused mamba-ssm kernel.",
+    "External validation is required before making performance claims."
+  ]
+}

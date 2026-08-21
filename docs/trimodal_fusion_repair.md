@@ -1,5 +1,20 @@
 # Reparación de la fusión trimodal
 
+## Aclaración histórica: VAE, concatenación y fusión convexa
+
+El cambio fechado el 2026-05-28 desde VAE Stage A a concatenación tardía fue
+una prueba diagnóstica: buscaba separar una posible dilución de señal en el VAE
+de la hipótesis de que texto o visión no aportaban información incremental.
+Los YAML `experiment_config_late_fusion_text_n444.yaml` y
+`experiment_config_late_fusion_turbolatent_n444.yaml` conservan esa decisión.
+
+La concatenación no quedó como solución final. Los experimentos pareados que
+siguen en este documento mostraron su desventaja en el régimen `p >> n` y
+motivaron la fusión de riesgos convexa, que puede descartar una modalidad. La
+secuencia ResNet18 + Mamba de 2026-08-21 es un nuevo candidato de visión, no un
+cambio automático del fusionador. Debe evaluarse dentro de cada split con este
+mismo protocolo para evitar leakage.
+
 ## Diagnóstico
 
 La caída del C-index de la primera Phase 5 no demuestra que la información
@@ -169,3 +184,6 @@ Artefactos:
 
 - `code/tools/evaluate_hierarchical_orthogonal_fusion.py`
 - `results_fusion/hierarchical_orthogonal_resnet_diagnostic_210/`
+
+Las decisiones históricas y los enlaces cruzados con los experimentos de
+visión se registran también en `docs/research_decision_log.md`.

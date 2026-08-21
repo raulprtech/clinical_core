@@ -98,6 +98,12 @@ code/
 
 See [VISION-L0 integration](docs/vision_resnet_integration.md) for raw DICOM/NIfTI
 and precomputed-Colab workflows.
+See [ResNet18 sequence Fast Proof](docs/resnet18_sequence_mamba_fastproof.md)
+for the paired baseline, attention-pooling and Mamba survival benchmark.
+The completed exploratory run is reported in
+[ResNet18 sequence preliminary results](docs/resnet18_sequence_mamba_preliminary_results.md).
+The append-only experiment history and review checklist are maintained in the
+[research decision log](docs/research_decision_log.md).
 
 For the complete TCGA-KIRC download, embedding-cache and three-modality run,
 see [trimodal data preparation](docs/trimodal_data_preparation.md).

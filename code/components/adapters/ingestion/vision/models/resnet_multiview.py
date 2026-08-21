@@ -270,6 +270,58 @@ class FrozenResNetMultiView(nn.Module):
         batch = torch.stack(images)
         return (batch - self.imagenet_mean.cpu()) / self.imagenet_std.cpu()
 
+    @staticmethod
+    def _uniform_indices(length: int, max_tokens: Optional[int]) -> np.ndarray:
+        """Return ordered indices without repeating slices.
+
+        Sequence models consume a bounded number of tokens so the cache and
+        training budget do not depend on scanner slice thickness. Endpoints
+        are retained and the sampling rule is entirely outcome-independent.
+        """
+        if length < 1:
+            raise ValueError("A volume sequence must contain at least one slice")
+        if max_tokens is None or int(max_tokens) >= length:
+            return np.arange(length, dtype=np.int64)
+        if int(max_tokens) < 2:
+            raise ValueError("max_tokens must be at least 2")
+        return np.linspace(0, length - 1, num=int(max_tokens), dtype=np.int64)
+
+    def volume_to_axial_sequence(
+        self,
+        volume: np.ndarray,
+        modality: str = "CT",
+        max_tokens: Optional[int] = 64,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Create ordered 2.5D axial windows and relative positions.
+
+        Returns images [T, 3, H, W] and positions in [0, 1]. Unlike
+        volume_to_views, this supports patient-level sequence pooling rather
+        than the historical three-central-view baseline.
+        """
+        if self.context != "2p5d":
+            raise ValueError("Axial sequences require a 2.5D encoder")
+        volume = np.asarray(volume, dtype=np.float32)
+        indices = self._uniform_indices(int(volume.shape[0]), max_tokens)
+        images = []
+        for center in indices:
+            channels = []
+            for offset in self.slice_offsets:
+                index = max(0, min(volume.shape[0] - 1, int(center) + offset))
+                channels.append(self._window(volume[index], modality))
+            image = torch.from_numpy(np.stack(channels, axis=0)).float()
+            image = F.interpolate(
+                image.unsqueeze(0),
+                size=(self.image_size, self.image_size),
+                mode="bilinear",
+                align_corners=False,
+            ).squeeze(0)
+            images.append(image)
+        batch = torch.stack(images)
+        batch = (batch - self.imagenet_mean.cpu()) / self.imagenet_std.cpu()
+        denominator = max(int(volume.shape[0]) - 1, 1)
+        positions = torch.tensor(indices / denominator, dtype=torch.float32)
+        return batch, positions
+
     def _contract_projection(self, features: torch.Tensor) -> torch.Tensor:
         if features.numel() != self.feature_dim:
             raise ValueError(
@@ -294,6 +346,48 @@ class FrozenResNetMultiView(nn.Module):
             patient_features = view_features.mean(dim=0)
             embedding = self._contract_projection(patient_features)
         return embedding, 1.0
+
+    def encode_axial_sequence(
+        self,
+        volume_path: VolumePath,
+        max_tokens: Optional[int] = 64,
+        inference_batch_size: int = 32,
+    ) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, object]]:
+        """Encode ordered axial 2.5D windows with the frozen backbone.
+
+        The returned features remain 512D (no patient-level padding to 768D)
+        so trainable pooling models do not waste parameters on zero columns.
+        No outcomes are read or used by this operation.
+        """
+        if self.backbone_name != "resnet18" or self.context != "2p5d":
+            raise ValueError("Sequence encoding is defined for ResNet18 2.5D only")
+        if inference_batch_size < 1:
+            raise ValueError("inference_batch_size must be positive")
+        volume, metadata = self.loader.load(volume_path)
+        inputs, positions = self.volume_to_axial_sequence(
+            volume, str(metadata["modality"]), max_tokens=max_tokens
+        )
+        device = self._resolve_device()
+        backbone = self._get_backbone().to(device).eval()
+        feature_chunks = []
+        with torch.inference_mode():
+            for start in range(0, len(inputs), int(inference_batch_size)):
+                chunk = backbone(inputs[start : start + inference_batch_size].to(device))
+                feature_chunks.append(chunk.flatten(1).cpu())
+        features = torch.cat(feature_chunks, dim=0)
+        if features.shape[1] != self.feature_dim:
+            raise ValueError(
+                f"{self.backbone_name} returned {features.shape[1]} features; "
+                f"expected {self.feature_dim}"
+            )
+        features = F.normalize(features, p=2, dim=1)
+        sequence_metadata = dict(metadata)
+        sequence_metadata.update({
+            "original_slices": int(volume.shape[0]),
+            "sequence_tokens": int(features.shape[0]),
+            "feature_dim": int(features.shape[1]),
+        })
+        return features, positions, sequence_metadata
 
     def encode_batch(self, paths: Sequence[VolumePath]) -> Tuple[torch.Tensor, torch.Tensor]:
         outputs = [self.encode(path) for path in paths]

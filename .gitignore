@@ -47,3 +47,9 @@ checkpoint/
 # podemos ignorar todo excepto un archivo .gitkeep
 # !data/.gitkeep
 # !results/.gitkeep
+
+# Patient-level Fast Proof artifacts stay local; publish aggregate metrics only.
+results_vision/resnet18_attention_mamba_fastproof/cohort_common.csv
+results_vision/resnet18_attention_mamba_fastproof/heldout_predictions.csv
+results_vision/resnet18_attention_mamba_fastproof/official_pca_cox_predictions.csv
+results_vision/resnet18_attention_mamba_fastproof/splits.csv

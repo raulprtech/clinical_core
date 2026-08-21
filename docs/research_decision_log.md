@@ -1,0 +1,91 @@
+# Registro continuo de decisiones experimentales
+
+Este documento conserva la evolución de los experimentos de TCGA-KIRC. Es un
+registro acumulativo: las entradas nuevas se agregan con fecha y las decisiones
+anteriores no se reescriben sin dejar una nota de corrección.
+
+Cada entrada debe indicar pregunta, cohorte, protocolo, artefactos, resultado,
+decisión, limitaciones y siguiente prueba. Los informes específicos contienen
+el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
+
+## 2026-05-28 — Diagnóstico del VAE mediante concatenación tardía
+
+- **Pregunta:** ¿la caída bimodal provenía del encoder o del VAE Stage A?
+- **Protocolo:** concatenar tabular y ClinicalBERT (1,536D) y ajustar una cabeza
+  Cox lineal sin VAE; se preparó también la reevaluación de TurboLatent.
+- **Evidencia:** `experiment_config_late_fusion_text_n444.yaml` y
+  `experiment_config_late_fusion_turbolatent_n444.yaml`.
+- **Decisión de entonces:** pasar operacionalmente de VAE Stage A a
+  concatenación para aislar la fuente de degradación.
+- **Corrección posterior:** esta decisión era diagnóstica, no evidencia de que
+  la concatenación fuese el fusionador óptimo.
+
+## Reparación posterior — Comparación pareada de fusión trimodal
+
+- **Pregunta:** ¿la caída trimodal representaba falta de señal o un protocolo
+  no comparable y una cabeza sobreparametrizada?
+- **Cohorte:** 210 pacientes comunes; unos 168 en outer-train por fold.
+- **Hallazgos metodológicos:** las primeras ablaciones mezclaban cohortes; el
+  preprocesamiento tabular usaba información de toda la cohorte; concatenar
+  2,307 entradas producía `p >> n` y forzaba modalidades débiles.
+- **Resultado:** tabular 0.7990, texto 0.6358, ResNet18 2.5D 0.6397, fusión
+  igualitaria 0.7758 y fusión convexa train-only 0.8111. La convexa asignó peso
+  cero a texto y 0.1--0.3 a visión.
+- **Comparadores:** concatenación proyectada 0.7516, atención cruzada 0.7915,
+  jerárquica residual 0.8066 y ortogonal+concatenación 0.7483.
+- **Decisión vigente:** mantener la convexa como referencia principal y la
+  jerárquica residual como comparador secundario. No regresar a concatenación
+  cruda sin una justificación y un control explícito de dimensionalidad.
+- **Detalle:** `docs/trimodal_fusion_repair.md`.
+
+## Pilotos STU-Net — representación y cuantización
+
+- **Representación FP32:** pooling de bounding box y riñones izquierdo/derecho,
+  3 x 256D, seguido de normalización L2. El piloto completó 10/10 casos, con
+  mediana de 186.2 s y coseno de repetición 0.99999975.
+- **Restricción de cohorte:** de 190 CT, 76 tenían geometría uniforme y 114
+  requerían atención de geometría; toda comparación final debe usar la misma
+  intersección QC.
+- **Supervivencia exploratoria:** en 50 pacientes y 13 eventos, STU-Net obtuvo
+  0.6318 frente a 0.4796 de ResNet18 2.5D. Los intervalos fueron amplios y el
+  resultado no es comparable con el baseline oficial de 214 pacientes.
+- **Cuantización:** TurboConv W4A8 superó PTQ en fidelidad relativa, pero no
+  pasó las compuertas predeclaradas y fue rechazado. W6A8 quedó como candidato.
+  El ensayo con fake quantization no demuestra aceleración o ahorro de memoria.
+- **Detalle:** `docs/stunet_fp32_pilot.md`,
+  `docs/stunet_vs_resnet18_2p5d_preliminary_survival.md` y
+  `docs/stunet_turboconv_preliminary.md`.
+
+## 2026-08-21 — ResNet18 axial + attention/Mamba Fast Proof
+
+- **Pregunta:** ¿modelar el stack axial completo mejora el resumen de tres
+  vistas centrales sin requerir STU-Net/Colab?
+- **Cohorte:** 214 pacientes, 64 eventos; cinco hold-outs pareados de 43
+  pacientes y 13 eventos.
+- **Protocolo:** mismo cache de tokens ResNet18 congelados para attention y
+  Mamba; held-out ciego y selección exclusivamente en train.
+- **Resultado:** PCA+Cox oficial 0.7170 ± 0.0987, attention 0.7252 ± 0.0539 y
+  Mamba 0.7563 ± 0.0127. Mamba ganó 4/5 semillas frente al oficial.
+- **Limitación:** ningún IC bootstrap pareado por semilla excluyó cero. El
+  baseline reajusta con todo outer-train; las redes reservan validación para
+  early stopping y no hacen un reajuste simétrico.
+- **Decisión:** avanzar a nested repeated CV con uso simétrico de outer-train.
+  Después, integrar el riesgo visual Mamba cross-fitted en el comparador de
+  fusión convexa, sin reutilizar embeddings aprendidos con el held-out.
+- **Detalle:** `docs/resnet18_sequence_mamba_fastproof.md` y
+  `docs/resnet18_sequence_mamba_preliminary_results.md`.
+- **Artefactos:** `results_vision/resnet18_attention_mamba_fastproof/`.
+
+## Lista para la revisión final
+
+- [ ] Cada cifra agregada apunta a un CSV/JSON versionado; los artefactos a
+  nivel paciente permanecen locales y excluidos de Git.
+- [ ] Cohortes, eventos y reglas de intersección están explícitos.
+- [ ] Todo scaler, PCA, selector y modelo se ajusta únicamente con train.
+- [ ] Las comparaciones usan los mismos pacientes y splits o declaran por qué
+  no son comparables.
+- [ ] Se distingue exploración, confirmación y validación externa.
+- [ ] Los cambios de decisión conservan la razón histórica y la evidencia que
+  los motivó.
+- [ ] La integración Mamba-fusión usa riesgos cross-fitted por outer split.
+- [ ] Se revisan estabilidad, intervalos y no sólo el C-index promedio.
