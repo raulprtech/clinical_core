@@ -2,6 +2,10 @@
 
 Fecha de ejecución: 2026-08-21.
 
+Seguimiento: la evaluación con nested repeated CV y reajuste simétrico ya se
+completó. Sus resultados y límites están en
+docs/resnet18_sequence_mamba_confirmatory_results.md.
+
 ## Resultado
 
 Se descargaron y procesaron las 214 series de imagen disponibles para la

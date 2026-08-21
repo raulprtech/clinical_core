@@ -1,0 +1,75 @@
+{
+  "status": "confirmatory_nested_repeated_cv",
+  "created_at_utc": "2026-08-21T20:22:38.622363+00:00",
+  "elapsed_seconds": 874.7372917330031,
+  "cohort": {
+    "n_cases": 214,
+    "n_events": 64
+  },
+  "protocol": {
+    "outer_cv": "event-stratified repeated K-fold",
+    "outer_folds": 5,
+    "outer_repeats": 3,
+    "inner_folds": 3,
+    "epoch_selection": "median best epoch across inner folds",
+    "outer_refit": "all models reinitialized and fit on complete outer-train",
+    "official_baseline": "train-only scaler + PCA + Cox ridge",
+    "patient_clustered_bootstrap_iterations": 5000,
+    "same_outer_splits": true,
+    "same_axial_tokens_for_attention_and_mamba": true,
+    "device": "cuda"
+  },
+  "results": {
+    "official_pca_cox": {
+      "mean_pooled_repeat_cindex": 0.6432414114457576,
+      "std_across_repeats": 0.02639870340338833,
+      "per_repeat": [
+        0.6573897572753844,
+        0.6595501334349981,
+        0.6127843436268904
+      ],
+      "mean_outer_fold_cindex": 0.6462781449308385
+    },
+    "attention": {
+      "mean_pooled_repeat_cindex": 0.6957258440293134,
+      "std_across_repeats": 0.024248941295379543,
+      "per_repeat": [
+        0.6817892997839624,
+        0.7237260134705807,
+        0.6816622188333968
+      ],
+      "mean_outer_fold_cindex": 0.7077555025410092
+    },
+    "mamba": {
+      "mean_pooled_repeat_cindex": 0.7030118185284026,
+      "std_across_repeats": 0.019441308839510115,
+      "per_repeat": [
+        0.7235989325200153,
+        0.6849663235481002,
+        0.7004701995170924
+      ],
+      "mean_outer_fold_cindex": 0.7198941695118228
+    }
+  },
+  "paired_comparisons": [
+    {
+      "candidate": "mamba",
+      "reference": "official_pca_cox",
+      "mean_delta_across_repeats": 0.05977040708264499,
+      "ci95_lo": 0.015588034706299585,
+      "ci95_hi": 0.10500608673582448,
+      "bootstrap_p": 0.01,
+      "n_bootstrap": 5000
+    },
+    {
+      "candidate": "mamba",
+      "reference": "attention",
+      "mean_delta_across_repeats": 0.007285974499089298,
+      "ci95_lo": -0.01355856766858478,
+      "ci95_hi": 0.028388402326904736,
+      "bootstrap_p": 0.5076,
+      "n_bootstrap": 5000
+    }
+  ],
+  "claim_boundary": "Confirmatory internal resampling only; external generalization remains untested."
+}

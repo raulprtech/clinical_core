@@ -102,6 +102,8 @@ See [ResNet18 sequence Fast Proof](docs/resnet18_sequence_mamba_fastproof.md)
 for the paired baseline, attention-pooling and Mamba survival benchmark.
 The completed exploratory run is reported in
 [ResNet18 sequence preliminary results](docs/resnet18_sequence_mamba_preliminary_results.md).
+The symmetric nested repeated-CV follow-up is reported in
+[ResNet18 sequence confirmatory results](docs/resnet18_sequence_mamba_confirmatory_results.md).
 The append-only experiment history and review checklist are maintained in the
 [research decision log](docs/research_decision_log.md).
 

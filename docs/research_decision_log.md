@@ -76,6 +76,26 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
   `docs/resnet18_sequence_mamba_preliminary_results.md`.
 - **Artefactos:** `results_vision/resnet18_attention_mamba_fastproof/`.
 
+## 2026-08-21 — Confirmación interna con nested repeated CV
+
+- **Pregunta:** ¿la señal de Mamba sobrevive a outer CV completa y reajuste
+  simétrico de todos los modelos?
+- **Protocolo:** 5 outer folds x 3 repeticiones, 3 inner folds, selección de
+  época por mediana interna y reajuste con todo outer-train; 5,000 bootstraps
+  agrupados por paciente.
+- **Resultado OOF:** PCA+Cox 0.6432 ± 0.0264, attention 0.6957 ± 0.0242 y Mamba
+  0.7030 ± 0.0194.
+- **Comparación pareada:** Mamba - PCA+Cox +0.0598, IC95%
+  [+0.0156, +0.1050], p=0.0100. Mamba - attention +0.0073, IC95%
+  [-0.0136, +0.0284], p=0.5076.
+- **Decisión:** conservar Mamba y attention como candidatos secuenciales. No
+  afirmar que Mamba supera a attention; la evidencia sólida es a favor de la
+  tubería axial secuencial frente al resumen oficial de tres vistas.
+- **Siguiente prueba:** generar riesgos secuenciales cross-fitted dentro del
+  evaluador trimodal y medir aporte incremental frente a la fusión convexa.
+- **Detalle:** docs/resnet18_sequence_mamba_confirmatory_results.md.
+- **Artefactos agregados:** results_vision/resnet18_sequence_nested_cv/.
+
 ## Lista para la revisión final
 
 - [ ] Cada cifra agregada apunta a un CSV/JSON versionado; los artefactos a
