@@ -96,6 +96,24 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
 - **Detalle:** docs/resnet18_sequence_mamba_confirmatory_results.md.
 - **Artefactos agregados:** results_vision/resnet18_sequence_nested_cv/.
 
+## 2026-08-21 — Integración Mamba en fusión convexa
+
+- **Pregunta:** ¿la mejora visual secuencial añade señal a la fusión trimodal?
+- **Cohorte/protocolo:** mismos 210 pacientes y cinco hold-outs históricos;
+  riesgos Mamba cross-fitted dentro del outer-train y reajuste separado para el
+  held-out.
+- **Resultado:** visión Mamba 0.7265 frente a ResNet 0.6397; fusión Mamba 0.8180
+  frente a fusión ResNet 0.8111 y tabular 0.7990.
+- **Estabilidad:** Mamba visual ganó 5/5; fusión Mamba frente a ResNet tuvo
+  2 victorias, 1 empate y 2 derrotas. Ningún IC individual de esa comparación
+  excluyó cero.
+- **Decisión:** preferir Mamba como representación visual, pero mantener 0.8111
+  como referencia formal de fusión. Registrar 0.8180 como candidata
+  diagnóstica.
+- **Detalle:** docs/trimodal_mamba_fusion_results.md.
+- **Siguiente prueba local:** repeated outer CV de fusión para estabilidad de
+  pesos. STU-Net y validación externa requieren cómputo/datos adicionales.
+
 ## Lista para la revisión final
 
 - [ ] Cada cifra agregada apunta a un CSV/JSON versionado; los artefactos a

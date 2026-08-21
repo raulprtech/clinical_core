@@ -106,6 +106,7 @@ The symmetric nested repeated-CV follow-up is reported in
 [ResNet18 sequence confirmatory results](docs/resnet18_sequence_mamba_confirmatory_results.md).
 The append-only experiment history and review checklist are maintained in the
 [research decision log](docs/research_decision_log.md).
+The Mamba risk integration is summarized in [trimodal Mamba fusion results](docs/trimodal_mamba_fusion_results.md).
 
 For the complete TCGA-KIRC download, embedding-cache and three-modality run,
 see [trimodal data preparation](docs/trimodal_data_preparation.md).

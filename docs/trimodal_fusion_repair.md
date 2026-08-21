@@ -187,3 +187,15 @@ Artefactos:
 
 Las decisiones históricas y los enlaces cruzados con los experimentos de
 visión se registran también en `docs/research_decision_log.md`.
+
+## Quinta referencia: riesgo Mamba secuencial
+
+Se integró Mamba mediante riesgos cross-fitted alineados con los mismos 210
+pacientes y cinco outer splits. La visión Mamba mejoró a ResNet18 en las cinco
+seeds (0.7265 frente a 0.6397), pero la fusión convexa sólo subió de 0.8111 a
+0.8180: dos victorias, un empate y dos derrotas.
+
+Ningún intervalo bootstrap individual de fusión Mamba menos fusión ResNet
+excluyó cero. Por tanto, Mamba queda como representación visual preferida y
+candidata de fusión, mientras 0.8111 permanece como referencia formal. El
+detalle está en docs/trimodal_mamba_fusion_results.md.
