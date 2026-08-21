@@ -114,6 +114,24 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
 - **Siguiente prueba local:** repeated outer CV de fusión para estabilidad de
   pesos. STU-Net y validación externa requieren cómputo/datos adicionales.
 
+## 2026-08-21 — Outer repeated CV de fusión
+
+- **Pregunta:** ¿la ganancia diagnóstica 0.8180 vs 0.8111 es estable?
+- **Protocolo:** 5 outer folds x 3 repeticiones, Mamba cross-fitted de forma
+  anidada y 5,000 bootstraps agrupados por paciente.
+- **Resultado:** tabular 0.7892, visión ResNet 0.6327, visión Mamba 0.6774,
+  fusión ResNet 0.7841 y fusión Mamba 0.7866.
+- **Incertidumbre:** Mamba visual +0.0447, IC95% [-0.0076, +0.0995],
+  p=0.0988. Fusión Mamba - ResNet +0.0025, IC95%
+  [-0.0117, +0.0169], p=0.7328.
+- **Corrección de decisión:** el 0.8180 queda estrictamente exploratorio. No se
+  confirma ventaja de Mamba en fusión ni ventaja de la fusión sobre tabular.
+  Mamba queda como candidata visual, no como baseline formal.
+- **Pesos:** Mamba asignó en promedio 0.747 tabular, 0.080 texto y 0.173 visión.
+- **Siguiente paso local:** estudiar el outlier, sensibilidad de tokens y
+  calibración/regularización de pesos sin aumentar complejidad.
+- **Detalle:** docs/trimodal_sequence_nested_cv_results.md.
+
 ## Lista para la revisión final
 
 - [ ] Cada cifra agregada apunta a un CSV/JSON versionado; los artefactos a

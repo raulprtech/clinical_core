@@ -199,3 +199,15 @@ Ningún intervalo bootstrap individual de fusión Mamba menos fusión ResNet
 excluyó cero. Por tanto, Mamba queda como representación visual preferida y
 candidata de fusión, mientras 0.8111 permanece como referencia formal. El
 detalle está en docs/trimodal_mamba_fusion_results.md.
+
+## Sexta referencia: outer repeated CV de fusión
+
+La ventaja diagnóstica Mamba no quedó confirmada al pasar a 5 outer folds por
+3 repeticiones. Los C-index OOF fueron 0.7892 tabular, 0.7841 fusión ResNet y
+0.7866 fusión Mamba. Mamba menos ResNet fue +0.0025 con IC95%
+[-0.0117, +0.0169] y p=0.7328.
+
+La visión Mamba mantuvo una señal media mayor que ResNet (+0.0447), pero su
+intervalo también cruzó cero. La decisión vigente es no reemplazar el baseline
+de fusión ni aumentar su complejidad. Véase
+docs/trimodal_sequence_nested_cv_results.md.

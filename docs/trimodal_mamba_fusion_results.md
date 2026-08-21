@@ -2,6 +2,10 @@
 
 Fecha de ejecución: 2026-08-21.
 
+Seguimiento confirmatorio: outer repeated CV no confirmó una ventaja de la
+fusión Mamba. El resultado OOF fue 0.7866 frente a 0.7841 de ResNet y 0.7892
+tabular; detalles en docs/trimodal_sequence_nested_cv_results.md.
+
 ## Pregunta
 
 ¿La mejora de la representación visual secuencial aporta señal incremental al
@@ -74,8 +78,8 @@ interpreta el promedio de las cinco seeds como una prueba confirmatoria global.
 
 ## Decisión
 
-- Conservar Mamba como la representación visual local preferida: mejora la
-  modalidad visual en 5/5 seeds y ya tiene soporte confirmatorio unimodal.
+- Conservar Mamba como candidata visual. La evaluación posterior con outer
+  repeated CV redujo la certeza y no confirmó ventaja de fusión.
 - Mantener la fusión convexa ResNet de 0.8111 como referencia formal por ahora.
 - Registrar la fusión Mamba de 0.8180 como candidata diagnóstica, no como nuevo
   baseline: su ventaja sobre la fusión ResNet es pequeña e inestable.
