@@ -1,0 +1,37 @@
+name: LUAD frozen model contracts
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/luad-frozen-model.yml"
+      - "code/core/frozen_cox_bundle.py"
+      - "code/tools/export_luad_frozen_model.py"
+      - "code/tests/test_frozen_cox_bundle.py"
+      - "publication/luad_frozen_stage_model_v1/**"
+      - "requirements-luad.lock"
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: luad-frozen-model-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  portable-model-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-luad.lock
+      - name: Install frozen direct environment
+        run: python -m pip install -r requirements-luad.lock
+      - name: Verify portable bundle and privacy guard
+        run: python code/tests/test_frozen_cox_bundle.py
