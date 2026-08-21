@@ -132,6 +132,20 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
   calibración/regularización de pesos sin aumentar complejidad.
 - **Detalle:** docs/trimodal_sequence_nested_cv_results.md.
 
+## 2026-08-21 — Diagnóstico de estabilidad de época Mamba
+
+- **Problema:** un outer fold cayó a C-index 0.3611 con 19 épocas.
+- **Composición:** no se encontró una anomalía suficiente en CT/MR, número de
+  tokens o geometría.
+- **Inicialización:** diez seeds a 19 épocas dieron 0.4170 ± 0.0367; el problema
+  persiste y no es sólo una seed.
+- **Épocas:** con la seed original, 3 épocas dieron 0.5451 y 5 dieron 0.5313.
+- **Sensibilidad global post hoc:** cap 5 mejoró el promedio por fold +0.0173,
+  pero tuvo 7 victorias, 2 empates y 6 pérdidas.
+- **Decisión:** conservar el outlier, no adoptar el cap con la misma cohorte y
+  registrar cap 5 únicamente como hipótesis predeclarable.
+- **Detalle:** docs/mamba_epoch_stability_diagnostic.md.
+
 ## Lista para la revisión final
 
 - [ ] Cada cifra agregada apunta a un CSV/JSON versionado; los artefactos a

@@ -1,0 +1,42 @@
+{
+  "status": "posthoc_epoch_cap_sensitivity",
+  "caps": [
+    5,
+    10,
+    15
+  ],
+  "reference_mean_fold_cindex": 0.6792953550007471,
+  "aggregate": [
+    {
+      "cap": 5,
+      "mean_cindex": 0.6965614948654516,
+      "std_fold_cindex": 0.08517314653622872,
+      "mean_delta": 0.017266139864704575,
+      "wins": 7,
+      "ties": 2,
+      "losses": 6,
+      "capped_folds": 11
+    },
+    {
+      "cap": 10,
+      "mean_cindex": 0.6842640068205879,
+      "std_fold_cindex": 0.0928662306068452,
+      "mean_delta": 0.0049686518198408195,
+      "wins": 5,
+      "ties": 2,
+      "losses": 8,
+      "capped_folds": 8
+    },
+    {
+      "cap": 15,
+      "mean_cindex": 0.6747864767725135,
+      "std_fold_cindex": 0.11455859173750571,
+      "mean_delta": -0.004508878228233615,
+      "wins": 2,
+      "ties": 3,
+      "losses": 10,
+      "capped_folds": 3
+    }
+  ],
+  "claim_boundary": "Post-hoc sensitivity on an explored cohort; not a new confirmatory estimate."
+}

@@ -72,6 +72,17 @@ compatibles. Por tanto:
 - La siguiente mejora local debe enfocarse en robustez de la representación y
   calibración/selección de pesos, no en atención fusionadora adicional.
 
+## Diagnóstico del fold extremo
+
+El fold con C-index Mamba 0.3611 fue investigado sin excluirlo. Su composición
+CT/MR, longitud de tokens y geometría no explica por sí sola la caída. Diez
+inicializaciones a 19 épocas permanecieron bajas (0.4170 ± 0.0367), mientras
+3--5 épocas con la seed original mejoraron a 0.5451--0.5313.
+
+Un cap post hoc de 5 épocas mejoró el promedio por fold en +0.0173, pero perdió
+en 6 de 15 folds. No se adopta por haber sido elegido después de ver los
+resultados. El detalle está en docs/mamba_epoch_stability_diagnostic.md.
+
 ## Límites
 
 - Es validación interna repetida sobre una cohorte ya explorada.
