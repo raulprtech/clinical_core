@@ -1,0 +1,66 @@
+{
+  "schema": "clinical-core.aggregate-summary/v1",
+  "experiment_id": "nigma_tcga_luad_baseline_os_v2",
+  "cohort": {
+    "project_id": "TCGA-LUAD",
+    "parsed_cases": 522,
+    "survival_cases": 507,
+    "survival_events": 122,
+    "features": 9
+  },
+  "holdout": [
+    {
+      "protocol": "stage_model",
+      "cindex": 0.6801,
+      "standard_deviation": null
+    },
+    {
+      "protocol": "tnm_model",
+      "cindex": 0.6898,
+      "standard_deviation": null
+    },
+    {
+      "protocol": "stage_tnm_model",
+      "cindex": 0.6905,
+      "standard_deviation": null
+    }
+  ],
+  "repeated_cross_validation": [
+    {
+      "protocol": "stage_model",
+      "cindex_mean": 0.7142,
+      "cindex_standard_deviation": 0.036,
+      "folds": 15
+    },
+    {
+      "protocol": "tnm_model",
+      "cindex_mean": 0.7004,
+      "cindex_standard_deviation": 0.0362,
+      "folds": 15
+    },
+    {
+      "protocol": "stage_tnm_model",
+      "cindex_mean": 0.7121,
+      "cindex_standard_deviation": 0.038,
+      "folds": 15
+    }
+  ],
+  "internal_temporal_transport": [
+    {
+      "protocol": "stage_model",
+      "cindex": 0.7086242001163467,
+      "ipcw_cindex": 0.710403749655776
+    },
+    {
+      "protocol": "tnm_model",
+      "cindex": 0.7015706806282722,
+      "ipcw_cindex": 0.7074802293841777
+    },
+    {
+      "protocol": "stage_tnm_model",
+      "cindex": 0.7201861547411286,
+      "ipcw_cindex": 0.723896177379959
+    }
+  ],
+  "errors": []
+}

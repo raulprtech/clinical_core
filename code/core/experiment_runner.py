@@ -72,6 +72,7 @@ from core.model_utils import (
 from components.adapters.ingestion.tabular.models.linear_compact import VariantC_LinearEncoder
 from core.registry import get_imputation, get_variant, list_components
 from core.main import MultimodalPipeline, discover_modality_files
+from core.reproducibility import resolve_runtime_paths, strict_json_dump
 
 
 def validate_clinical_moment(
@@ -115,12 +116,16 @@ def compute_config_hash(config_dict: dict) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()[:8]
 
 
-def create_run_directory(config: dict, config_path: Optional[Union[str, Path]] = None) -> Path:
+def create_run_directory(
+    config: dict,
+    config_path: Optional[Union[str, Path]] = None,
+    hash_source: Optional[dict] = None,
+) -> Path:
     """Create timestamped + hashed run directory and save config into it."""
     base_dir = Path(config['output']['base_dir'])
     base_dir.mkdir(parents=True, exist_ok=True)
     
-    config_hash = compute_config_hash(config)
+    config_hash = compute_config_hash(hash_source if hash_source is not None else config)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     run_id = f"{timestamp}_{config_hash}"
     run_dir = base_dir / run_id
@@ -155,7 +160,7 @@ def create_run_directory(config: dict, config_path: Optional[Union[str, Path]] =
         'registered_components': list_components(),
     }
     with open(run_dir / "run_metadata.json", 'w') as f:
-        json.dump(metadata, f, indent=2)
+        strict_json_dump(metadata, f)
     
     return run_dir
 
@@ -3791,7 +3796,7 @@ def run_experiment(config_input: Union[str, Path, dict] = "experiment_config.yam
     Executes all enabled phases and returns a summary dictionary.
     """
     if isinstance(config_input, dict):
-        config = config_input
+        manifest_config = config_input
         config_path = None
     else:
         config_path = Path(config_input).resolve()
@@ -3799,26 +3804,19 @@ def run_experiment(config_input: Union[str, Path, dict] = "experiment_config.yam
             raise FileNotFoundError(f"Experiment config not found: {config_path}")
         
         with open(config_path) as f:
-            config = yaml.safe_load(f)
+            manifest_config = yaml.safe_load(f)
     
-    # Resolve feature_config relative to experiment_config dir if not absolute
-    feat_path = Path(config['data']['feature_config'])
-    if not feat_path.is_absolute():
-        # If we have a config_path, resolve relative to it. 
-        # Otherwise assume relative to current working directory.
-        base_dir = config_path.parent if config_path else Path.cwd()
-        feat_path = (base_dir / feat_path).resolve()
-        config['data']['feature_config'] = str(feat_path)
+    config = resolve_runtime_paths(manifest_config, config_path)
     
     verbosity = config.get('runtime', {}).get('verbosity', 'normal')
     
     # ---- Run setup ----
-    run_dir = create_run_directory(config, config_path)
+    run_dir = create_run_directory(config, config_path, hash_source=manifest_config)
     
     print("=" * 70)
     print(f"CLINICAL-CORE / TABULAR-CONN EXPERIMENT")
     print(f"Name:      {config['experiment']['name']}")
-    print(f"Hash:      {compute_config_hash(config)}")
+    print(f"Hash:      {compute_config_hash(manifest_config)}")
     print(f"Run dir:   {run_dir}")
     print("=" * 70)
     
@@ -4055,7 +4053,7 @@ def run_experiment(config_input: Union[str, Path, dict] = "experiment_config.yam
     summary['run_dir'] = str(run_dir)
     
     with open(run_dir / "summary.json", 'w') as f:
-        json.dump(summary, f, indent=2, default=str)
+        strict_json_dump(summary, f)
     
     print("\n" + "=" * 70)
     print(f"EXPERIMENT COMPLETE in {summary['runtime_seconds']}s")

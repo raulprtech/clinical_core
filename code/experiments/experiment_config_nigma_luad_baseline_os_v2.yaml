@@ -18,12 +18,12 @@ clinical_context:
   pathology_modalities: []
 
 data:
-  xml_dir: "/home/raulprtech/clinical_core/data/raw/TCGA-LUAD/clinical_supplement"
+  xml_dir: "../../data/raw/TCGA-LUAD/clinical_supplement"
   feature_config: "../components/adapters/ingestion/tabular/configs/tabular_mapping_tcga_luad_baseline_os_v2.yaml"
   drug_file: null
 
 output:
-  base_dir: "/home/raulprtech/clinical_core/results_nigma_dry_run/luad_baseline_os_v2"
+  base_dir: "../../results_nigma_dry_run/luad_baseline_os_v2"
   save_raw_extraction: false
   save_resolved_config: true
 

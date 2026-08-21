@@ -1,5 +1,32 @@
 # CLINICAL-CORE / RENAL-CORE (Modular Modality Architecture)
 
+## Active publication baseline: TCGA-LUAD
+
+The active publication-focused line is the aggregate-only TCGA-LUAD
+clinicopathologic overall-survival baseline. It is distinct from the historical
+TCGA-KIRC multimodal research described below.
+
+Reproduce the active line from the repository root:
+
+```bash
+python code/core/experiment_runner.py \
+  code/experiments/experiment_config_nigma_luad_baseline_os_v2.yaml
+```
+
+Verify the tracked publication package plus the retained local source and
+canonical run:
+
+```bash
+python code/tools/verify_luad_publication_package.py \
+  --require-data --require-run
+```
+
+The package index, aggregate summary and claim bounds are in
+`publication/luad_baseline_os_v2/`. The exact lightweight environment is
+`requirements-luad.lock`; the retention and restoration boundary is described
+in `docs/data_retention_policy.md`. External validation of the current line,
+clinical utility and prospective performance remain explicitly unclaimed.
+
 End-to-end multimodal ecosystem for CLINICAL-CORE, validated on TCGA-KIRC. This repository implements a modular, modality-centric structure based on **Hexagonal Architecture** principles, where logic and models are isolated from external interfaces via **Adapters**.
 
 ```mermaid

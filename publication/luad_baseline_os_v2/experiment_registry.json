@@ -1,0 +1,64 @@
+{
+  "schema": "clinical-core.experiment-registry/v1",
+  "updated_at": "2026-08-20",
+  "active_line": "tcga-luad-baseline-os-v2",
+  "experiments": [
+    {
+      "id": "luad-adapter-contract",
+      "commit": "f9db0da",
+      "purpose": "Freeze the TCGA-LUAD endpoint, prediction time, allowed variables and leakage controls.",
+      "evidence_class": "code_and_tests"
+    },
+    {
+      "id": "luad-source-coverage",
+      "commit": "51112df",
+      "purpose": "Audit aggregate coverage of 522 open-access TCGA-LUAD XML files.",
+      "evidence_class": "aggregate_local_evidence"
+    },
+    {
+      "id": "luad-sealed-holdout",
+      "commit": "799aa22",
+      "purpose": "Run the frozen Cox holdout without raw extraction or model persistence.",
+      "evidence_class": "aggregate_local_evidence"
+    },
+    {
+      "id": "luad-longitudinal-outcome-correction",
+      "commit": "292841a",
+      "purpose": "Use death time for events and latest longitudinal follow-up for censoring.",
+      "evidence_class": "code_and_tests"
+    },
+    {
+      "id": "luad-survival-diagnostics",
+      "commit": "a00518b",
+      "purpose": "Add censoring-aware calibration, bootstrap uncertainty and model diagnostics.",
+      "evidence_class": "code_and_aggregate_evidence"
+    },
+    {
+      "id": "luad-staging-protocols",
+      "commit": "28891c8",
+      "purpose": "Compare Stage, TNM and Stage+TNM protocols without rank-deficient duplicate encodings.",
+      "evidence_class": "code_and_aggregate_evidence"
+    },
+    {
+      "id": "luad-repeated-stability",
+      "commit": "b59a468",
+      "purpose": "Evaluate three seeds by five folds for every frozen staging protocol.",
+      "evidence_class": "code_and_aggregate_evidence"
+    },
+    {
+      "id": "luad-internal-temporal-transport",
+      "commit": "b53ecf4",
+      "purpose": "Train on diagnosis year through 2007 and validate on later cases.",
+      "evidence_class": "code_and_aggregate_evidence",
+      "interpretation": "internal_temporal_transport_not_external_validation"
+    },
+    {
+      "id": "luad-portable-strict-json-reproduction",
+      "base_commit": "b53ecf4",
+      "date": "2026-08-20",
+      "purpose": "Reproduce the complete active line with portable paths and standards-compliant JSON.",
+      "evidence_class": "current_worktree_reproduction",
+      "status": "passed"
+    }
+  ]
+}
