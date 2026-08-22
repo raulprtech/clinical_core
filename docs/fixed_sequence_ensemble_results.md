@@ -80,3 +80,11 @@ regla de escala. MR no mejora y sólo contiene 24 pacientes/11 eventos.
 Se versionan `per_fold_metrics.csv`, `per_repeat_metrics.csv`,
 `paired_cluster_bootstrap.csv`, `summary.json` y `provenance.json`.
 Las predicciones derivadas permanecen locales e ignoradas por Git.
+
+## Seguimiento leakage-safe
+
+La evaluación posterior estimó ECDF y z-score exclusivamente con outer-train.
+El ensamble percentil-train alcanzó 0.7069, delta +0.0201 frente a Mamba con
+IC95% [-0.0053, +0.0457], y ganó 10/15 folds. Pasa a candidato visual interno,
+pero no demuestra superioridad sobre Mamba ni constituye validación
+independiente. Véase `docs/train_scaled_sequence_ensemble_results.md`.

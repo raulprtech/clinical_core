@@ -204,6 +204,25 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
 - **Detalle:** docs/fixed_sequence_ensemble_results.md.
 - **Artefactos agregados:** results_vision/fixed_sequence_ensemble/.
 
+## 2026-08-21 — Ensamble con escala exclusiva de outer-train
+
+- **Pregunta:** ¿la señal del ensamble post hoc persiste con una transformación
+  aplicable sin usar la distribución held-out?
+- **Protocolo:** reajuste nested de Mamba-64 y attention-32; ECDF y z-score
+  estimados sólo con riesgos de outer-train; pesos fijos 0.5/0.5.
+- **Reproducción:** ambos riesgos base coincidieron bit por bit con la ablación
+  factorial.
+- **Resultado:** percentil-train 0.7069 frente a Mamba 0.6868; delta +0.0201,
+  IC95% [-0.0053, +0.0457], p=0.1256. Ganó 10/15 folds. Z-score-train obtuvo
+  0.7042 y crudo 0.6903.
+- **Subgrupos:** CT 0.7234 frente a 0.7076; MR 0.5484 frente a 0.5676, con sólo
+  24 casos/11 eventos.
+- **Decisión:** promover percentil-train 50/50 a mejor candidato visual interno,
+  mantener Mamba como referencia simple y predeclarar el ensamble para una
+  validación nueva. No afirmar superioridad frente a Mamba.
+- **Detalle:** docs/train_scaled_sequence_ensemble_results.md.
+- **Artefactos agregados:** results_vision/train_scaled_sequence_ensemble/.
+
 ## Lista para la revisión final
 
 - [ ] Cada cifra agregada apunta a un CSV/JSON versionado; los artefactos a
