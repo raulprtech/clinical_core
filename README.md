@@ -113,6 +113,8 @@ The paired architecture/token/position study is in
 [sequence factorial ablation](docs/sequence_factorial_ablation_results.md).
 The shared-weight directionality test is reported in
 [Mamba bidirectional ablation](docs/mamba_bidirectional_ablation_results.md).
+The post-hoc complementarity check is in
+[fixed sequence ensemble](docs/fixed_sequence_ensemble_results.md).
 
 For the complete TCGA-KIRC download, embedding-cache and three-modality run,
 see [trimodal data preparation](docs/trimodal_data_preparation.md).

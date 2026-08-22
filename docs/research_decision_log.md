@@ -186,6 +186,24 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
 - **Detalle:** docs/mamba_bidirectional_ablation_results.md.
 - **Artefactos agregados:** results_vision/mamba_bidirectional_ablation/.
 
+## 2026-08-21 — Ensamble fijo Mamba + attention
+
+- **Pregunta:** ¿un promedio 50/50 aprovecha errores complementarios de
+  Mamba-64 y attention-32, ambos sin posición?
+- **Escala:** el análisis principal promedió rangos percentiles por held-out
+  fold; riesgo crudo y z-score fueron sensibilidades predefinidas.
+- **Resultado:** rangos 0.6997 frente a Mamba 0.6868; delta +0.0129, IC95%
+  [-0.0116, +0.0364], p=0.2952. Z-score llegó a 0.7040 y crudo a 0.6903.
+- **Estabilidad:** rangos ganó 6 folds, empató 1 y perdió 8 frente a Mamba. La
+  mejora agregada depende principalmente de una repetición.
+- **Límite:** rangos/z-score usan la distribución no etiquetada del held-out y
+  son transductivos; no constituyen una estimación desplegable.
+- **Decisión:** no reemplazar Mamba ni seleccionar z-score post hoc. Conservar
+  la complementariedad como hipótesis para una evaluación con escala derivada
+  exclusivamente del outer-train.
+- **Detalle:** docs/fixed_sequence_ensemble_results.md.
+- **Artefactos agregados:** results_vision/fixed_sequence_ensemble/.
+
 ## Lista para la revisión final
 
 - [ ] Cada cifra agregada apunta a un CSV/JSON versionado; los artefactos a

@@ -103,3 +103,11 @@ La variante posterior con recorridos directo e inverso y pesos compartidos no
 mejoró la configuración seleccionada: 0.6731 frente a 0.6868, delta -0.0136,
 IC95% [-0.0313, +0.0033]. Se conserva Mamba-64 sin posición unidireccional.
 Véase `docs/mamba_bidirectional_ablation_results.md`.
+
+## Seguimiento de ensamble
+
+El promedio fijo por rangos de Mamba-64 y attention-32 alcanzó 0.6997 frente a
+0.6868 de Mamba, pero el IC95% del delta cruzó cero y el método usa la
+distribución no etiquetada del held-out para armonizar escalas. Se conserva
+como diagnóstico, no como reemplazo operativo. Véase
+`docs/fixed_sequence_ensemble_results.md`.
