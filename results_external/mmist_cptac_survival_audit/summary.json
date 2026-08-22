@@ -1,0 +1,12 @@
+{
+  "cohorts": {
+    "all_cptac": {"event_fraction": 0.185629, "events": 31, "gdc_matches": 189, "mapped_cases": 189, "median_followup_or_death_days": 1292.0, "valid_os": 167},
+    "ct": {"event_fraction": 0.08, "events": 4, "gdc_matches": 51, "mapped_cases": 51, "median_followup_or_death_days": 1475.0, "valid_os": 50},
+    "ct_and_mr": {"event_fraction": 0.0, "events": 0, "gdc_matches": 1, "mapped_cases": 1, "median_followup_or_death_days": 1472.0, "valid_os": 1},
+    "ct_or_mr": {"event_fraction": 0.074074, "events": 4, "gdc_matches": 55, "mapped_cases": 55, "median_followup_or_death_days": 1468.0, "valid_os": 54},
+    "mr": {"event_fraction": 0.0, "events": 0, "gdc_matches": 5, "mapped_cases": 5, "median_followup_or_death_days": 1174.0, "valid_os": 5}
+  },
+  "endpoint_crosscheck": {"agreements": 150, "comparable_at_12_months": 151, "disagreements": 1},
+  "audit_local_date": "2026-08-21",
+  "scope": "Aggregate snapshot; patient-level records remain under ignored data/."
+}

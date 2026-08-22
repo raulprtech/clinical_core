@@ -223,6 +223,26 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
 - **Detalle:** docs/train_scaled_sequence_ensemble_results.md.
 - **Artefactos agregados:** results_vision/train_scaled_sequence_ensemble/.
 
+## 2026-08-21 — Auditoría externa MMIST/CPTAC-CCRCC
+
+- **Pregunta:** ¿MMIST-ccRCC permite una validación externa independiente del
+  candidato visual entrenado con TCGA-KIRC?
+- **Enlace:** los 189 casos CPTAC de MMIST correspondieron con GDC CPTAC-3;
+  167 tuvieron OS derivable y 31 eventos.
+- **Intersección visual:** CT quedó en 50 casos evaluables y 4 eventos; MRI en
+  5 casos y 0 eventos. CT y MRI sólo se solapan en un paciente.
+- **Corrección del endpoint:** el target MMIST a 12 meses ocultaba tres muertes
+  CT posteriores a ese horizonte. GDC permite construir tiempo-a-evento, pero
+  cuatro eventos siguen siendo insuficientes para confirmación.
+- **Inventario TCIA posterior:** la cohorte CT conocida subió a 54 casos, 53
+  endpoints válidos y los mismos 4 eventos; no aumentó la potencia.
+- **Decisión:** excluir todo caso TCGA del test; conservar CPTAC CT sólo como
+  prueba exploratoria de transporte y no descargar DICOM con la evidencia actual.
+- **Detalle:** `docs/mmist_cptac_external_validation_audit.md`.
+- **Auditores:** `code/tools/audit_mmist_cptac_survival.py` y
+  `code/tools/audit_tcia_cptac_inventory.py`.
+- **Agregados:** `results_external/mmist_cptac_survival_audit/`.
+
 ## Lista para la revisión final
 
 - [ ] Cada cifra agregada apunta a un CSV/JSON versionado; los artefactos a

@@ -1,0 +1,21 @@
+{
+  "eligibility_crosscheck": {
+    "additional_events": 0,
+    "additional_valid_os": 2,
+    "additional_with_ct": 2,
+    "additional_within_mmist_clinical": 2,
+    "in_mmist_cptac_clinical": 57,
+    "outside_mmist_cptac_clinical": 14
+  },
+  "extended_known_ccrcc_ct": {
+    "events": 4,
+    "mapped_cases": 54,
+    "valid_os": 53
+  },
+  "tcia_api": {
+    "ct_patients": 64,
+    "mr_patients": 14,
+    "patients": 71,
+    "rtstruct_patients": 60
+  }
+}
