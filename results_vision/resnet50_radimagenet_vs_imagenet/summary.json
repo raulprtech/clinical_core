@@ -1,0 +1,202 @@
+{
+  "status": "paired_frozen_sequence_encoder_comparison",
+  "created_at_utc": "2026-08-23T03:06:58.350505+00:00",
+  "baseline_encoder": "imagenet50",
+  "candidate_encoder": "radimagenet50",
+  "cohort": {
+    "n_cases": 214,
+    "n_events": 64,
+    "outer_repeats": 3
+  },
+  "primary_comparison": "radimagenet50_ensemble_train_percentile50 vs imagenet50_ensemble_train_percentile50",
+  "paired_comparisons": [
+    {
+      "subgroup": "all",
+      "candidate": "radimagenet50_mamba",
+      "reference": "imagenet50_mamba",
+      "mean_delta_across_repeats": 0.011649087135171765,
+      "ci95_lo": -0.04731592086253746,
+      "ci95_hi": 0.0728474035332354,
+      "bootstrap_p": 0.6944,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "all",
+      "candidate": "radimagenet50_attention",
+      "reference": "imagenet50_attention",
+      "mean_delta_across_repeats": -0.00931926970813742,
+      "ci95_lo": -0.07251492103847966,
+      "ci95_hi": 0.05444724583022476,
+      "bootstrap_p": 0.7824,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "all",
+      "candidate": "radimagenet50_ensemble_train_percentile50",
+      "reference": "imagenet50_ensemble_train_percentile50",
+      "mean_delta_across_repeats": 0.01832083703986102,
+      "ci95_lo": -0.040467767827506,
+      "ci95_hi": 0.0745861030979556,
+      "bootstrap_p": 0.5372,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "all",
+      "candidate": "radimagenet50_ensemble_raw50",
+      "reference": "imagenet50_ensemble_raw50",
+      "mean_delta_across_repeats": 0.011860888719447607,
+      "ci95_lo": -0.048390724917498504,
+      "ci95_hi": 0.0748643434355157,
+      "bootstrap_p": 0.6928,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "all",
+      "candidate": "radimagenet50_ensemble_train_z50",
+      "reference": "imagenet50_ensemble_train_z50",
+      "mean_delta_across_repeats": 0.021773202863557477,
+      "ci95_lo": -0.03809336461492981,
+      "ci95_hi": 0.0815392160163736,
+      "bootstrap_p": 0.4544,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "CT",
+      "candidate": "radimagenet50_mamba",
+      "reference": "imagenet50_mamba",
+      "mean_delta_across_repeats": 0.02826916406520985,
+      "ci95_lo": -0.03405616781649842,
+      "ci95_hi": 0.09068691803833358,
+      "bootstrap_p": 0.376,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "CT",
+      "candidate": "radimagenet50_attention",
+      "reference": "imagenet50_attention",
+      "mean_delta_across_repeats": 0.004162330905306895,
+      "ci95_lo": -0.05554646524116803,
+      "ci95_hi": 0.06592362931311817,
+      "bootstrap_p": 0.8956,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "CT",
+      "candidate": "radimagenet50_ensemble_train_percentile50",
+      "reference": "imagenet50_ensemble_train_percentile50",
+      "mean_delta_across_repeats": 0.04277951208232167,
+      "ci95_lo": -0.014424248335646404,
+      "ci95_hi": 0.09909403887752932,
+      "bootstrap_p": 0.146,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "CT",
+      "candidate": "radimagenet50_ensemble_raw50",
+      "reference": "imagenet50_ensemble_raw50",
+      "mean_delta_across_repeats": 0.028789455428373228,
+      "ci95_lo": -0.033804251966689645,
+      "ci95_hi": 0.08774312771824673,
+      "bootstrap_p": 0.3764,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "CT",
+      "candidate": "radimagenet50_ensemble_train_z50",
+      "reference": "imagenet50_ensemble_train_z50",
+      "mean_delta_across_repeats": 0.04671060238177823,
+      "ci95_lo": -0.012103502169223514,
+      "ci95_hi": 0.10722201675290469,
+      "bootstrap_p": 0.1196,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "MR",
+      "candidate": "radimagenet50_mamba",
+      "reference": "imagenet50_mamba",
+      "mean_delta_across_repeats": -0.13288288288288289,
+      "ci95_lo": -0.34006492741921923,
+      "ci95_hi": 0.07711899275839336,
+      "bootstrap_p": 0.2068,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "MR",
+      "candidate": "radimagenet50_attention",
+      "reference": "imagenet50_attention",
+      "mean_delta_across_repeats": -0.10135135135135137,
+      "ci95_lo": -0.3078454715219421,
+      "ci95_hi": 0.1333675799086753,
+      "bootstrap_p": 0.3692,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "MR",
+      "candidate": "radimagenet50_ensemble_train_percentile50",
+      "reference": "imagenet50_ensemble_train_percentile50",
+      "mean_delta_across_repeats": -0.11148648648648647,
+      "ci95_lo": -0.35133534136546174,
+      "ci95_hi": 0.13949532326035538,
+      "bootstrap_p": 0.3704,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "MR",
+      "candidate": "radimagenet50_ensemble_raw50",
+      "reference": "imagenet50_ensemble_raw50",
+      "mean_delta_across_repeats": -0.12612612612612614,
+      "ci95_lo": -0.3536040932236585,
+      "ci95_hi": 0.1293041190346578,
+      "bootstrap_p": 0.3156,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "MR",
+      "candidate": "radimagenet50_ensemble_train_z50",
+      "reference": "imagenet50_ensemble_train_z50",
+      "mean_delta_across_repeats": -0.09009009009009011,
+      "ci95_lo": -0.3225038109756097,
+      "ci95_hi": 0.16369047619047616,
+      "bootstrap_p": 0.4488,
+      "n_bootstrap": 5000
+    }
+  ],
+  "fold_wins": [
+    {
+      "model": "mamba",
+      "mean_fold_delta": 0.011181313040807364,
+      "wins": 7,
+      "ties": 0,
+      "losses": 8
+    },
+    {
+      "model": "attention",
+      "mean_fold_delta": 0.02105173155762269,
+      "wins": 9,
+      "ties": 0,
+      "losses": 6
+    },
+    {
+      "model": "ensemble_train_percentile50",
+      "mean_fold_delta": 0.02053033229230051,
+      "wins": 7,
+      "ties": 0,
+      "losses": 8
+    },
+    {
+      "model": "ensemble_raw50",
+      "mean_fold_delta": 0.02201888720101745,
+      "wins": 8,
+      "ties": 1,
+      "losses": 6
+    },
+    {
+      "model": "ensemble_train_z50",
+      "mean_fold_delta": 0.01933048309497028,
+      "wins": 8,
+      "ties": 0,
+      "losses": 7
+    }
+  ],
+  "claim_boundary": "Internal same-cohort frozen representation ablation. Encoder weights and their prescribed normalization change together; external confirmation remains required."
+}

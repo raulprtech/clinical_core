@@ -142,6 +142,8 @@ class FrozenResNetMultiView(nn.Module):
         weights_dir: Optional[VolumePath] = None,
         backbone: Optional[nn.Module] = None,
         feature_dim: Optional[int] = None,
+        input_mean: Sequence[float] = (0.485, 0.456, 0.406),
+        input_std: Sequence[float] = (0.229, 0.224, 0.225),
         **_: object,
     ):
         super().__init__()
@@ -169,11 +171,15 @@ class FrozenResNetMultiView(nn.Module):
         self.weights_dir = Path(weights_dir) if weights_dir else None
         self._backbone = backbone
         self.feature_dim = int(feature_dim or (512 if backbone_name == "resnet18" else 2048))
+        input_mean = tuple(float(value) for value in input_mean)
+        input_std = tuple(float(value) for value in input_std)
+        if len(input_mean) != 3 or len(input_std) != 3 or min(input_std) <= 0:
+            raise ValueError("input_mean/input_std must contain three values and positive stds")
         self.register_buffer(
-            "imagenet_mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
+            "imagenet_mean", torch.tensor(input_mean).view(1, 3, 1, 1)
         )
         self.register_buffer(
-            "imagenet_std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
+            "imagenet_std", torch.tensor(input_std).view(1, 3, 1, 1)
         )
         if self.feature_dim > self.output_dim:
             # Match VISION-L0.5 exactly: NumPy PCG64, data-oblivious Gaussian
@@ -336,6 +342,23 @@ class FrozenResNetMultiView(nn.Module):
             embedding = features
         return F.normalize(embedding, p=2, dim=0).cpu()
 
+    def _sequence_contract_projection(self, features: torch.Tensor) -> torch.Tensor:
+        """Project wide tokens while preserving narrower native token features."""
+        if features.ndim != 2 or features.shape[1] != self.feature_dim:
+            raise ValueError(
+                f"{self.backbone_name} returned shape {tuple(features.shape)}; "
+                f"expected [tokens, {self.feature_dim}]"
+            )
+        # Historical ResNet18 sequence caches retain their native 512D output
+        # even though patient-level embeddings are padded to 768D. ResNet50 is
+        # wider than the requested contract and therefore receives the fixed
+        # data-oblivious projection.
+        if self.feature_dim > self.output_dim:
+            projected = features @ self.fixed_projection.to(features.device)
+        else:
+            projected = features
+        return F.normalize(projected, p=2, dim=1).cpu()
+
     def encode(self, volume_path: VolumePath) -> Tuple[torch.Tensor, float]:
         volume, metadata = self.loader.load(volume_path)
         inputs = self.volume_to_views(volume, str(metadata["modality"]))
@@ -355,12 +378,13 @@ class FrozenResNetMultiView(nn.Module):
     ) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, object]]:
         """Encode ordered axial 2.5D windows with the frozen backbone.
 
-        The returned features remain 512D (no patient-level padding to 768D)
-        so trainable pooling models do not waste parameters on zero columns.
+        Features wider than ``output_dim`` use the same fixed,
+        outcome-independent projection as the patient-level contract. Native
+        features narrower than that contract are preserved without padding.
         No outcomes are read or used by this operation.
         """
-        if self.backbone_name != "resnet18" or self.context != "2p5d":
-            raise ValueError("Sequence encoding is defined for ResNet18 2.5D only")
+        if self.context != "2p5d":
+            raise ValueError("Sequence encoding requires a 2.5D encoder")
         if inference_batch_size < 1:
             raise ValueError("inference_batch_size must be positive")
         volume, metadata = self.loader.load(volume_path)
@@ -380,7 +404,7 @@ class FrozenResNetMultiView(nn.Module):
                 f"{self.backbone_name} returned {features.shape[1]} features; "
                 f"expected {self.feature_dim}"
             )
-        features = F.normalize(features, p=2, dim=1)
+        features = self._sequence_contract_projection(features)
         sequence_metadata = dict(metadata)
         sequence_metadata.update({
             "original_slices": int(volume.shape[0]),
@@ -409,6 +433,13 @@ class VisionResNet50_2D(FrozenResNetMultiView):
 
     def __init__(self, **kwargs: object):
         super().__init__(backbone_name="resnet50", context="2d", **kwargs)
+
+
+class VisionResNet50_2p5D(FrozenResNetMultiView):
+    name = "vision_resnet50_2p5d"
+
+    def __init__(self, **kwargs: object):
+        super().__init__(backbone_name="resnet50", context="2p5d", **kwargs)
 
 
 class VisionResNet18_2p5D(FrozenResNetMultiView):

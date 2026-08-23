@@ -242,6 +242,26 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
 - **Artefactos:** `results_vision/resnet18_multiwindow3_train_scaled_ensemble/`
   y `results_vision/resnet18_multiwindow3_vs_single/`.
 
+## 2026-08-22 — ResNet50 RadImageNet 2.5D
+
+- **Pregunta:** ¿el preentrenamiento radiológico mejora la representación
+  secuencial antes de pasar a contexto 3D?
+- **Control:** ResNet50 ImageNet frente a ResNet50 RadImageNet; misma cohorte,
+  tokens, proyección fija 2048->512, poolers, folds, seeds y evaluación.
+- **Auditoría:** 214 pacientes/13,526 tokens por encoder, mismas series,
+  longitudes y posiciones; cero fallos.
+- **Resultado primario:** ResNet18 0.7069, ImageNet50 0.6719 y RadImageNet50
+  0.6903. Rad-ImageNet50 +0.0183, IC95% [-0.0405,+0.0746], p=0.5372;
+  Rad-ResNet18 -0.0167, IC95% [-0.0666,+0.0316], p=0.4972.
+- **Subgrupos:** RadImageNet50 CT 0.7193, prácticamente igual a ResNet18
+  0.7234; MR 0.4707 con sólo 24 casos/11 eventos.
+- **Decisión:** no promover ResNet50 ni ajustar el encoder post hoc. Mantener
+  ResNet18 single-window y cerrar la búsqueda de encoders 2D congelados grandes.
+- **Detalle:** `docs/resnet50_radimagenet_results.md`.
+- **Artefactos:** `results_vision/resnet50_imagenet_train_scaled_ensemble/`,
+  `results_vision/resnet50_radimagenet_train_scaled_ensemble/` y comparadores
+  `results_vision/resnet50_*_vs_*/`.
+
 ## 2026-08-21 — Auditoría externa MMIST/CPTAC-CCRCC
 
 - **Pregunta:** ¿MMIST-ccRCC permite una validación externa independiente del
