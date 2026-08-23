@@ -223,6 +223,25 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
 - **Detalle:** docs/train_scaled_sequence_ensemble_results.md.
 - **Artefactos agregados:** results_vision/train_scaled_sequence_ensemble/.
 
+## 2026-08-22 — CT multi-window 2.5D
+
+- **Pregunta:** ¿tres ventanas HU fijas mejoran los tokens sin pasar a 3D?
+- **Intervención:** `[-150,250]`, `[-73,304]` y `[-200,500]`; ResNet18
+  congelada, media equiponderada de features 512D y MRI sin cambio material.
+- **Auditoría:** 214 pacientes/13,526 tokens; mismas series, longitudes y
+  posiciones; 0 fallos. Coseno CT medio 0.9908.
+- **Protocolo:** mismos 5 folds x 3 repeticiones, 3 inner folds y seeds del
+  ensamble percentil-train.
+- **Resultado primario:** ensamble 0.7139 vs 0.7069 single-window; +0.0069,
+  IC95% [-0.0037,+0.0182], p=0.2052. CT +0.0073.
+- **Secundario:** attention +0.0129, IC95% [+0.0018,+0.0241], p=0.0228;
+  comparación no primaria, múltiples lecturas y magnitud menor a +0.02.
+- **Decisión:** no promover multi-window ni ajustar ventanas post hoc. Mantener
+  el ensamble single-window como referencia y pasar al encoder médico 2D.
+- **Detalle:** `docs/resnet18_multiwindow3_results.md`.
+- **Artefactos:** `results_vision/resnet18_multiwindow3_train_scaled_ensemble/`
+  y `results_vision/resnet18_multiwindow3_vs_single/`.
+
 ## 2026-08-21 — Auditoría externa MMIST/CPTAC-CCRCC
 
 - **Pregunta:** ¿MMIST-ccRCC permite una validación externa independiente del

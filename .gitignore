@@ -52,6 +52,7 @@ checkpoint/
 results_vision/**/cohort_common.csv
 results_vision/**/heldout_predictions.csv
 results_vision/**/official_pca_cox_predictions.csv
+results_vision/**/paired_predictions.csv
 results_vision/**/splits.csv
 
 # Patient-level fusion artifacts also stay local.
