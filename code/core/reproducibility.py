@@ -39,7 +39,27 @@ def resolve_runtime_paths(
         value = resolved.get(section, {}).get(key)
         if isinstance(value, str):
             resolved[section][key] = _resolve_path(value, base_dir, env)
+    for section, key in (
+        ("phase_2_text_only_nested_cv", "text_embeddings_cache"),
+        ("phase_5_multimodal", "text_embeddings_npz"),
+        ("phase_5_multimodal", "vision_embeddings_csv"),
+        ("phase_5_multimodal", "text_dir"),
+        ("phase_5_multimodal", "vision_dir"),
+    ):
+        value = resolved.get(section, {}).get(key)
+        if isinstance(value, str):
+            resolved[section][key] = _resolve_path(value, base_dir, env)
+
+    vision_params = resolved.get("phase_5_multimodal", {}).get(
+        "vision_params", {}
+    )
+    weights_dir = vision_params.get("weights_dir")
+    if isinstance(weights_dir, str):
+        vision_params["weights_dir"] = _resolve_path(
+            weights_dir, base_dir, env
+        )
     return resolved
+
 
 
 def json_safe(value: Any) -> Any:

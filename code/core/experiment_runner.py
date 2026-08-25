@@ -2880,6 +2880,33 @@ def phase_5_multimodal(
         log("[PHASE 5] DISABLED")
         return None
     
+    required_precomputed = set(
+        phase_cfg.get("required_precomputed_modalities", [])
+    )
+    unsupported_required = required_precomputed.difference(
+        phase_cfg["modalities"]
+    )
+    if unsupported_required:
+        raise ValueError(
+            "required_precomputed_modalities must be enabled: "
+            + ",".join(sorted(unsupported_required))
+        )
+    cache_fields = {
+        "text": "text_embeddings_npz",
+        "vision": "vision_embeddings_csv",
+    }
+    for modality in sorted(required_precomputed):
+        cache_field = cache_fields.get(modality)
+        if cache_field is None:
+            raise ValueError(
+                f"Unsupported required precomputed modality: {modality}"
+            )
+        cache_path = phase_cfg.get(cache_field)
+        if not cache_path or not Path(cache_path).is_file():
+            raise FileNotFoundError(
+                f"Required precomputed {modality} artifact not found: "
+                f"{cache_path or cache_field}"
+            )
     log("\n[PHASE 5] Multimodal end-to-end baseline")
     
     # Discover modality files for each case

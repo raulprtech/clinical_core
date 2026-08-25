@@ -11,7 +11,7 @@ if str(CODE_ROOT) not in sys.path:
     sys.path.insert(0, str(CODE_ROOT))
 
 from core.experiment_runner import apply_cohort_filter, phase_2_text_only_nested_cv
-from core.main import EmbeddingCache, select_cases_for_modalities
+from core.main import EmbeddingCache, MultimodalPipeline, select_cases_for_modalities
 
 
 class ModalityCohortTests(unittest.TestCase):
@@ -87,6 +87,43 @@ class ModalityCohortTests(unittest.TestCase):
         self.assertEqual(list(filtered_features.index), ['a', 'b', 'c'])
         self.assertEqual(audit['n_final'], 3)
         self.assertEqual(audit['modality_counts'], {'wsi': 2, 'mrna': 2})
+
+    def test_phase5_repeated_evaluation_is_deterministic(self):
+        config = {
+            'phase_5_multimodal': {
+                'modalities': ['tabular'],
+                'modality_dim': 2,
+                'fusion_proc': 'fusion_baseline_concat',
+                'prognosis_proc': 'prognosis_baseline_linear_cox',
+                'prognosis_epochs': 8,
+                'prognosis_patience': 3,
+                'inner_validation_fraction': 0.20,
+            }
+        }
+        pipeline = MultimodalPipeline(config)
+        targets = pd.DataFrame(
+            {
+                'survival_days': [float(index + 1) for index in range(60)],
+                'event': [index % 2 for index in range(60)],
+            },
+            index=[f'case-{index:03d}' for index in range(60)],
+        )
+        for index, case_id in enumerate(targets.index):
+            pipeline.cache.put(
+                case_id,
+                'tabular',
+                torch.tensor([float(index), float(index % 7)]),
+                1.0,
+            )
+
+        first = pipeline.evaluate_combination(
+            ['tabular'], targets, seeds=[42, 123], n_folds=3
+        )
+        second = pipeline.evaluate_combination(
+            ['tabular'], targets, seeds=[42, 123], n_folds=3
+        )
+
+        self.assertEqual(first, second)
 
 
 if __name__ == '__main__':

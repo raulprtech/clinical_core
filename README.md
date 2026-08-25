@@ -23,6 +23,23 @@ python code/tools/verify_luad_publication_package.py \
 
 The package index, aggregate summary and claim bounds are in
 `publication/luad_baseline_os_v2/`. The exact lightweight environment is
+## Prepared variant registry
+
+Prepared and frozen Clinical-Core variants are declared in
+[`variants/registry-v1.json`](variants/registry-v1.json). The catalog seals the
+source revision, entrypoints, evidence, artifact hashes, resource needs,
+scientific claim limits and downstream approvals. It contains no patient rows
+or predictions.
+
+The catalog also exposes all seven portable, configuration-ready TCGA-KIRC
+combinations of tabular, text and vision. Their setup, required
+embedding caches and evidence limits are documented in
+docs/modality_variant_configurations.md.
+
+The registry is passive: Clinical-Core does not select, approve or execute a
+variant from a request. Deterministic compatibility assessment and explanation
+belong to Clinical-Nigma; data access and scientific execution remain separate
+human approval gates.
 `requirements-luad.lock`; the retention and restoration boundary is described
 in `docs/data_retention_policy.md`. External validation of the current line,
 clinical utility and prospective performance remain explicitly unclaimed.

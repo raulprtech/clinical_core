@@ -1,0 +1,137 @@
+{
+  "schema": "clinical-core.kirc-modality-validation/v1",
+  "created_at": "2026-08-24",
+  "cohort": "TCGA-KIRC",
+  "task": "survival_analysis",
+  "endpoint": "overall_survival",
+  "prediction_time": "post_surgery",
+  "protocol": {
+    "seeds": [
+      42,
+      123,
+      456,
+      789,
+      1024
+    ],
+    "outer_folds": 5,
+    "inner_validation_fraction": 0.2,
+    "configurations": 7,
+    "executions_per_configuration_after_repair": 2
+  },
+  "source_summary": {
+    "clinical_xml_files_found": 621,
+    "clinical_xml_files_parsed": 621,
+    "extracted_cases": 537,
+    "cases_with_valid_survival": 451
+  },
+  "input_artifacts": [
+    {
+      "path": "data/embeddings/text_embeddings_TCGA-KIRC_20260528.npz",
+      "sha256": "50cb1ae0d03b278c0f94080b66ad46d06a38cf263ba56b22bb84f9f889572c1a"
+    },
+    {
+      "path": "data/embeddings/vision/vision_resnet18_2p5d_embeddings_768.csv",
+      "sha256": "fba88272d882979bf449b01b33f00f55db2efa47c27e47bf5d532012c3e1c488"
+    }
+  ],
+  "implementation": {
+    "path": "code/core/main.py",
+    "sha256": "ab1674d8e7f293821d2e414714903a63f3af0e1be70b36077afbd6bac9b9c6ea",
+    "deterministic_fold_seed": "seed * 1000 + fold"
+  },
+  "determinism_audit": {
+    "pre_repair": "failed: 7 of 7 aggregate CSV pairs differed across independent processes",
+    "cause": "Cox head Xavier initialization occurred before a fold-derived torch seed was set",
+    "repair": "set NumPy and Torch seeds immediately before each prognosis-head construction",
+    "post_repair": "passed: 7 of 7 aggregate CSV pairs are byte-identical"
+  },
+  "results": [
+    {
+      "modalities": [
+        "tabular"
+      ],
+      "n_cases": 451,
+      "cindex_mean": 0.766017284360815,
+      "cindex_std": 0.006297467508778914,
+      "aggregate_sha256": "a8fad0446f32245cd45f2d7ee9e4a7170dc2101dfc4d4a2a6474c58e30cb835c"
+    },
+    {
+      "modalities": [
+        "text"
+      ],
+      "n_cases": 441,
+      "cindex_mean": 0.6609996099561514,
+      "cindex_std": 0.022359960685687016,
+      "aggregate_sha256": "0640c6eecb5ca4fbab78a8a0b963d5309e671c8e5eeff7bced001be6d08de704"
+    },
+    {
+      "modalities": [
+        "vision"
+      ],
+      "n_cases": 214,
+      "cindex_mean": 0.6629305290631611,
+      "cindex_std": 0.007907493137846769,
+      "aggregate_sha256": "9eb161ed4f297bf05cdc44204aacba30f5338d11b4d0173e1d11c0870e1caa2a"
+    },
+    {
+      "modalities": [
+        "tabular",
+        "text"
+      ],
+      "n_cases": 441,
+      "cindex_mean": 0.7354077454427322,
+      "cindex_std": 0.007217468958798947,
+      "aggregate_sha256": "2fac22786645fc8d429b039ae863194606fc98af6c684cc8c4aeca2d7df75379"
+    },
+    {
+      "modalities": [
+        "tabular",
+        "vision"
+      ],
+      "n_cases": 214,
+      "cindex_mean": 0.7196688447735582,
+      "cindex_std": 0.022983782770700498,
+      "aggregate_sha256": "7ce368a557e0dd7f122ca85948ef48bf711a5ca997434af5170330f3d20dc4fb"
+    },
+    {
+      "modalities": [
+        "text",
+        "vision"
+      ],
+      "n_cases": 210,
+      "cindex_mean": 0.6657351629546204,
+      "cindex_std": 0.011087296341980359,
+      "aggregate_sha256": "3686b2a0ba3e4ea295109817a6af59e4dfef3c36640143e6350e6d96022d1868"
+    },
+    {
+      "modalities": [
+        "tabular",
+        "text",
+        "vision"
+      ],
+      "n_cases": 210,
+      "cindex_mean": 0.7093062868921491,
+      "cindex_std": 0.01599256007514429,
+      "aggregate_sha256": "35b30ca7b2bcfe159c504853a34c0faf896c5643b9d887a1fabcb2cdb33ed13b"
+    }
+  ],
+  "claims": {
+    "supported": [
+      "local_internal_reproduction",
+      "deterministic_aggregate_replay",
+      "exact_modality_profiles",
+      "precomputed_embedding_use"
+    ],
+    "not_supported": [
+      "external_validation",
+      "clinical_utility",
+      "prospective_validation",
+      "deployment"
+    ]
+  },
+  "privacy": {
+    "contains_patient_rows": false,
+    "contains_case_identifiers": false,
+    "contains_individual_predictions": false
+  }
+}

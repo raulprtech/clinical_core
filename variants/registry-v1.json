@@ -1,0 +1,668 @@
+{
+  "schema": "clinical-core.variant-catalog/v1",
+  "catalog_id": "clinical-core-prepared-variants",
+  "catalog_version": "1.2.1",
+  "source_repository": "clinical-core",
+  "source_revision": "dbde14fd35cc11b3612df5d38d6078c9a5e89cf6",
+  "variants": [
+    {
+      "id": "tcga-luad-baseline-os",
+      "version": "2.0.0",
+      "display_name": "TCGA-LUAD baseline overall-survival evaluation",
+      "status": "prepared",
+      "disease": "lung adenocarcinoma",
+      "cohort": "TCGA-LUAD",
+      "task_types": [
+        "survival_analysis"
+      ],
+      "operations": [
+        "evaluate"
+      ],
+      "endpoint": "overall_survival",
+      "prediction_time": "retrospective_pathology_baseline",
+      "modalities": [
+        "tabular_clinical"
+      ],
+      "required_fields": [
+        "time",
+        "event",
+        "age",
+        "gender",
+        "pathologic_stage"
+      ],
+      "resource_profile": {
+        "gpu_required": false,
+        "cpu_only": true,
+        "minimum_ram_gb": 4
+      },
+      "evidence_level": "internal_validation_complete",
+      "external_validation": false,
+      "clinical_utility": false,
+      "leakage_control": "locked",
+      "entrypoint": {
+        "type": "command",
+        "value": "python code/core/experiment_runner.py code/experiments/experiment_config_nigma_luad_baseline_os_v2.yaml"
+      },
+      "artifact_refs": [
+        {
+          "path": "code/experiments/experiment_config_nigma_luad_baseline_os_v2.yaml",
+          "sha256": "089b27e388a564c501bdf7cbdbc919e8c503076c201bbca525540223bbaec752"
+        },
+        {
+          "path": "publication/luad_baseline_os_v2/manifest.json",
+          "sha256": "444186023d23ac6228f351d37c7adf2b84a7ec1e1f4691e178d77bfa0b38871e"
+        }
+      ],
+      "evidence_refs": [
+        "publication/luad_baseline_os_v2/manifest.json",
+        "publication/luad_baseline_os_v2/REPRODUCE.md"
+      ],
+      "approvals_required": [
+        "dataset_access",
+        "scientific_execution"
+      ],
+      "claims_supported": [
+        "internal_holdout",
+        "repeated_cross_validation",
+        "internal_temporal_validation"
+      ],
+      "claims_not_supported": [
+        "external_validation",
+        "clinical_utility",
+        "prospective_validation",
+        "postoperative_deployment"
+      ]
+    },
+    {
+      "id": "tcga-luad-frozen-stage-model",
+      "version": "1.0.0",
+      "display_name": "TCGA-LUAD frozen stage Cox model",
+      "status": "frozen",
+      "disease": "lung adenocarcinoma",
+      "cohort": "TCGA-LUAD",
+      "task_types": [
+        "survival_analysis"
+      ],
+      "operations": [
+        "inference"
+      ],
+      "endpoint": "overall_survival",
+      "prediction_time": "retrospective_pathology_baseline",
+      "modalities": [
+        "tabular_clinical"
+      ],
+      "required_fields": [
+        "age",
+        "gender",
+        "race",
+        "ethnicity",
+        "pathologic_stage",
+        "pack_years_smoked"
+      ],
+      "resource_profile": {
+        "gpu_required": false,
+        "cpu_only": true,
+        "minimum_ram_gb": 2
+      },
+      "evidence_level": "frozen_development",
+      "external_validation": false,
+      "clinical_utility": false,
+      "leakage_control": "locked",
+      "entrypoint": {
+        "type": "python_function",
+        "value": "code.core.frozen_cox_bundle:predict_partial_hazard"
+      },
+      "artifact_refs": [
+        {
+          "path": "publication/luad_frozen_stage_model_v1/model.json",
+          "sha256": "e963c3f59bf47cfb6aefe729a1da2c7da1990ed97117aba27fec354f6999b8f1"
+        }
+      ],
+      "evidence_refs": [
+        "publication/luad_frozen_stage_model_v1/README.md"
+      ],
+      "approvals_required": [
+        "dataset_access",
+        "external_scoring"
+      ],
+      "claims_supported": [
+        "frozen_development_model",
+        "reproducible_local_inference"
+      ],
+      "claims_not_supported": [
+        "external_validation",
+        "clinical_utility",
+        "clinical_deployment"
+      ]
+    },
+    {
+      "id": "tcga-kirc-text-only-config",
+      "version": "1.0.0",
+      "display_name": "TCGA-KIRC text-only survival evaluation configuration",
+      "status": "configuration_ready",
+      "disease": "renal clear cell carcinoma",
+      "cohort": "TCGA-KIRC",
+      "task_types": [
+        "survival_analysis"
+      ],
+      "operations": [
+        "evaluate"
+      ],
+      "endpoint": "overall_survival",
+      "prediction_time": "post_surgery",
+      "modalities": [
+        "text"
+      ],
+      "required_fields": [
+        "survival_days",
+        "event",
+        "text_embedding"
+      ],
+      "resource_profile": {
+        "gpu_required": false,
+        "cpu_only": true,
+        "minimum_ram_gb": 4
+      },
+      "evidence_level": "internal_validation_complete",
+      "external_validation": false,
+      "clinical_utility": false,
+      "leakage_control": "locked",
+      "entrypoint": {
+        "type": "command",
+        "value": "python code/core/experiment_runner.py code/experiments/experiment_config_kirc_text_only_portable_v1.yaml"
+      },
+      "artifact_refs": [
+        {
+          "path": "code/experiments/experiment_config_kirc_text_only_portable_v1.yaml",
+          "sha256": "6b56c67643da70e056555cea77ca1b54d114a0d22bf4bd139d1eceff4f8d3b76"
+        },
+        {
+          "path": "publication/kirc_modality_profiles_v1/aggregate_validation.json",
+          "sha256": "db950a3be329de3c7d858345a8470944e668a9fb29fc6c74a376aede518cc895"
+        }
+      ],
+      "configuration_ref": {
+        "path": "code/experiments/experiment_config_kirc_text_only_portable_v1.yaml",
+        "sha256": "6b56c67643da70e056555cea77ca1b54d114a0d22bf4bd139d1eceff4f8d3b76"
+      },
+      "runtime_inputs": [
+        "CLINICAL_CORE_DATA_ROOT",
+        "CLINICAL_CORE_OUTPUT_ROOT"
+      ],
+      "evidence_refs": [
+        "publication/kirc_modality_profiles_v1/aggregate_validation.json",
+        "docs/modality_variant_configurations.md"
+      ],
+      "approvals_required": [
+        "dataset_access",
+        "scientific_execution"
+      ],
+      "claims_supported": [
+        "configuration_contract_validated",
+        "local_internal_reproduction",
+        "deterministic_aggregate_replay"
+      ],
+      "claims_not_supported": [
+        "external_validation",
+        "clinical_utility",
+        "prospective_validation",
+        "deployment"
+      ]
+    },
+    {
+      "id": "tcga-kirc-vision-only-config",
+      "version": "1.0.0",
+      "display_name": "TCGA-KIRC vision-only survival evaluation configuration",
+      "status": "configuration_ready",
+      "disease": "renal clear cell carcinoma",
+      "cohort": "TCGA-KIRC",
+      "task_types": [
+        "survival_analysis"
+      ],
+      "operations": [
+        "evaluate"
+      ],
+      "endpoint": "overall_survival",
+      "prediction_time": "post_surgery",
+      "modalities": [
+        "vision"
+      ],
+      "required_fields": [
+        "survival_days",
+        "event",
+        "vision_embedding"
+      ],
+      "resource_profile": {
+        "gpu_required": false,
+        "cpu_only": true,
+        "minimum_ram_gb": 6
+      },
+      "evidence_level": "internal_validation_complete",
+      "external_validation": false,
+      "clinical_utility": false,
+      "leakage_control": "locked",
+      "entrypoint": {
+        "type": "command",
+        "value": "python code/core/experiment_runner.py code/experiments/experiment_config_kirc_vision_only_portable_v1.yaml"
+      },
+      "artifact_refs": [
+        {
+          "path": "code/experiments/experiment_config_kirc_vision_only_portable_v1.yaml",
+          "sha256": "aea65a21b5c3cb5950c5dfac629ab6940953c864781c8482a82b789c64351ada"
+        },
+        {
+          "path": "publication/kirc_modality_profiles_v1/aggregate_validation.json",
+          "sha256": "db950a3be329de3c7d858345a8470944e668a9fb29fc6c74a376aede518cc895"
+        }
+      ],
+      "configuration_ref": {
+        "path": "code/experiments/experiment_config_kirc_vision_only_portable_v1.yaml",
+        "sha256": "aea65a21b5c3cb5950c5dfac629ab6940953c864781c8482a82b789c64351ada"
+      },
+      "runtime_inputs": [
+        "CLINICAL_CORE_DATA_ROOT",
+        "CLINICAL_CORE_OUTPUT_ROOT"
+      ],
+      "evidence_refs": [
+        "publication/kirc_modality_profiles_v1/aggregate_validation.json",
+        "docs/modality_variant_configurations.md"
+      ],
+      "approvals_required": [
+        "dataset_access",
+        "scientific_execution"
+      ],
+      "claims_supported": [
+        "configuration_contract_validated",
+        "local_internal_reproduction",
+        "deterministic_aggregate_replay"
+      ],
+      "claims_not_supported": [
+        "external_validation",
+        "clinical_utility",
+        "prospective_validation",
+        "deployment"
+      ]
+    },
+    {
+      "id": "tcga-kirc-text-vision-config",
+      "version": "1.0.0",
+      "display_name": "TCGA-KIRC text and vision survival evaluation configuration",
+      "status": "configuration_ready",
+      "disease": "renal clear cell carcinoma",
+      "cohort": "TCGA-KIRC",
+      "task_types": [
+        "survival_analysis"
+      ],
+      "operations": [
+        "evaluate"
+      ],
+      "endpoint": "overall_survival",
+      "prediction_time": "post_surgery",
+      "modalities": [
+        "text",
+        "vision"
+      ],
+      "required_fields": [
+        "survival_days",
+        "event",
+        "text_embedding",
+        "vision_embedding"
+      ],
+      "resource_profile": {
+        "gpu_required": false,
+        "cpu_only": true,
+        "minimum_ram_gb": 8
+      },
+      "evidence_level": "internal_validation_complete",
+      "external_validation": false,
+      "clinical_utility": false,
+      "leakage_control": "locked",
+      "entrypoint": {
+        "type": "command",
+        "value": "python code/core/experiment_runner.py code/experiments/experiment_config_kirc_text_vision_portable_v1.yaml"
+      },
+      "artifact_refs": [
+        {
+          "path": "code/experiments/experiment_config_kirc_text_vision_portable_v1.yaml",
+          "sha256": "a5752c611fbd0444c29e4afb5485fcd2dd8b696f0d39caab3ce3d928f84e8552"
+        },
+        {
+          "path": "publication/kirc_modality_profiles_v1/aggregate_validation.json",
+          "sha256": "db950a3be329de3c7d858345a8470944e668a9fb29fc6c74a376aede518cc895"
+        }
+      ],
+      "configuration_ref": {
+        "path": "code/experiments/experiment_config_kirc_text_vision_portable_v1.yaml",
+        "sha256": "a5752c611fbd0444c29e4afb5485fcd2dd8b696f0d39caab3ce3d928f84e8552"
+      },
+      "runtime_inputs": [
+        "CLINICAL_CORE_DATA_ROOT",
+        "CLINICAL_CORE_OUTPUT_ROOT"
+      ],
+      "evidence_refs": [
+        "publication/kirc_modality_profiles_v1/aggregate_validation.json",
+        "docs/modality_variant_configurations.md"
+      ],
+      "approvals_required": [
+        "dataset_access",
+        "scientific_execution"
+      ],
+      "claims_supported": [
+        "configuration_contract_validated",
+        "local_internal_reproduction",
+        "deterministic_aggregate_replay"
+      ],
+      "claims_not_supported": [
+        "external_validation",
+        "clinical_utility",
+        "prospective_validation",
+        "deployment"
+      ]
+    },
+    {
+      "id": "tcga-kirc-tabular-only-config",
+      "version": "1.0.0",
+      "display_name": "TCGA-KIRC tabular-only survival evaluation configuration",
+      "status": "configuration_ready",
+      "disease": "renal clear cell carcinoma",
+      "cohort": "TCGA-KIRC",
+      "task_types": [
+        "survival_analysis"
+      ],
+      "operations": [
+        "evaluate"
+      ],
+      "endpoint": "overall_survival",
+      "prediction_time": "post_surgery",
+      "modalities": [
+        "tabular"
+      ],
+      "required_fields": [
+        "survival_days",
+        "event",
+        "tabular_features"
+      ],
+      "resource_profile": {
+        "gpu_required": false,
+        "cpu_only": true,
+        "minimum_ram_gb": 4
+      },
+      "evidence_level": "internal_validation_complete",
+      "external_validation": false,
+      "clinical_utility": false,
+      "leakage_control": "locked",
+      "entrypoint": {
+        "type": "command",
+        "value": "python code/core/experiment_runner.py code/experiments/experiment_config_kirc_tabular_only_portable_v1.yaml"
+      },
+      "artifact_refs": [
+        {
+          "path": "code/experiments/experiment_config_kirc_tabular_only_portable_v1.yaml",
+          "sha256": "ffd8091995d8dda11b07095dbb27685c54ae1260c37d0384db7c2309625f1def"
+        },
+        {
+          "path": "publication/kirc_modality_profiles_v1/aggregate_validation.json",
+          "sha256": "db950a3be329de3c7d858345a8470944e668a9fb29fc6c74a376aede518cc895"
+        }
+      ],
+      "configuration_ref": {
+        "path": "code/experiments/experiment_config_kirc_tabular_only_portable_v1.yaml",
+        "sha256": "ffd8091995d8dda11b07095dbb27685c54ae1260c37d0384db7c2309625f1def"
+      },
+      "runtime_inputs": [
+        "CLINICAL_CORE_DATA_ROOT",
+        "CLINICAL_CORE_OUTPUT_ROOT"
+      ],
+      "evidence_refs": [
+        "publication/kirc_modality_profiles_v1/aggregate_validation.json",
+        "docs/modality_variant_configurations.md"
+      ],
+      "approvals_required": [
+        "dataset_access",
+        "scientific_execution"
+      ],
+      "claims_supported": [
+        "configuration_contract_validated",
+        "local_internal_reproduction",
+        "deterministic_aggregate_replay"
+      ],
+      "claims_not_supported": [
+        "external_validation",
+        "clinical_utility",
+        "prospective_validation",
+        "deployment"
+      ]
+    },
+    {
+      "id": "tcga-kirc-tabular-text-config",
+      "version": "1.0.0",
+      "display_name": "TCGA-KIRC tabular and text survival evaluation configuration",
+      "status": "configuration_ready",
+      "disease": "renal clear cell carcinoma",
+      "cohort": "TCGA-KIRC",
+      "task_types": [
+        "survival_analysis"
+      ],
+      "operations": [
+        "evaluate"
+      ],
+      "endpoint": "overall_survival",
+      "prediction_time": "post_surgery",
+      "modalities": [
+        "tabular",
+        "text"
+      ],
+      "required_fields": [
+        "survival_days",
+        "event",
+        "tabular_features",
+        "text_embedding"
+      ],
+      "resource_profile": {
+        "gpu_required": false,
+        "cpu_only": true,
+        "minimum_ram_gb": 6
+      },
+      "evidence_level": "internal_validation_complete",
+      "external_validation": false,
+      "clinical_utility": false,
+      "leakage_control": "locked",
+      "entrypoint": {
+        "type": "command",
+        "value": "python code/core/experiment_runner.py code/experiments/experiment_config_kirc_tabular_text_portable_v1.yaml"
+      },
+      "artifact_refs": [
+        {
+          "path": "code/experiments/experiment_config_kirc_tabular_text_portable_v1.yaml",
+          "sha256": "aa266373a696bdbd06623ce566c532a7cc32410192c98012cd2cf02b9650e4f2"
+        },
+        {
+          "path": "publication/kirc_modality_profiles_v1/aggregate_validation.json",
+          "sha256": "db950a3be329de3c7d858345a8470944e668a9fb29fc6c74a376aede518cc895"
+        }
+      ],
+      "configuration_ref": {
+        "path": "code/experiments/experiment_config_kirc_tabular_text_portable_v1.yaml",
+        "sha256": "aa266373a696bdbd06623ce566c532a7cc32410192c98012cd2cf02b9650e4f2"
+      },
+      "runtime_inputs": [
+        "CLINICAL_CORE_DATA_ROOT",
+        "CLINICAL_CORE_OUTPUT_ROOT"
+      ],
+      "evidence_refs": [
+        "publication/kirc_modality_profiles_v1/aggregate_validation.json",
+        "docs/modality_variant_configurations.md"
+      ],
+      "approvals_required": [
+        "dataset_access",
+        "scientific_execution"
+      ],
+      "claims_supported": [
+        "configuration_contract_validated",
+        "local_internal_reproduction",
+        "deterministic_aggregate_replay"
+      ],
+      "claims_not_supported": [
+        "external_validation",
+        "clinical_utility",
+        "prospective_validation",
+        "deployment"
+      ]
+    },
+    {
+      "id": "tcga-kirc-tabular-vision-config",
+      "version": "1.0.0",
+      "display_name": "TCGA-KIRC tabular and vision survival evaluation configuration",
+      "status": "configuration_ready",
+      "disease": "renal clear cell carcinoma",
+      "cohort": "TCGA-KIRC",
+      "task_types": [
+        "survival_analysis"
+      ],
+      "operations": [
+        "evaluate"
+      ],
+      "endpoint": "overall_survival",
+      "prediction_time": "post_surgery",
+      "modalities": [
+        "tabular",
+        "vision"
+      ],
+      "required_fields": [
+        "survival_days",
+        "event",
+        "tabular_features",
+        "vision_embedding"
+      ],
+      "resource_profile": {
+        "gpu_required": false,
+        "cpu_only": true,
+        "minimum_ram_gb": 8
+      },
+      "evidence_level": "internal_validation_complete",
+      "external_validation": false,
+      "clinical_utility": false,
+      "leakage_control": "locked",
+      "entrypoint": {
+        "type": "command",
+        "value": "python code/core/experiment_runner.py code/experiments/experiment_config_kirc_tabular_vision_portable_v1.yaml"
+      },
+      "artifact_refs": [
+        {
+          "path": "code/experiments/experiment_config_kirc_tabular_vision_portable_v1.yaml",
+          "sha256": "efd5c9ace28d05509d52146211ff0a4dfd273eabda74d87e838125a2d8fec3ee"
+        },
+        {
+          "path": "publication/kirc_modality_profiles_v1/aggregate_validation.json",
+          "sha256": "db950a3be329de3c7d858345a8470944e668a9fb29fc6c74a376aede518cc895"
+        }
+      ],
+      "configuration_ref": {
+        "path": "code/experiments/experiment_config_kirc_tabular_vision_portable_v1.yaml",
+        "sha256": "efd5c9ace28d05509d52146211ff0a4dfd273eabda74d87e838125a2d8fec3ee"
+      },
+      "runtime_inputs": [
+        "CLINICAL_CORE_DATA_ROOT",
+        "CLINICAL_CORE_OUTPUT_ROOT"
+      ],
+      "evidence_refs": [
+        "publication/kirc_modality_profiles_v1/aggregate_validation.json",
+        "docs/modality_variant_configurations.md"
+      ],
+      "approvals_required": [
+        "dataset_access",
+        "scientific_execution"
+      ],
+      "claims_supported": [
+        "configuration_contract_validated",
+        "local_internal_reproduction",
+        "deterministic_aggregate_replay"
+      ],
+      "claims_not_supported": [
+        "external_validation",
+        "clinical_utility",
+        "prospective_validation",
+        "deployment"
+      ]
+    },
+    {
+      "id": "tcga-kirc-trimodal-config",
+      "version": "1.0.0",
+      "display_name": "TCGA-KIRC tabular, text and vision survival evaluation configuration",
+      "status": "configuration_ready",
+      "disease": "renal clear cell carcinoma",
+      "cohort": "TCGA-KIRC",
+      "task_types": [
+        "survival_analysis"
+      ],
+      "operations": [
+        "evaluate"
+      ],
+      "endpoint": "overall_survival",
+      "prediction_time": "post_surgery",
+      "modalities": [
+        "tabular",
+        "text",
+        "vision"
+      ],
+      "required_fields": [
+        "survival_days",
+        "event",
+        "tabular_features",
+        "text_embedding",
+        "vision_embedding"
+      ],
+      "resource_profile": {
+        "gpu_required": false,
+        "cpu_only": true,
+        "minimum_ram_gb": 10
+      },
+      "evidence_level": "internal_validation_complete",
+      "external_validation": false,
+      "clinical_utility": false,
+      "leakage_control": "locked",
+      "entrypoint": {
+        "type": "command",
+        "value": "python code/core/experiment_runner.py code/experiments/experiment_config_kirc_trimodal_portable_v1.yaml"
+      },
+      "artifact_refs": [
+        {
+          "path": "code/experiments/experiment_config_kirc_trimodal_portable_v1.yaml",
+          "sha256": "a8f198d19d0a6da1eab23ea82f5a96c45e3a9ce41f5fa64bb0c41a810ac33cc4"
+        },
+        {
+          "path": "publication/kirc_modality_profiles_v1/aggregate_validation.json",
+          "sha256": "db950a3be329de3c7d858345a8470944e668a9fb29fc6c74a376aede518cc895"
+        }
+      ],
+      "configuration_ref": {
+        "path": "code/experiments/experiment_config_kirc_trimodal_portable_v1.yaml",
+        "sha256": "a8f198d19d0a6da1eab23ea82f5a96c45e3a9ce41f5fa64bb0c41a810ac33cc4"
+      },
+      "runtime_inputs": [
+        "CLINICAL_CORE_DATA_ROOT",
+        "CLINICAL_CORE_OUTPUT_ROOT"
+      ],
+      "evidence_refs": [
+        "publication/kirc_modality_profiles_v1/aggregate_validation.json",
+        "docs/modality_variant_configurations.md"
+      ],
+      "approvals_required": [
+        "dataset_access",
+        "scientific_execution"
+      ],
+      "claims_supported": [
+        "configuration_contract_validated",
+        "local_internal_reproduction",
+        "deterministic_aggregate_replay"
+      ],
+      "claims_not_supported": [
+        "external_validation",
+        "clinical_utility",
+        "prospective_validation",
+        "deployment"
+      ]
+    }
+  ],
+  "catalog_digest": "5b1d6db235808a9c02f1516ac025a3d5acd8eeb6e27835532ef31516afe2d95f"
+}

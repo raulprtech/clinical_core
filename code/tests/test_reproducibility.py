@@ -28,6 +28,46 @@ class ReproducibilityTests(unittest.TestCase):
             self.assertEqual(Path(resolved["data"]["xml_dir"]), Path(temporary) / "data/xml")
             self.assertEqual(source["data"]["xml_dir"], "../../data/xml")
 
+    def test_modality_paths_expand_from_environment(self):
+        source = {
+            "data": {
+                "xml_dir": "${CLINICAL_CORE_DATA_ROOT}/raw/xml",
+                "feature_config": "../schema.yaml",
+            },
+            "output": {"base_dir": "${CLINICAL_CORE_OUTPUT_ROOT}/text"},
+            "phase_2_text_only_nested_cv": {
+                "text_embeddings_cache": "${CLINICAL_CORE_DATA_ROOT}/text.npz"
+            },
+            "phase_5_multimodal": {
+                "text_embeddings_npz": "${CLINICAL_CORE_DATA_ROOT}/text.npz",
+                "vision_embeddings_csv": "${CLINICAL_CORE_DATA_ROOT}/vision.csv",
+                "text_dir": None,
+                "vision_dir": "${CLINICAL_CORE_DATA_ROOT}/images",
+                "vision_params": {
+                    "weights_dir": "${CLINICAL_CORE_DATA_ROOT}/weights"
+                },
+            },
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            resolved = resolve_runtime_paths(
+                source,
+                root / "configs" / "run.yaml",
+                {
+                    "CLINICAL_CORE_DATA_ROOT": str(root / "data"),
+                    "CLINICAL_CORE_OUTPUT_ROOT": str(root / "outputs"),
+                },
+            )
+        self.assertEqual(
+            Path(resolved["phase_5_multimodal"]["vision_embeddings_csv"]),
+            root / "data" / "vision.csv",
+        )
+        self.assertEqual(
+            Path(resolved["phase_5_multimodal"]["vision_params"]["weights_dir"]),
+            root / "data" / "weights",
+        )
+        self.assertIn("${CLINICAL_CORE_DATA_ROOT}", source["data"]["xml_dir"])
+
     def test_strict_json_replaces_all_non_finite_numbers_with_null(self):
         output = io.StringIO()
         strict_json_dump(
