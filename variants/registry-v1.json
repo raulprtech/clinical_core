@@ -1,9 +1,9 @@
 {
   "schema": "clinical-core.variant-catalog/v1",
   "catalog_id": "clinical-core-prepared-variants",
-  "catalog_version": "1.2.1",
+  "catalog_version": "1.2.2",
   "source_repository": "clinical-core",
-  "source_revision": "dbde14fd35cc11b3612df5d38d6078c9a5e89cf6",
+  "source_revision": "6199b85775c229817360774fe2434bc3bbbc51af",
   "variants": [
     {
       "id": "tcga-luad-baseline-os",
@@ -664,5 +664,5 @@
       ]
     }
   ],
-  "catalog_digest": "5b1d6db235808a9c02f1516ac025a3d5acd8eeb6e27835532ef31516afe2d95f"
+  "catalog_digest": "1b3dd01a1441115e261086016749d868d36d2571e7ea3922fd2423dbbc53cba3"
 }
