@@ -1,4 +1,4 @@
-"""Build resumable frozen STU-Net-S masks and 768D embeddings.
+"""Build resumable frozen STU-Net-S masks and volumetric embeddings.
 
 This technical-pilot runner is intentionally independent of survival splits.
 It performs deterministic FP32-checkpoint inference with mixed-precision CUDA,
@@ -9,6 +9,9 @@ embedding from the 256-channel encoder bottleneck:
 
 The three 256D vectors are concatenated and L2-normalized. Quantized variants
 must use the same pooling implementation so their embedding drift is paired.
+The runner also emits a predeclared 512D renal-moments candidate made from the
+mean and standard deviation inside the same kidney bounding-box ROI. Both
+representations are derived from one inference, so their comparison is paired.
 """
 
 from __future__ import annotations
@@ -48,6 +51,7 @@ DEFAULT_OUTPUT_ROOT = REPO_ROOT / "data/embeddings/vision/stunet_fp32_pilot"
 KIDNEY_LEFT_LABEL = 38
 KIDNEY_RIGHT_LABEL = 39
 EMBEDDING_DIM = 768
+RENAL_MOMENTS_DIM = 512
 
 
 def drop_memmap_page_cache(array: np.memmap) -> None:
@@ -463,16 +467,17 @@ class STUNetRuntime:
         upper = np.minimum(coordinates.max(axis=0) + 1 + margin_voxels, segmentation.shape)
         return tuple(slice(int(lo), int(hi)) for lo, hi in zip(lower, upper))  # type: ignore[return-value]
 
-    def _pool_embedding(
+    def _pool_embedding_variants(
         self,
         segmentation: np.ndarray,
         patch_features: list[PatchFeature],
         margin_voxels: int,
-    ) -> tuple[np.ndarray, dict[str, Any]]:
+    ) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
         roi = self._kidney_roi(segmentation, margin_voxels)
         roi_lower = np.asarray([part.start for part in roi], dtype=int)
         roi_upper = np.asarray([part.stop for part in roi], dtype=int)
         numerators = np.zeros((3, 256), dtype=np.float64)
+        squared_numerators = np.zeros((3, 256), dtype=np.float64)
         denominators = np.zeros(3, dtype=np.float64)
         gaussian = self.network._get_gaussian(self.patch_size)
 
@@ -517,28 +522,70 @@ class STUNetRuntime:
                 denominator = float(weight.sum())
                 if denominator > 0:
                     numerators[branch] += (feature * weight[None]).sum(axis=(1, 2, 3))
+                    squared_numerators[branch] += (
+                        feature.astype(np.float64) ** 2 * weight[None]
+                    ).sum(axis=(1, 2, 3))
                     denominators[branch] += denominator
 
         pooled = np.zeros((3, 256), dtype=np.float32)
+        pooled_std = np.zeros((3, 256), dtype=np.float32)
         valid = denominators > 0
         pooled[valid] = (numerators[valid] / denominators[valid, None]).astype(np.float32)
-        embedding = pooled.reshape(-1)
-        norm = float(np.linalg.norm(embedding))
-        if norm > 0:
-            embedding /= norm
+        second_moments = np.zeros((3, 256), dtype=np.float64)
+        second_moments[valid] = squared_numerators[valid] / denominators[valid, None]
+        variances = np.maximum(second_moments - pooled.astype(np.float64) ** 2, 0.0)
+        pooled_std[valid] = np.sqrt(variances[valid]).astype(np.float32)
+
+        mean_768 = pooled.reshape(-1)
+        renal_moments_512 = np.concatenate([pooled[0], pooled_std[0]])
+        variants = {
+            "mean_768": mean_768,
+            "renal_moments_512": renal_moments_512,
+        }
+        for embedding in variants.values():
+            norm = float(np.linalg.norm(embedding))
+            if norm > 0:
+                embedding /= norm
         metrics = {
-            "embedding_dim": int(embedding.size),
-            "embedding_l2_norm": float(np.linalg.norm(embedding)),
+            "embedding_dims": {
+                name: int(embedding.size) for name, embedding in variants.items()
+            },
+            "embedding_l2_norms": {
+                name: float(np.linalg.norm(embedding))
+                for name, embedding in variants.items()
+            },
             "pool_denominators": denominators.tolist(),
             "kidney_roi_preprocessed": [
                 [int(part.start), int(part.stop)] for part in roi
             ],
         }
-        if embedding.size != EMBEDDING_DIM:
-            raise ValueError(f"Expected {EMBEDDING_DIM}D embedding, got {embedding.size}")
-        return embedding, metrics
+        if mean_768.size != EMBEDDING_DIM:
+            raise ValueError(f"Expected {EMBEDDING_DIM}D embedding, got {mean_768.size}")
+        if renal_moments_512.size != RENAL_MOMENTS_DIM:
+            raise ValueError(
+                f"Expected {RENAL_MOMENTS_DIM}D renal moments, "
+                f"got {renal_moments_512.size}"
+            )
+        return variants, metrics
 
-    def run_case(
+    def _pool_embedding(
+        self,
+        segmentation: np.ndarray,
+        patch_features: list[PatchFeature],
+        margin_voxels: int,
+    ) -> tuple[np.ndarray, dict[str, Any]]:
+        """Backward-compatible historical 768D pooling API."""
+        variants, metrics = self._pool_embedding_variants(
+            segmentation, patch_features, margin_voxels
+        )
+        metrics = {
+            **metrics,
+            "embedding_dim": EMBEDDING_DIM,
+            "embedding_l2_norm": metrics["embedding_l2_norms"]["mean_768"],
+        }
+        return variants["mean_768"], metrics
+
+    def run_case_variants(
         self,
         nifti_path: Path,
         segmentation_path: Path,
@@ -562,7 +609,7 @@ class STUNetRuntime:
         segmentation, patch_features, inference_metrics = self._stream_probabilities(
             data, work_dir, logit_sketch_path=logit_sketch_path
         )
-        embedding, embedding_metrics = self._pool_embedding(
+        embeddings, embedding_metrics = self._pool_embedding_variants(
             segmentation, patch_features, margin_voxels
         )
         export_started = time.perf_counter()
@@ -600,27 +647,78 @@ class STUNetRuntime:
         del data, segmentation, patch_features, original_array
         gc.collect()
         torch.cuda.empty_cache()
-        return embedding, metrics
+        return embeddings, metrics
+
+    def run_case(
+        self,
+        nifti_path: Path,
+        segmentation_path: Path,
+        work_dir: Path,
+        roi_margin_mm: float,
+        logit_sketch_path: Path | None = None,
+        export_order: int = 1,
+        preprocessed: tuple[np.ndarray, dict[str, Any]] | None = None,
+    ) -> tuple[np.ndarray, dict[str, Any]]:
+        """Run one case and preserve the historical 768D return contract."""
+        embeddings, metrics = self.run_case_variants(
+            nifti_path,
+            segmentation_path,
+            work_dir,
+            roi_margin_mm,
+            logit_sketch_path=logit_sketch_path,
+            export_order=export_order,
+            preprocessed=preprocessed,
+        )
+        return embeddings["mean_768"], {
+            **metrics,
+            "embedding_dim": EMBEDDING_DIM,
+            "embedding_l2_norm": metrics["embedding_l2_norms"]["mean_768"],
+        }
+
+
+def marker_has_variants(path: Path) -> bool:
+    if not path.exists():
+        return False
+    try:
+        payload = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return False
+    return set(payload.get("embedding_variants", {})) == {
+        "mean_768",
+        "renal_moments_512",
+    }
 
 
 def rebuild_outputs(output_root: Path, selected: pd.DataFrame) -> tuple[int, int]:
-    rows: list[dict[str, Any]] = []
+    rows_by_variant: dict[str, list[dict[str, Any]]] = {
+        "mean_768": [],
+        "renal_moments_512": [],
+    }
     metrics_rows: list[dict[str, Any]] = []
     selected_ids = set(selected["case_id"].astype(str))
     for marker in sorted((output_root / "cases").glob("*/complete.json")):
         payload = json.loads(marker.read_text())
         if payload.get("case_id") not in selected_ids:
             continue
-        embedding = payload.pop("embedding")
-        row = {
-            "case_id": payload["case_id"],
-            "vision_available": 1,
-            "vision_confidence": payload["metrics"]["vision_confidence"],
-            "embedding_source": f"{payload['variant']}_bottleneck_roi",
-            "SeriesInstanceUID": payload["SeriesInstanceUID"],
-        }
-        row.update({f"z{idx:03d}": float(value) for idx, value in enumerate(embedding)})
-        rows.append(row)
+        embeddings = payload.get("embedding_variants")
+        if embeddings is None and "embedding" in payload:
+            embeddings = {"mean_768": payload["embedding"]}
+        for variant, embedding in embeddings.items():
+            if variant not in rows_by_variant:
+                continue
+            row = {
+                "case_id": payload["case_id"],
+                "vision_available": 1,
+                "vision_confidence": payload["metrics"]["vision_confidence"],
+                "embedding_source": (
+                    f"{payload['variant']}_bottleneck_{variant}"
+                ),
+                "SeriesInstanceUID": payload["SeriesInstanceUID"],
+            }
+            row.update(
+                {f"z{idx:03d}": float(value) for idx, value in enumerate(embedding)}
+            )
+            rows_by_variant[variant].append(row)
         metrics_rows.append(
             {
                 "case_id": payload["case_id"],
@@ -629,16 +727,21 @@ def rebuild_outputs(output_root: Path, selected: pd.DataFrame) -> tuple[int, int
                 **payload["metrics"],
             }
         )
-    pd.DataFrame(rows).sort_values("case_id").to_csv(
-        output_root / "stunet_s_fp32_embeddings_768.csv", index=False
-    ) if rows else pd.DataFrame().to_csv(
-        output_root / "stunet_s_fp32_embeddings_768.csv", index=False
-    )
-    pd.DataFrame(metrics_rows).sort_values("case_id").to_csv(
-        output_root / "metrics.csv", index=False
-    ) if metrics_rows else pd.DataFrame().to_csv(
-        output_root / "metrics.csv", index=False
-    )
+
+    filenames = {
+        "mean_768": "stunet_s_fp32_embeddings_768.csv",
+        "renal_moments_512": "stunet_s_fp32_renal_moments_512.csv",
+    }
+    for variant, rows in rows_by_variant.items():
+        frame = pd.DataFrame(rows)
+        if rows:
+            frame = frame.sort_values("case_id")
+        frame.to_csv(output_root / filenames[variant], index=False)
+    metrics_frame = pd.DataFrame(metrics_rows)
+    if metrics_rows:
+        metrics_frame = metrics_frame.sort_values("case_id")
+    metrics_frame.to_csv(output_root / "metrics.csv", index=False)
+
     failures = list((output_root / "cases").glob("*/failure.json"))
     failure_rows = [
         payload
@@ -646,7 +749,7 @@ def rebuild_outputs(output_root: Path, selected: pd.DataFrame) -> tuple[int, int
         if (payload := json.loads(path.read_text())).get("case_id") in selected_ids
     ]
     pd.DataFrame(failure_rows).to_csv(output_root / "failures.csv", index=False)
-    return len(rows), len(failure_rows)
+    return len(rows_by_variant["mean_768"]), len(failure_rows)
 
 
 def parse_args() -> argparse.Namespace:
@@ -657,6 +760,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     parser.add_argument("--limit", type=int, default=10)
     parser.add_argument("--case-ids", nargs="+")
+    parser.add_argument(
+        "--case-id-file",
+        type=Path,
+        help="CSV containing a case_id column; combined with --case-ids if provided",
+    )
     parser.add_argument("--device", choices=["auto", "cuda"], default="auto")
     parser.add_argument("--precision", choices=["fp32", "amp"], default="amp")
     parser.add_argument("--step-size", type=float, default=1.0)
@@ -670,8 +778,17 @@ def main() -> int:
     if not 0 < args.step_size <= 1:
         raise ValueError("--step-size must be in (0, 1]")
     args.output_root.mkdir(parents=True, exist_ok=True)
+    requested_case_ids = list(args.case_ids or [])
+    if args.case_id_file is not None:
+        case_id_frame = pd.read_csv(args.case_id_file)
+        if "case_id" not in case_id_frame:
+            raise ValueError("--case-id-file must contain a case_id column")
+        requested_case_ids.extend(case_id_frame["case_id"].astype(str).tolist())
     selected = select_pilot_cases(
-        args.series_manifest, args.dicom_root, args.limit, args.case_ids
+        args.series_manifest,
+        args.dicom_root,
+        args.limit,
+        requested_case_ids or None,
     )
     if selected.empty:
         raise RuntimeError("No complete CT cases matched the pilot selection")
@@ -689,6 +806,9 @@ def main() -> int:
         lambda row: (
             args.output_root / "cases" / row["case_id"] / "complete.json"
         ).exists()
+        and marker_has_variants(
+            args.output_root / "cases" / row["case_id"] / "complete.json"
+        )
         and (
             args.output_root
             / "cases"
@@ -712,7 +832,11 @@ def main() -> int:
         case_root = args.output_root / "cases" / case_id
         marker = case_root / "complete.json"
         segmentation_path = case_root / f"{case_id}_stunet_seg.nii.gz"
-        if marker.exists() and segmentation_path.exists() and not args.force:
+        if (
+            marker_has_variants(marker)
+            and segmentation_path.exists()
+            and not args.force
+        ):
             print(f"[{position}/{len(selected)}] {case_id}: cached", flush=True)
             continue
         case_root.mkdir(parents=True, exist_ok=True)
@@ -728,7 +852,7 @@ def main() -> int:
                 series_dir, str(row.SeriesInstanceUID), nifti_path
             )
             with PeakRSSMonitor() as memory:
-                embedding, metrics = runtime.run_case(
+                embeddings, metrics = runtime.run_case_variants(
                     nifti_path,
                     segmentation_path,
                     work_dir,
@@ -736,7 +860,7 @@ def main() -> int:
                 )
             metrics["peak_rss_gib"] = memory.peak_bytes / 2**30
             payload = {
-                "schema_version": 1,
+                "schema_version": 2,
                 "case_id": case_id,
                 "SeriesInstanceUID": str(row.SeriesInstanceUID),
                 "variant": f"stunet_s_weights_fp32_{args.precision}",
@@ -744,7 +868,10 @@ def main() -> int:
                 "checkpoint_sha256": checkpoint_sha256,
                 "input": input_metrics,
                 "metrics": metrics,
-                "embedding": embedding.astype(float).tolist(),
+                "embedding_variants": {
+                    name: embedding.astype(float).tolist()
+                    for name, embedding in embeddings.items()
+                },
                 "segmentation_path": str(segmentation_path.resolve()),
             }
             atomic_json_dump(payload, marker)
@@ -770,7 +897,7 @@ def main() -> int:
 
     valid, failed = rebuild_outputs(args.output_root, selected)
     provenance = {
-        "schema_version": 1,
+        "schema_version": 2,
         "built_at_unix": time.time(),
         "elapsed_seconds": time.time() - started_at,
         "series_manifest": str(args.series_manifest.resolve()),
@@ -781,8 +908,18 @@ def main() -> int:
         "n_selected": len(selected),
         "n_valid": valid,
         "n_failed": failed,
-        "embedding_definition": "GAP256(kidney_bbox+margin)||GAP256(left)||GAP256(right), L2",
-        "embedding_dim": EMBEDDING_DIM,
+        "embedding_definitions": {
+            "mean_768": (
+                "GAP256(kidney_bbox+margin)||GAP256(left)||GAP256(right), L2"
+            ),
+            "renal_moments_512": (
+                "mean256(kidney_bbox+margin)||std256(kidney_bbox+margin), L2"
+            ),
+        },
+        "embedding_dims": {
+            "mean_768": EMBEDDING_DIM,
+            "renal_moments_512": RENAL_MOMENTS_DIM,
+        },
         "step_size": args.step_size,
         "tta": False,
         "precision": args.precision,
