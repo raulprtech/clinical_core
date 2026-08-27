@@ -243,6 +243,39 @@ def convert_dicom_series(series_dir: Path, series_uid: str, output_path: Path) -
     return metrics
 
 
+def existing_nifti_metrics(
+    nifti_path: Path, row: Any
+) -> dict[str, Any]:
+    """Read only the NIfTI header when resuming after DICOM conversion."""
+    reader = sitk.ImageFileReader()
+    reader.SetFileName(str(nifti_path))
+    reader.ReadImageInformation()
+    metrics: dict[str, Any] = {
+        "dicom_series_uid": str(row.SeriesInstanceUID),
+        "dicom_slices": int(getattr(row, "ImageCount_num", 0)),
+        "input_size_xyz": [int(value) for value in reader.GetSize()],
+        "input_spacing_xyz_mm": [float(value) for value in reader.GetSpacing()],
+        "nifti_storage_dtype": sitk.GetPixelIDValueAsString(reader.GetPixelIDValue()),
+        "input_reused_from_existing_nifti": True,
+        "hu_percentiles_available": False,
+    }
+    geometry_fields = (
+        "geometry_qc",
+        "geometry_positions",
+        "duplicate_slice_positions",
+        "slice_spacing_median_mm",
+        "slice_spacing_min_mm",
+        "slice_spacing_max_mm",
+        "slice_gap_ratio",
+        "slice_min_gap_ratio",
+    )
+    for field in geometry_fields:
+        value = getattr(row, field, None)
+        if value is not None and not pd.isna(value):
+            metrics[field] = value.item() if hasattr(value, "item") else value
+    return metrics
+
+
 @dataclass
 class PatchFeature:
     starts: tuple[int, int, int]
@@ -770,6 +803,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--step-size", type=float, default=1.0)
     parser.add_argument("--roi-margin-mm", type=float, default=30.0)
     parser.add_argument("--force", action="store_true")
+    parser.add_argument(
+        "--reuse-existing-input",
+        action="store_true",
+        help=(
+            "Reuse an existing case input NIfTI when no complete marker exists; "
+            "intended for resuming after an interrupted DICOM conversion"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -802,26 +843,6 @@ def main() -> int:
         flush=True,
     )
 
-    cached = selected.apply(
-        lambda row: (
-            args.output_root / "cases" / row["case_id"] / "complete.json"
-        ).exists()
-        and marker_has_variants(
-            args.output_root / "cases" / row["case_id"] / "complete.json"
-        )
-        and (
-            args.output_root
-            / "cases"
-            / row["case_id"]
-            / f"{row['case_id']}_stunet_seg.nii.gz"
-        ).exists(),
-        axis=1,
-    )
-    if bool(cached.all()) and not args.force:
-        valid, failed = rebuild_outputs(args.output_root, selected)
-        print(f"Pilot already complete: valid={valid}, failed={failed}", flush=True)
-        return 0 if valid == len(selected) and failed == 0 else 1
-
     runtime = STUNetRuntime(
         args.model_root, args.device, args.step_size, args.precision
     )
@@ -845,12 +866,22 @@ def main() -> int:
         series_dir = args.dicom_root / case_id / str(row.SeriesInstanceUID)
         nifti_path = case_root / "input" / f"{case_id}_0000.nii.gz"
         work_dir = case_root / "work"
-        print(f"[{position}/{len(selected)}] {case_id}: converting DICOM", flush=True)
+        reuse_existing = (
+            args.reuse_existing_input and nifti_path.exists() and not args.force
+        )
+        action = "reusing converted NIfTI" if reuse_existing else "converting DICOM"
+        print(f"[{position}/{len(selected)}] {case_id}: {action}", flush=True)
         try:
             shutil.rmtree(work_dir, ignore_errors=True)
-            input_metrics = convert_dicom_series(
-                series_dir, str(row.SeriesInstanceUID), nifti_path
-            )
+            input_metrics_path = nifti_path.parent / "input_metrics.json"
+            if reuse_existing:
+                input_metrics = existing_nifti_metrics(nifti_path, row)
+            else:
+                input_metrics = convert_dicom_series(
+                    series_dir, str(row.SeriesInstanceUID), nifti_path
+                )
+            atomic_json_dump(input_metrics, input_metrics_path)
+            gc.collect()
             with PeakRSSMonitor() as memory:
                 embeddings, metrics = runtime.run_case_variants(
                     nifti_path,

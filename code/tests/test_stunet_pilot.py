@@ -1,4 +1,5 @@
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -6,6 +7,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
+import SimpleITK as sitk
 
 
 CODE_ROOT = Path(__file__).resolve().parents[1]
@@ -17,6 +19,7 @@ from tools.build_stunet_embeddings import (  # noqa: E402
     STUNetRuntime,
     dicom_geometry_metrics,
     evenly_spaced_rows,
+    existing_nifti_metrics,
 )
 
 
@@ -34,6 +37,27 @@ class STUNetPilotTests(unittest.TestCase):
             [(part.start, part.stop) for part in roi],
             [(0, 8), (7, 17), (32, 40)],
         )
+
+    def test_existing_nifti_metrics_reads_header_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "case.nii.gz"
+            image = sitk.Image([2, 3, 4], sitk.sitkInt16)
+            image.SetSpacing([0.7, 0.8, 1.5])
+            sitk.WriteImage(image, str(path))
+            row = SimpleNamespace(
+                SeriesInstanceUID="1.2.3",
+                ImageCount_num=4,
+                geometry_qc="pass",
+            )
+            metrics = existing_nifti_metrics(path, row)
+
+        self.assertEqual(metrics["dicom_series_uid"], "1.2.3")
+        self.assertEqual(metrics["input_size_xyz"], [2, 3, 4])
+        np.testing.assert_allclose(
+            metrics["input_spacing_xyz_mm"], [0.7, 0.8, 1.5], atol=1e-6
+        )
+        self.assertEqual(metrics["nifti_storage_dtype"], "16-bit signed integer")
+        self.assertTrue(metrics["input_reused_from_existing_nifti"])
 
     def test_volumetric_moments_capture_dispersion_and_keep_legacy_api(self):
         runtime = STUNetRuntime.__new__(STUNetRuntime)
