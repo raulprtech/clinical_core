@@ -295,3 +295,27 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
   los motivó.
 - [ ] La integración Mamba-fusión usa riesgos cross-fitted por outer split.
 - [ ] Se revisan estabilidad, intervalos y no sólo el C-index promedio.
+
+## 2026-08-27 — Pooling volumétrico STU-Net y fusión trimodal
+
+- **Pregunta:** ¿conservar dispersión volumétrica del bottleneck renal mejora
+  STU-Net y su aporte multimodal frente a tres medias regionales?
+- **Representación:** `renal_moments_512` = media256 + desviación estándar256
+  en ROI renal; pesos STU-Net-S congelados.
+- **Protocolo visual:** 75 casos/20 eventos, 5 folds x 5 repeticiones, nested
+  PCA+ridge Cox.
+- **Resultado visual inicial:** 0.6911 vs 0.5379 por rangos OOF; delta +0.1531,
+  IC95% [+0.0250,+0.2922].
+- **Protocolo trimodal:** intersección de 72 casos/20 eventos; mismos 5x5 outer
+  folds, 3 inner folds, riesgos cross-fitted y pesos convexos train-only.
+- **Resultado trimodal:** visión 0.7531 vs 0.5734; +0.1797, IC95%
+  [+0.0747,+0.2800]. Fusión 0.7825 vs 0.7567; +0.0258, IC95%
+  [-0.0060,+0.0599]. Fusión moments vs tabular +0.0061, IC95%
+  [-0.0372,+0.0540].
+- **Decisión:** promover `renal_moments_512` como representación visual, pero no
+  afirmar mejora multimodal ni superioridad sobre tabular. Predeclarar una
+  ablación bimodal tabular+moments sin texto.
+- **Detalle:** `docs/stunet_volumetric_pooling_pilot.md` y
+  `docs/stunet_trimodal_pooling_results.md`.
+- **Artefactos agregados:** `results_vision/stunet_volumetric_pooling_nested_75/`
+  y `results_vision/stunet_trimodal_pooling_nested_72/`.
