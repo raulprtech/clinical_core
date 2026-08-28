@@ -322,3 +322,24 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
 - **Artefactos agregados:** `results_vision/stunet_volumetric_pooling_nested_75/`
   `results_vision/stunet_trimodal_pooling_nested_72/` y
   `results_vision/stunet_bimodal_moments_nested_72/`.
+
+## 2026-08-27 — Separación del contexto ResNet18 2.5D
+
+- **Pregunta predeclarada:** ¿separar los canales vecinos `±2` o `±4` cortes
+  mejora Mamba frente al contexto adyacente `±1`?
+- **Control:** mismas 214 series, 64 eventos, ResNet18 congelada, ventana renal,
+  64 tokens, Mamba-64 sin posición, splits y semillas.
+- **Reproducción:** las 642 predicciones OOF de `span1` coincidieron bit por bit
+  con la ablación factorial histórica.
+- **Resultado:** `span1` 0.6868, `span2` 0.6536 y `span4` 0.6466.
+  `span2-span1` -0.0332, IC95% [-0.0675,+0.0006], p=0.0548;
+  `span4-span1` -0.0402, IC95% [-0.0840,+0.0020], p=0.0632.
+- **Estabilidad:** `span2` ganó 5/15 folds y `span4` 6/15; la separación amplia
+  aumentó la DE entre repeticiones a 0.0448.
+- **Decisión:** conservar `[-1,0,+1]` y cerrar variaciones adicionales de
+  separación 2.5D en esta cohorte. No afirmar daño confirmatorio porque ambos
+  intervalos rozan cero.
+- **Detalle:** `docs/resnet18_2p5d_context_span_protocol.md` y
+  `docs/resnet18_2p5d_context_span_results.md`.
+- **Artefactos agregados:**
+  `results_vision/resnet18_2p5d_context_span_nested/`.

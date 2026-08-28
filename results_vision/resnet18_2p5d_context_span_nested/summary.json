@@ -1,0 +1,180 @@
+{
+  "status": "resnet18_2p5d_context_span_nested_repeated_cv",
+  "created_at_utc": "2026-08-28T01:01:59.635404+00:00",
+  "elapsed_seconds": 1566.7035331980005,
+  "cohort": {
+    "n_cases": 214,
+    "n_events": 64,
+    "n_ct": 190,
+    "events_ct": 53,
+    "n_mr": 24,
+    "events_mr": 11
+  },
+  "protocol": {
+    "outer_folds": 5,
+    "outer_repeats": 3,
+    "inner_folds": 3,
+    "outer_refit": true,
+    "architecture": "mamba",
+    "tokens": 64,
+    "use_position": false,
+    "slice_spans": [
+      1,
+      2,
+      4
+    ],
+    "patient_clustered_bootstrap_iterations": 5000,
+    "device": "cuda"
+  },
+  "ranking": [
+    {
+      "configuration": "span1",
+      "mean_cindex": 0.6867878171728724
+    },
+    {
+      "configuration": "span2",
+      "mean_cindex": 0.6535773287584191
+    },
+    {
+      "configuration": "span4",
+      "mean_cindex": 0.646587876477316
+    }
+  ],
+  "results": {
+    "span1": {
+      "all": {
+        "mean_pooled_repeat_cindex": 0.6867878171728724,
+        "std_across_repeats": 0.009998560350795238,
+        "per_repeat": [
+          0.695386961494472,
+          0.6758164951073834,
+          0.6891599949167619
+        ],
+        "n_cases_per_repeat": 214,
+        "events_per_repeat": 64
+      },
+      "ct": {
+        "mean_pooled_repeat_cindex": 0.7075962539021852,
+        "std_across_repeats": 0.01815892224411656,
+        "per_repeat": [
+          0.7282344779743323,
+          0.7004856052722858,
+          0.6940686784599376
+        ],
+        "n_cases_per_repeat": 190,
+        "events_per_repeat": 53
+      },
+      "mr": {
+        "mean_pooled_repeat_cindex": 0.5675675675675675,
+        "std_across_repeats": 0.05405405405405406,
+        "per_repeat": [
+          0.5135135135135135,
+          0.5675675675675675,
+          0.6216216216216216
+        ],
+        "n_cases_per_repeat": 24,
+        "events_per_repeat": 11
+      }
+    },
+    "span2": {
+      "all": {
+        "mean_pooled_repeat_cindex": 0.6535773287584191,
+        "std_across_repeats": 0.019021433210896083,
+        "per_repeat": [
+          0.6751810903545559,
+          0.6462066336256195,
+          0.639344262295082
+        ],
+        "n_cases_per_repeat": 214,
+        "events_per_repeat": 64
+      },
+      "ct": {
+        "mean_pooled_repeat_cindex": 0.6816973060469419,
+        "std_across_repeats": 0.014439929753094445,
+        "per_repeat": [
+          0.6973638570933056,
+          0.668921262573708,
+          0.678806798473812
+        ],
+        "n_cases_per_repeat": 190,
+        "events_per_repeat": 53
+      },
+      "mr": {
+        "mean_pooled_repeat_cindex": 0.4594594594594595,
+        "std_across_repeats": 0.013513513513513514,
+        "per_repeat": [
+          0.47297297297297297,
+          0.4594594594594595,
+          0.44594594594594594
+        ],
+        "n_cases_per_repeat": 24,
+        "events_per_repeat": 11
+      }
+    },
+    "span4": {
+      "all": {
+        "mean_pooled_repeat_cindex": 0.646587876477316,
+        "std_across_repeats": 0.044763351630349606,
+        "per_repeat": [
+          0.5951200914982844,
+          0.6681916380734528,
+          0.6764518998602109
+        ],
+        "n_cases_per_repeat": 214,
+        "events_per_repeat": 64
+      },
+      "ct": {
+        "mean_pooled_repeat_cindex": 0.6766100127182333,
+        "std_across_repeats": 0.040051672320879625,
+        "per_repeat": [
+          0.6304197016996185,
+          0.6977107180020812,
+          0.7016996184530003
+        ],
+        "n_cases_per_repeat": 190,
+        "events_per_repeat": 53
+      },
+      "mr": {
+        "mean_pooled_repeat_cindex": 0.4527027027027027,
+        "std_across_repeats": 0.11877294480572263,
+        "per_repeat": [
+          0.31756756756756754,
+          0.5,
+          0.5405405405405406
+        ],
+        "n_cases_per_repeat": 24,
+        "events_per_repeat": 11
+      }
+    }
+  },
+  "paired_comparisons": [
+    {
+      "candidate": "span2",
+      "reference": "span1",
+      "mean_delta_across_repeats": -0.03321048841445332,
+      "ci95_lo": -0.06750397127056658,
+      "ci95_hi": 0.0005621763187591483,
+      "bootstrap_p": 0.0548,
+      "n_bootstrap": 5000
+    },
+    {
+      "candidate": "span4",
+      "reference": "span1",
+      "mean_delta_across_repeats": -0.0401999406955564,
+      "ci95_lo": -0.08401677483191383,
+      "ci95_hi": 0.002007913960133926,
+      "bootstrap_p": 0.0632,
+      "n_bootstrap": 5000
+    },
+    {
+      "candidate": "span4",
+      "reference": "span2",
+      "mean_delta_across_repeats": -0.006989452281103074,
+      "ci95_lo": -0.03886900745592117,
+      "ci95_hi": 0.026268063232354717,
+      "bootstrap_p": 0.708,
+      "n_bootstrap": 5000
+    }
+  ],
+  "claim_boundary": "Predeclared internal ablation on a reused cohort; external validation required."
+}

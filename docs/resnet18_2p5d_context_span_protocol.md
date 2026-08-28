@@ -41,3 +41,8 @@ media de forma post hoc.
 Esta es una ablación interna exploratoria sobre una cohorte reutilizada. Aun si
 una variante supera el umbral, necesitará validación externa antes de una
 afirmación confirmatoria.
+
+## Estado
+
+Ejecutado. El resultado y la decisión están documentados en
+`docs/resnet18_2p5d_context_span_results.md`.
