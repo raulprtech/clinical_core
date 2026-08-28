@@ -46,6 +46,23 @@ class VisionSequenceTests(unittest.TestCase):
         self.assertAlmostEqual(float(positions[-1]), 1.0)
         self.assertFalse(torch.allclose(raw[1, 0], raw[1, 1]))
 
+    def test_axial_sequence_honors_wider_symmetric_slice_context(self):
+        volume = np.indices((9, 4, 5))[0].astype(np.float32)
+        model = VisionResNet18_2p5D(
+            use_imagenet_weights=False,
+            image_size=8,
+            window_low=0,
+            window_high=8,
+            slice_offsets=[-2, 0, 2],
+            backbone=_SmallBackbone(),
+            feature_dim=4,
+        )
+        images, _ = model.volume_to_axial_sequence(volume, max_tokens=3)
+        raw = images * model.imagenet_std + model.imagenet_mean
+        center_channels = raw[1].mean(dim=(1, 2))
+        expected = torch.tensor([2.0, 4.0, 6.0]) / 8.0
+        self.assertTrue(torch.allclose(center_channels, expected, atol=1e-6))
+
     def test_attention_ignores_padded_tokens(self):
         torch.manual_seed(3)
         model = AttentionSequenceSurvival(

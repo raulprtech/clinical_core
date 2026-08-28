@@ -70,6 +70,15 @@ def main() -> int:
     parser.add_argument("--weights-dir", type=Path, default=Path("data/models/torch"))
     parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
     parser.add_argument("--max-tokens", type=int, default=64)
+    parser.add_argument(
+        "--slice-span",
+        type=int,
+        default=1,
+        help=(
+            "Symmetric 2.5D channel separation in slice indices; "
+            "1 produces [-1, 0, 1], 2 produces [-2, 0, 2], etc."
+        ),
+    )
     parser.add_argument("--inference-batch-size", type=int, default=32)
     parser.add_argument("--storage-dtype", choices=["float16", "float32"], default="float16")
     parser.add_argument("--force", action="store_true")
@@ -77,6 +86,9 @@ def main() -> int:
 
     if args.max_tokens < 2:
         raise ValueError("--max-tokens must be at least 2")
+    if args.slice_span < 1:
+        raise ValueError("--slice-span must be positive")
+    slice_offsets = [-args.slice_span, 0, args.slice_span]
     selected = pd.read_csv(args.series_manifest)
     required = {"case_id", "SeriesInstanceUID"}
     missing = required - set(selected.columns)
@@ -96,7 +108,7 @@ def main() -> int:
         window_low=-150,
         window_high=250,
         min_slices=16,
-        slice_offsets=[-1, 0, 1],
+        slice_offsets=slice_offsets,
         device=args.device,
         weights_dir=args.weights_dir.resolve(),
     )
@@ -162,7 +174,9 @@ def main() -> int:
     provenance = {
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "encoder": "torchvision ResNet18 ImageNet1K V1, frozen",
-        "context": "ordered axial 2.5D windows [-1, 0, 1]",
+        "context": f"ordered axial 2.5D windows {slice_offsets}",
+        "slice_span": args.slice_span,
+        "slice_offsets": slice_offsets,
         "sampling": "uniform inclusive endpoints",
         "max_tokens": args.max_tokens,
         "feature_dim": 512,
