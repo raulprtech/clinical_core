@@ -74,6 +74,25 @@ casos, 11 eventos y alta variabilidad.
 
 ## Reproducción
 
+Primero se regeneran los dos cachés outcome-independent (el caché `span1` es la
+referencia histórica):
+
+~~~bash
+.venv/bin/python -u code/tools/build_resnet_sequence_embeddings.py \
+  --series-manifest data/manifests/tcia_kirc/series_selected.csv \
+  --dicom-dir data/raw/tcia_kirc_dicom \
+  --output-dir data/embeddings/vision/resnet18_2p5d_sequences_span2 \
+  --weights-dir data/models/torch --device cuda --max-tokens 64 --slice-span 2
+
+.venv/bin/python -u code/tools/build_resnet_sequence_embeddings.py \
+  --series-manifest data/manifests/tcia_kirc/series_selected.csv \
+  --dicom-dir data/raw/tcia_kirc_dicom \
+  --output-dir data/embeddings/vision/resnet18_2p5d_sequences_span4 \
+  --weights-dir data/models/torch --device cuda --max-tokens 64 --slice-span 4
+~~~
+
+Después se ejecuta la evaluación nested pareada:
+
 ~~~bash
 .venv/bin/python -u code/tools/evaluate_2p5d_context_span_ablation.py \
   --span1-dir data/embeddings/vision/resnet18_2p5d_sequences \
