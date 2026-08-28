@@ -313,9 +313,12 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
   [-0.0060,+0.0599]. Fusión moments vs tabular +0.0061, IC95%
   [-0.0372,+0.0540].
 - **Decisión:** promover `renal_moments_512` como representación visual, pero no
-  afirmar mejora multimodal ni superioridad sobre tabular. Predeclarar una
-  ablación bimodal tabular+moments sin texto.
+  afirmar mejora multimodal ni superioridad sobre tabular.
+- **Ablación bimodal predeclarada:** tabular+moments obtuvo 0.7890 frente a
+  0.7825 trimodal; +0.0065, IC95% [-0.0075,+0.0209]. Ganó 4 folds, empató 20 y
+  perdió 1. Se acepta como simplificación parsimoniosa sin superioridad confirmada.
 - **Detalle:** `docs/stunet_volumetric_pooling_pilot.md` y
   `docs/stunet_trimodal_pooling_results.md`.
 - **Artefactos agregados:** `results_vision/stunet_volumetric_pooling_nested_75/`
-  y `results_vision/stunet_trimodal_pooling_nested_72/`.
+  `results_vision/stunet_trimodal_pooling_nested_72/` y
+  `results_vision/stunet_bimodal_moments_nested_72/`.

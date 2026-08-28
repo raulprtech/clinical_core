@@ -50,6 +50,7 @@ MODEL_NAMES = (
     "vision_moments",
     "fusion_mean",
     "fusion_moments",
+    "fusion_bimodal_moments",
 )
 
 
@@ -77,6 +78,13 @@ def repeat_metrics(predictions: pd.DataFrame) -> pd.DataFrame:
         )
         row["delta_fusion_moments_minus_tabular"] = (
             row["cindex_fusion_moments"] - row["cindex_tabular"]
+        )
+        row["delta_bimodal_minus_trimodal_moments"] = (
+            row["cindex_fusion_bimodal_moments"]
+            - row["cindex_fusion_moments"]
+        )
+        row["delta_bimodal_minus_tabular"] = (
+            row["cindex_fusion_bimodal_moments"] - row["cindex_tabular"]
         )
         rows.append(row)
     return pd.DataFrame(rows)
@@ -121,6 +129,25 @@ def fit_outer_modality(
         "inner_cindex": float(inner_cindex),
     }
     return oof, heldout_percentile, metadata
+
+
+def select_bimodal_weights(
+    oof_risks: np.ndarray,
+    survival: np.ndarray,
+    events: np.ndarray,
+    step: float,
+) -> tuple[np.ndarray, float]:
+    units = int(round(1.0 / step))
+    rows = []
+    for tabular_units in range(units + 1):
+        weights = np.asarray(
+            [tabular_units, units - tabular_units], dtype=np.float64
+        ) / units
+        score = cindex(survival, events, oof_risks @ weights)
+        nonzero = int((weights > 0).sum())
+        rows.append((score, -nonzero, weights[0], weights))
+    rows.sort(key=lambda item: item[:3], reverse=True)
+    return rows[0][3], float(rows[0][0])
 
 
 def main() -> int:
@@ -250,6 +277,12 @@ def main() -> int:
                     heldout_risk["vision_moments"],
                 ]
             )
+            bimodal_train = np.column_stack(
+                [oof["tabular"], oof["vision_moments"]]
+            )
+            bimodal_test = np.column_stack(
+                [heldout_risk["tabular"], heldout_risk["vision_moments"]]
+            )
             mean_weights, mean_fusion_inner = select_fusion_weights(
                 mean_train,
                 survival[outer_train],
@@ -262,6 +295,12 @@ def main() -> int:
                 events[outer_train],
                 args.weight_step,
             )
+            bimodal_weights, bimodal_fusion_inner = select_bimodal_weights(
+                bimodal_train,
+                survival[outer_train],
+                events[outer_train],
+                args.weight_step,
+            )
             risks = {
                 "tabular": heldout_risk["tabular"],
                 "text": heldout_risk["text"],
@@ -269,6 +308,7 @@ def main() -> int:
                 "vision_moments": heldout_risk["vision_moments"],
                 "fusion_mean": mean_test @ mean_weights,
                 "fusion_moments": moments_test @ moments_weights,
+                "fusion_bimodal_moments": bimodal_test @ bimodal_weights,
             }
             scores = {
                 name: cindex(survival[heldout], events[heldout], risk)
@@ -292,14 +332,23 @@ def main() -> int:
                 "delta_fusion_moments_minus_tabular": (
                     scores["fusion_moments"] - scores["tabular"]
                 ),
+                "delta_bimodal_minus_trimodal_moments": (
+                    scores["fusion_bimodal_moments"] - scores["fusion_moments"]
+                ),
+                "delta_bimodal_minus_tabular": (
+                    scores["fusion_bimodal_moments"] - scores["tabular"]
+                ),
                 "mean_weight_tabular": float(mean_weights[0]),
                 "mean_weight_text": float(mean_weights[1]),
                 "mean_weight_vision": float(mean_weights[2]),
                 "moments_weight_tabular": float(moments_weights[0]),
                 "moments_weight_text": float(moments_weights[1]),
                 "moments_weight_vision": float(moments_weights[2]),
+                "bimodal_weight_tabular": float(bimodal_weights[0]),
+                "bimodal_weight_vision": float(bimodal_weights[1]),
                 "mean_fusion_inner_cindex": float(mean_fusion_inner),
                 "moments_fusion_inner_cindex": float(moments_fusion_inner),
+                "bimodal_fusion_inner_cindex": float(bimodal_fusion_inner),
             }
             for name, metadata in modality_metadata.items():
                 row[f"{name}_pca_dim"] = metadata["pca_dim"]
@@ -341,7 +390,9 @@ def main() -> int:
                 f"{scores['vision_moments']:.4f} "
                 f"fusion(mean/moments)={scores['fusion_mean']:.4f}/"
                 f"{scores['fusion_moments']:.4f} "
-                f"weights_moments={moments_weights.tolist()}",
+                f"bimodal={scores['fusion_bimodal_moments']:.4f} "
+                f"weights_moments={moments_weights.tolist()} "
+                f"weights_bimodal={bimodal_weights.tolist()}",
                 flush=True,
             )
 
@@ -355,6 +406,9 @@ def main() -> int:
             ("fusion_moments", "fusion_mean"),
             ("fusion_moments", "tabular"),
             ("fusion_moments", "vision_moments"),
+            ("fusion_bimodal_moments", "fusion_moments"),
+            ("fusion_bimodal_moments", "tabular"),
+            ("fusion_bimodal_moments", "vision_moments"),
         ),
         args.bootstrap_iterations,
         args.random_state + 50000,
@@ -379,6 +433,8 @@ def main() -> int:
         "delta_vision_moments_minus_mean",
         "delta_fusion_moments_minus_mean",
         "delta_fusion_moments_minus_tabular",
+        "delta_bimodal_minus_trimodal_moments",
+        "delta_bimodal_minus_tabular",
     ):
         values_column = folds[column]
         fold_stability[column] = {
@@ -398,6 +454,17 @@ def main() -> int:
                 "std": float(folds[column].std(ddof=1)),
                 "zero_fraction": float((folds[column] == 0).mean()),
             }
+
+    weight_summary["bimodal"] = {
+        modality: {
+            "mean": float(folds[f"bimodal_weight_{modality}"].mean()),
+            "std": float(folds[f"bimodal_weight_{modality}"].std(ddof=1)),
+            "zero_fraction": float(
+                (folds[f"bimodal_weight_{modality}"] == 0).mean()
+            ),
+        }
+        for modality in ("tabular", "vision")
+    }
 
     summary = {
         "status": "stunet_trimodal_pooling_nested_repeated_cv",

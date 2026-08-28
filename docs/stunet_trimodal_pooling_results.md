@@ -68,9 +68,34 @@ los folds con moments.
    estadísticamente compatibles en esta cohorte pequeña.
 4. Mantener la fusión convexa como referencia; no añadir atención o
    concatenación de alta dimensión.
-5. Predeclarar como siguiente ablación una fusión bimodal tabular+moments sin
-   texto. Esta prueba se apoya también en evidencia anterior de texto inestable,
-   no sólo en este resultado.
+5. La ablación bimodal tabular+moments fue predeclarada a partir de este
+   resultado y de evidencia anterior de texto inestable; se reporta abajo.
+
+## Ablación posterior: tabular + moments sin texto
+
+Se repitieron los mismos 25 outer folds y toda la selección interna, sustituyendo
+la rejilla simplex de tres modalidades por pesos tabular/visión en pasos de 0.1.
+Las ramas tabular, texto, mean, moments y fusión trimodal reprodujeron exactamente
+sus métricas anteriores.
+
+| Modelo | C-index OOF medio | DE entre repeticiones |
+|---|---:|---:|
+| Fusión trimodal moments | 0.7825 | 0.0251 |
+| **Fusión bimodal tabular+moments** | **0.7890** | **0.0149** |
+| Tabular | 0.7764 | 0.0108 |
+
+- Bimodal − trimodal: +0.0065, IC95% [-0.0075,+0.0209], p=0.3804.
+- Bimodal − tabular: +0.0126, IC95% [-0.0238,+0.0543], p=0.5192.
+- Frente a trimodal, la bimodal ganó 4 folds, empató 20 y perdió 1.
+- Pesos bimodales medios: tabular 0.636 y visión 0.364; visión quedó en cero
+  en 12% de folds.
+
+**Decisión:** eliminar texto es una simplificación operativa defendible porque no
+produce pérdida detectable y reduce una modalidad débil, pero no constituye una
+mejora confirmada. `tabular + renal_moments_512` queda como candidato multimodal
+parsimonioso; tabular solo permanece como baseline estadísticamente compatible.
+
+Artefactos agregados: `results_vision/stunet_bimodal_moments_nested_72/`.
 
 ## Límites
 
