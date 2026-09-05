@@ -124,7 +124,10 @@ def main():
     p.add_argument('--device', default='cuda')
     p.add_argument('--prepare-only', action='store_true')
     p.add_argument('--pilot', action='store_true')
+    p.add_argument('--epoch-grid', type=int, nargs='+', default=[1, 3, 5])
     args = p.parse_args()
+    if min(args.epoch_grid) < 1 or args.epoch_grid != sorted(set(args.epoch_grid)):
+        raise ValueError('Epoch grid must contain sorted unique positive integers')
     torch.set_num_threads(1)
     torch.use_deterministic_algorithms(True)
     torch.hub.set_dir('data/models/torch')
@@ -170,7 +173,7 @@ def main():
         return
     contract = {'script_sha256': sha(__file__), 'targets_sha256': sha(args.targets),
                 'cache_contract_sha256': sha(args.cache / 'contract.json'), 'n_cases': len(ids),
-                'events': int(events.sum()), 'outer': '5x3', 'inner': 3, 'epochs': [1, 3, 5],
+                'events': int(events.sum()), 'outer': '5x3', 'inner': 3, 'epochs': args.epoch_grid,
                 'lr_head': .001, 'lr_layer4': .00001, 'seed': 4049,
                 'frozen_batchnorm': True, 'n_tokens': 16,
                 'prefixes_sha256': {case: sha(args.prefix_cache / f'{case}.npz') for case in ids}}
@@ -199,11 +202,11 @@ def main():
                 if saved['ids'] != [ids[i] for i in heldout]:
                     raise ValueError('Checkpoint heldout IDs differ')
             else:
-                epoch_scores = {1: [], 3: [], 5: []}
+                epoch_scores = {epoch: [] for epoch in args.epoch_grid}
                 for inner, (itr, iva) in enumerate(StratifiedKFold(3, shuffle=True, random_state=seed).split(train, events[train])):
                     tr, va = train[itr], train[iva]
                     model, optimizer = new_model(layer4, tune, seed*1000+inner, device)
-                    for epoch in range(1, 6):
+                    for epoch in range(1, max(args.epoch_grid) + 1):
                         train_epoch(model, optimizer, [xs[i] for i in tr], times[tr], events[tr], device)
                         if epoch in epoch_scores:
                             risk = predict(model, [xs[i] for i in va], device)

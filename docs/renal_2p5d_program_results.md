@@ -43,7 +43,16 @@ No se escogerá la representación por folds individuales.
 Piloto superado: 60 pacientes de entrenamiento, una época en 3.54 s, memoria
 GPU asignada máxima 182.77 MiB; cambio máximo observado de peso layer4 1e-5,
 riesgos held-out finitos. No se evaluó mejora de C-index en este piloto.
-La comparación nested congelado/adaptado está en ejecución.
+La comparación nested congelado/adaptado terminó: congelado0.6799,
+adaptado0.7161, delta+0.0362, IC95% [-0.0207,+0.0958], p=0.1792.
+El congelado eligió5 épocas en15/15 folds y el adaptado en13/15 (los otros
+dos eligieron3). La selección toca el límite superior; no asumir convergencia.
+
+F5 predeclarado después de E3: repetir ambos brazos con candidatos1/3/5/10/20
+épocas. Mantener datos, arquitectura, inicializaciones, learning rates,
+BatchNorm, particiones y algoritmo de selección. El contraste principal sigue
+siendo adaptado-congelado dentro de esta nueva corrida. Registrar selección de
+épocas y cualquier persistencia del límite, sin promover el mejor valor post hoc.
 
 Artefacto técnico: `results_vision/renal_2p5d_adaptation_pilot/technical_pilot.json`.
 
@@ -91,6 +100,16 @@ Los dos brazos usarán ese mismo caché, PCA4/8 y Cox alpha100/10/1, outer5x3
 semilla4049, inner3 y bootstrap5000. No comparar numéricamente medias entre las
 cohortes75/214 como un efecto arquitectónico. No es validación externa: incluye
 los casos anteriores y datos usados en experimentos históricos.
+
+F3 completado: tabular+momentos0.8004 frente a tabular+media0.8047,
+delta-0.0043, IC95% [-0.0530,+0.0512], Holm0.8604. Frente a tabular,
+delta+0.0685, IC95% [-0.0407,+0.1768], Holm0.4344. No se promueve momentos
+como reemplazo de media en fusión.
+
+F4 completado (214 casos/64 eventos): media0.6771, momentos0.6515,
+delta-0.0256, IC95% [-0.0586,+0.0057], p=0.108. La señal positiva de la
+subcohorte75 no se sostiene en esta extensión interna. No seguir ampliando
+estadísticas de pooling ResNet a partir de la clasificación de medias.
 
 ## Reproducción inicial
 
