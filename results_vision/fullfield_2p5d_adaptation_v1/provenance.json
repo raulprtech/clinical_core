@@ -1,0 +1,22 @@
+{
+  "script_sha256": "9da4bbc805f9a722c02bf9f49ec5651b4b20d6693ac9a1d1b7723557855e08b1",
+  "targets_sha256": "fdf76c68ac0e78ab382081a47ef6b59cf4615c614e65a4f3c3f3c86c2a958222",
+  "cache_contract_sha256": "b4f88cec39cd0bc17a585715477931e72c6a85eb03558637a8359845aaaa9566",
+  "n_cases": 75,
+  "events": 20,
+  "outer": "5x3",
+  "inner": 3,
+  "epochs": [
+    1,
+    3,
+    5,
+    10,
+    20
+  ],
+  "lr_head": 0.001,
+  "lr_layer4": 1e-05,
+  "seed": 4049,
+  "frozen_batchnorm": true,
+  "n_tokens": 16,
+  "local_contract_sha256": "bba91e8be04b54b24c529042f412c24562bf5a4cfaf97b8ad14d600c075c176d"
+}

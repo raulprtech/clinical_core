@@ -97,11 +97,48 @@
       "bootstrap_intervals_and_pvalues_reproduced": true
     },
     "fullfield_2p5d_adaptation_v1": {
-      "status": "incomplete"
+      "status": "verified",
+      "n_cases": 75,
+      "events": 20,
+      "models": 2,
+      "heldout_rows": 450,
+      "paired_outer_folds": 15,
+      "patient_disjoint_train_test": true,
+      "aggregate_metrics_recomputed": true,
+      "bootstrap_intervals_and_pvalues_reproduced": true
+    },
+    "renal_2p5d_aspect_mamba_v1": {
+      "status": "verified",
+      "n_cases": 75,
+      "events": 20,
+      "models": 3,
+      "heldout_rows": 675,
+      "paired_outer_folds": 15,
+      "patient_disjoint_train_test": true,
+      "aggregate_metrics_recomputed": true,
+      "bootstrap_intervals_and_pvalues_reproduced": true
+    },
+    "renal_2p5d_pipeline_comparison_v1": {
+      "status": "verified",
+      "n_cases": 75,
+      "events": 20,
+      "models": 3,
+      "heldout_rows": 675,
+      "paired_outer_folds": 15,
+      "patient_disjoint_train_test": true,
+      "aggregate_metrics_recomputed": true,
+      "bootstrap_intervals_and_pvalues_reproduced": true
     },
     "reproduced_controls": {
       "predictions": 450,
       "max_absolute_difference": 0.0
+    },
+    "reused_aspect_controls": {
+      "predictions": 450,
+      "exact": false,
+      "max_csv_roundoff": 8.881784197001252e-16,
+      "within_fold_ranks_and_ties_unchanged": true,
+      "retrained": false
     },
     "reproduced_fusion_controls": {
       "predictions": 675,
@@ -142,8 +179,63 @@
         },
         "note": "Descriptive inner validation averages; folds overlap and are not independent observations"
       }
+    },
+    "reused_pipeline_diagnostic_predictions": {
+      "full_adapted": {
+        "predictions": 225,
+        "exact": true,
+        "max_csv_roundoff": 0.0,
+        "within_fold_ranks_and_ties_unchanged": true,
+        "retrained": false
+      },
+      "full_mamba": {
+        "predictions": 225,
+        "exact": false,
+        "max_csv_roundoff": 8.881784197001252e-16,
+        "within_fold_ranks_and_ties_unchanged": true,
+        "retrained": false
+      },
+      "full_cox": {
+        "predictions": 225,
+        "exact": true,
+        "max_csv_roundoff": 0.0,
+        "within_fold_ranks_and_ties_unchanged": true,
+        "retrained": false
+      }
+    },
+    "fullfield_adaptation_selection": {
+      "frozen": {
+        "selected_epochs": {
+          "5": 1,
+          "10": 2,
+          "20": 12
+        },
+        "mean_inner_cindex_by_epoch": {
+          "1": 0.5407544234567724,
+          "3": 0.6225598732063069,
+          "5": 0.6860538461661265,
+          "10": 0.7602701546805373,
+          "20": 0.7858684671680586
+        },
+        "note": "Descriptive overlapping inner validation folds; not independent observations"
+      },
+      "adapted": {
+        "selected_epochs": {
+          "3": 1,
+          "10": 2,
+          "20": 12
+        },
+        "mean_inner_cindex_by_epoch": {
+          "1": 0.5902553536313541,
+          "3": 0.7159878847658422,
+          "5": 0.7581425986681329,
+          "10": 0.7802149337263641,
+          "20": 0.7921327072523591
+        },
+        "note": "Descriptive overlapping inner validation folds; not independent observations"
+      }
     }
   },
-  "all_runs_verified": false,
+  "all_runs_verified": true,
   "scope": "Coverage, split pairing, aggregate recomputation and control reproduction; code leakage review and anatomical validity are separate checks"
 }

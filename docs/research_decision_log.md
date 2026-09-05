@@ -367,6 +367,17 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
 - **Oportunidad F6:** repetir la comparación adaptado-congelado con campo
   completo, dado el daño del recorte observado en E2. Protocolo registrado
   antes de entrenamiento, mismos75 casos y cuadrícula1/3/5/10/20.
+- **F6 completado:** adaptado 0.7933 vs congelado 0.7443, delta +0.0490,
+  IC95% [+0.0027,+0.1085], p0.0396. Señal exploratoria favorable; ambos brazos
+  eligen máximo20 en12/15 folds, sin convergencia establecida.
+- **D1 post hoc:** adaptado frente a Mamba de campo completo 0.8187:
+  delta -0.0254, IC95% [-0.1004,+0.0487]; frente a Cox 0.7829:
+  delta +0.0104, IC95% [-0.0705,+0.1021]. No demuestra superioridad.
+- **F7, oportunidad de inspección visual:** el usuario autorizó revisar cuatro
+  ejemplos locales. El recorte se estiraba a224x224. Padding cuadrado sin
+  deformación obtiene 0.7366 vs recorte0.6990, delta +0.0376,
+  IC95% [-0.0537,+0.1385], Holm0.4256. No supera campo completo ni demuestra
+  mejora; las máscaras siguen sin validación tumoral experta.
 - **Momentos ResNet:** mejora media pequeña en75 que no se sostiene al ampliar
   a214/64 eventos: media0.6771 vs momentos0.6515, delta-0.0256,
   IC95% [-0.0586,+0.0057]. Fusión con momentos tampoco supera fusión con media.
@@ -376,4 +387,10 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
   CV5x3, bootstrap por paciente y multiplicidad explícita dentro de corrida.
 - **Registro completo:** `docs/renal_2p5d_research_program.md` y
   `docs/renal_2p5d_program_results.md`; incluye protocolos, revisiones y artefactos.
-- **Estado:** F5 verificado, pendiente F6 y auditoría final.
+- **Decisión final:** conservar contexto completo y los defaults actuales.
+  Adaptación full queda como candidato exploratorio, no reemplazo validado.
+  No promover radiomics, recorte o momentos por esta búsqueda. No afirmar
+  agotamiento de todo2D/2.5D ni mejora garantizada por3D.
+- **Estado:** diez experimentos y D1 completos y verificados; trece pruebas
+  pasan. Código, informes y agregados preparados para GitHub; datos clínicos
+  por paciente e imágenes excluidos. Detalles de redondeo CSV en el informe.

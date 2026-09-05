@@ -1,0 +1,9 @@
+{
+  "cases": 75,
+  "source_hashes_verified": true,
+  "full_centers_verified": true,
+  "images_finite_in_unit_interval": true,
+  "n_tokens": 16,
+  "outcome_independent": true,
+  "visual_review_performed": false
+}

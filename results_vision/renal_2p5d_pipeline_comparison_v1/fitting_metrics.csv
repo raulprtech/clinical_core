@@ -1,0 +1,4 @@
+model,source_run,source_model,reused
+full_adapted,fullfield_2p5d_adaptation_v1,adapted,True
+full_mamba,renal_2p5d_program_mamba_v1,full,True
+full_cox,renal_2p5d_program_cox_v1,full,True

@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import SimpleITK as sitk
 import torch
 import copy
@@ -15,10 +16,24 @@ from evaluate_resnet_sequence_models import safe_cindex
 from evaluate_renal_resnet_adaptation import two_pass_backward, cox_ph_loss, new_model, train_epoch
 from build_fullfield_adaptation_cache import selected_centers
 from build_renal_letterbox_cache import square_pad
+from verify_renal_2p5d_program import verify_reused_risks
 from evaluate_stunet_trimodal_pooling_nested_cv import fit_outer_modality
 
 
 class RenalProgramTests(unittest.TestCase):
+    def test_reused_risk_audit_allows_roundoff_but_rejects_changed_ties(self):
+        left=pd.DataFrame({'case_id':['a','b','c'],'model':['x']*3,'repeat':[0]*3,'fold':[0]*3,'risk':[1.,2.,3.]})
+        right=left.copy()
+        right['risk']=np.nextafter(right.risk.to_numpy(),np.inf)
+        audit=verify_reused_risks(left,right,3)
+        self.assertTrue(audit['within_fold_ranks_and_ties_unchanged'])
+        self.assertFalse(audit['exact'])
+        left['risk']=[1.,1.,2.]
+        right=left.copy()
+        right.loc[1,'risk']=np.nextafter(1.,np.inf)
+        with self.assertRaises(AssertionError):
+            verify_reused_risks(left,right,3)
+
     def test_letterbox_preserves_pixels_and_only_adds_zero_padding(self):
         for height,width in [(4,8),(8,4),(5,8),(7,7)]:
             image=torch.arange(3*height*width,dtype=torch.float32).reshape(3,height,width)+1

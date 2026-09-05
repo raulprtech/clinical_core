@@ -1,0 +1,32 @@
+{
+  "mean_within_fold_cindex": {
+    "full": 0.8186800540675215,
+    "renal_crop": 0.6990031967270567,
+    "renal_letterbox": 0.736558298435384
+  },
+  "paired_comparisons": [
+    {
+      "candidate": "renal_letterbox",
+      "reference": "renal_crop",
+      "delta": 0.03755510170832732,
+      "ci95_lo": -0.053747225183686444,
+      "ci95_hi": 0.13847759450292935,
+      "bootstrap_p": 0.4068,
+      "n_bootstrap": 5000,
+      "p_holm_within_run": 0.4256
+    },
+    {
+      "candidate": "renal_letterbox",
+      "reference": "full",
+      "delta": -0.08212175563213753,
+      "ci95_lo": -0.20387616760695093,
+      "ci95_hi": 0.0490540712982938,
+      "bootstrap_p": 0.2128,
+      "n_bootstrap": 5000,
+      "p_holm_within_run": 0.4256
+    }
+  ],
+  "primary_estimand": "Arithmetic mean of within-outer-fold C-indices",
+  "uncertainty": "Patient resampling across all repeated folds; fitted predictions fixed",
+  "limitation": "Exploratory reused cohort; bootstrap does not capture retraining uncertainty"
+}

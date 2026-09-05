@@ -83,5 +83,18 @@ reentrenamiento. Guardar checkpoints de predicción locales por fold para reanud
 - Inspección inicial: rama codex/resnet-mamba-fastproof limpia; GPU RTX 3050 Ti
   4 GB. Cachés STU-Net existentes por caso. La utilidad legacy de radiomics
   incluye fallback mock y no es apta para estas evaluaciones científicas.
-- Pendiente: auditoría geométrica de máscaras y cobertura, extracción,
+- Pendiente al inicio: auditoría geométrica de máscaras y cobertura, extracción,
   evaluaciones de las tres líneas, seguimientos e informe consolidado.
+
+## Cierre de ejecución — 2026-09-05
+
+Completadas las tres líneas y siete seguimientos motivados: E1-E3 y F1-F7,
+además del piloto técnico y el diagnóstico post hoc D1. Protocolos de cada
+seguimiento registrados antes de su extracción/entrenamiento, salvo D1 que
+se identifica expresamente como reanálisis de predicciones ya disponibles.
+Resultados, comandos y revisiones en `renal_2p5d_program_results.md`.
+La auditoría final verifica las once salidas y las trece pruebas pasan.
+Revisión visual autorizada de cuatro cortes completada; no valida clínicamente
+las máscaras ni la cobertura tumoral. No quedan entrenamientos declarados
+pendientes. Convergencia extensa y validación independiente son limitaciones
+de una etapa futura, no tareas que se presenten como realizadas aquí.

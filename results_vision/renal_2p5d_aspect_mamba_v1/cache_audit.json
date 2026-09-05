@@ -1,0 +1,13 @@
+{
+  "cases": 75,
+  "paired_centers_verified": true,
+  "source_hashes_verified": true,
+  "crop_width_height_ratio_min_median_max": [
+    0.7177914110429447,
+    2.0085470085470085,
+    2.763157894736842
+  ],
+  "preserves_pixel_aspect_ratio": true,
+  "no_physical_resampling": true,
+  "outcome_independent": true
+}

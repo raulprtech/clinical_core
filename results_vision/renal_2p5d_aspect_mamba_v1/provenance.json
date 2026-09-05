@@ -1,0 +1,31 @@
+{
+  "script_sha256": "f0325ca3521479947ec2967bf261aab08bbec51eda73ae3371ea73fdd2b1f85d",
+  "baseline_provenance_sha256": "9f1f45d0afe612b8e408d2471b27f0be9b3b5ce5a62554ad52d24571df2fba0f",
+  "baseline_predictions_sha256": "ae74a9049bf7e81dbb11505c11a864a679646a030adc5d8916cfb54023ac4e08",
+  "baseline_splits_sha256": "7815f84e083eeae4b67c4cbe603be5dd1693c9108606554f4fe80781920e6ede",
+  "baseline_cohort_sha256": "529e95c24450fe6f317dd55273d1503cd4dc9ef8074a3e2b8cf9ff412e4b5c21",
+  "cache_contract_sha256": "99db59c8d96ac9bb8ff7448e0feef87e89e492dca182dce7eb0812ac914545e8",
+  "n_cases": 75,
+  "events": 20,
+  "outer": "5x3, seed4049",
+  "parameters": {
+    "kind": "mamba",
+    "use_position": false,
+    "inner_folds": 3,
+    "patience": 20,
+    "epochs": 200,
+    "lr": 0.001,
+    "weight_decay": 0.001,
+    "dropout": 0.1,
+    "model_dim": 128,
+    "attention_dim": 64,
+    "state_dim": 16,
+    "mamba_blocks": 2,
+    "outer_repeats": 3
+  },
+  "controls_reused_not_retrained": [
+    "full",
+    "renal_crop"
+  ],
+  "local_contract_sha256": "a501e25aa75826b231f6a6e75178371bee978f5b5133639544503a281a1ec7de"
+}

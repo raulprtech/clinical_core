@@ -1,6 +1,19 @@
 # Resultados del programa renal 2.5D
 
-Estado: en ejecución. Protocolo: `renal_2p5d_research_program.md`.
+Estado: completado y verificado el 2026-09-05. Protocolo:
+`renal_2p5d_research_program.md`. Diez experimentos (E1-E3, F1-F7), un piloto
+técnico y un diagnóstico post hoc (D1); no contar controles reutilizados como
+entrenamientos nuevos.
+
+## Conclusión ejecutiva
+
+El ajuste fino de campo completo es la señal más prometedora: +0.0490 frente
+a su control congelado, pero no supera de forma demostrada a Mamba ni a Cox
+con imágenes congeladas. Mantenerlo como candidato, no como reemplazo validado.
+No promover recorte renal, radiomics ni momentos ResNet como mejoras del sistema.
+La prueba de proporciones corrige una confusión técnica del recorte, pero tampoco
+justifica sustituir campo completo. Los resultados no prueban que todo enfoque
+2D/2.5D esté agotado ni que pasar a 3D garantice mejorar.
 
 ## Cobertura y verificación
 
@@ -142,7 +155,7 @@ delta -0.0256, IC95% [-0.0586,+0.0057], p=0.108. La señal positiva de la
 subcohorte 75 no se sostiene en esta extensión interna. No seguir ampliando
 estadísticas de pooling ResNet a partir de la clasificación de medias.
 
-## Reproducción inicial
+## Seguimientos de contexto y proporciones
 
 F6 predeclarado el 2026-09-05 mientras F5 aún está en ejecución: la degradación
 del recorte en E2 motiva trasladar la adaptación ligera a campo completo.
@@ -161,6 +174,28 @@ Salida: `results_vision/fullfield_2p5d_adaptation_v1/`; extractor específico
 `code/tools/build_fullfield_adaptation_cache.py` y evaluador de adaptación F5
 sin cambios. Entradas nuevas separadas de los cachés históricos.
 
+F6 completado: congelado 0.7443, adaptado 0.7933; delta +0.0490,
+IC95% [+0.0027,+0.1085], p=Holm=0.0396 (único contraste de F6).
+Es una señal exploratoria favorable frente a su propio control, no una prueba
+de superioridad frente a Mamba ni una confirmación corregida por todo el programa.
+Ambos brazos eligieron 20 épocas en 12/15 folds. El congelado eligió 5 en uno y 10
+en dos; el adaptado eligió 3 en uno y 10 en dos. No está establecida convergencia.
+
+D1, diagnóstico post hoc motivado por F6: comparar sus predicciones adaptadas
+con Mamba de campo completo E2 y Cox de campo completo E1 en los mismos75 casos
+y folds. No entrenar ni elegir otro modelo; dos contrastes pareados con
+bootstrap5000 y Holm. Es una comparación práctica entre pipelines distintos
+(adaptación16 tokens frente a controles64), no una ablación arquitectónica pura.
+No usarla para afirmar validación independiente. Salida:
+`results_vision/renal_2p5d_pipeline_comparison_v1/`.
+
+D1 completado: adaptado 0.7933 vs Mamba 0.8187, delta -0.0254,
+IC95% [-0.1004,+0.0487]; frente a Cox 0.7829, delta +0.0104,
+IC95% [-0.0705,+0.1021]. Ambos Holm=1.0. La señal frente al control congelado
+de F6 no se traduce en superioridad demostrada frente a estos pipelines.
+Mantener la adaptación de campo completo como candidato exploratorio, sin
+reemplazar el sistema vigente ni inferir que ajustar Mamba daría el mismo efecto.
+
 F7 predeclarado tras la inspección visual autorizada, antes de extracción o
 entrenamiento: el código de recorte redimensiona rectángulos a224x224 sin
 conservar proporciones. Esta deformación confunde la interpretación de E2.
@@ -174,6 +209,16 @@ fuentes y hashes; no se presentarán como modelos recién entrenados. Solo se
 entrena el nuevo brazo. El padding conserva proporción de píxeles, no corrige
 anisotropía física ni garantiza cobertura tumoral. No ajustar margen/padding
 según resultados held-out. Salida: `renal_2p5d_aspect_mamba_v1`.
+
+F7 completado: recorte con proporciones conservadas 0.7366, recorte estirado
+0.6990 y campo completo 0.8187. Letterbox-recorte: +0.0376,
+IC95% [-0.0537,+0.1385]; letterbox-campo completo: -0.0821,
+IC95% [-0.2039,+0.0491]. Ambos Holm=0.4256. No se demuestra mejora ni
+superioridad frente a campo completo. El ancho/alto del recorte original tiene
+mediana 2.009 (rango 0.718-2.763); la ablación de proporciones estaba motivada,
+pero estos resultados no aíslan un mecanismo causal de degradación.
+
+## Reproducción inicial
 
 ```bash
 .venv/bin/python code/tools/build_renal_2p5d_program_cache.py \
@@ -204,6 +249,7 @@ según resultados held-out. Salida: `renal_2p5d_aspect_mamba_v1`.
 | F4 | fullfield_moments_214_v1 | 3cd1224 |
 | F5 | renal_2p5d_adaptation_extended_v1 | 59d4e07 |
 | F6 | fullfield_2p5d_adaptation_v1 | 486c92f (extractor); evaluador59d4e07 |
+| F7 | renal_2p5d_aspect_mamba_v1 | 47be619 |
 
 Cada salida completa incluye summary, métricas por fold/repetición, bootstrap,
 selección de hiperparámetros y procedencia. Cohortes, splits y predicciones,
@@ -228,8 +274,21 @@ F6: construir imágenes con
 Ejecutar el evaluador F5 con ese `--cache`,
 `--prefix-cache data/embeddings/vision/fullfield_2p5d_prefix_v1`,
 `--output results_vision/fullfield_2p5d_adaptation_v1` y la misma cuadrícula de
-épocas1/3/5/10/20. Los75 CT y centros se comprobaron mediante hashes;
-las imágenes son finitas y están en[0,1]. No se realizó revisión visual.
+épocas 1/3/5/10/20. Los 75 CT y centros se comprobaron mediante hashes;
+las imágenes son finitas y están en [0,1]. La inspección visual autorizada fue
+del montaje renal, no de todas las imágenes usadas por F6.
+
+F7: `code/tools/build_renal_letterbox_cache.py` con
+`--parent-cache data/embeddings/vision/renal_2p5d_program_v1 --output data/embeddings/vision/renal_2p5d_letterbox_v1 --device cuda`;
+después `code/tools/evaluate_renal_aspect_mamba.py` con
+`--baseline results_vision/renal_2p5d_program_mamba_v1 --cache data/embeddings/vision/renal_2p5d_letterbox_v1 --output results_vision/renal_2p5d_aspect_mamba_v1 --device cuda`.
+Ejecutar ambos con `.venv/bin/python`. Los controles reutilizados requieren
+las predicciones y cohortes locales de E2, no publicadas en GitHub.
+
+D1: `.venv/bin/python code/tools/compare_renal_fullfield_pipelines.py`.
+El diagnóstico guarda hashes de sus tres fuentes y del script; requiere las
+predicciones locales de E1, E2 y F6 y no reentrena. La revisión exacta de su
+implementación queda identificada por `script_sha256` en su procedencia.
 
 Verificación agregada: `.venv/bin/python code/tools/verify_renal_2p5d_program.py`.
 Informa corridas incompletas sin tratarlas como experimentos terminados.
@@ -239,9 +298,17 @@ de predicciones locales; no reentrena modelos. Comprueba particiones disjuntas,
 emparejamiento, cobertura y reproducción de controles. Las pruebas sintéticas
 verifican geometría, muestreo, radiomics sin fondo, gradiente Cox/Breslow,
 BatchNorm congelada e invariancia del ajuste Cox/fusión frente a cambios en
-desenlaces held-out. Son11 pruebas, ejecutables con
+desenlaces held-out. Son 13 pruebas, ejecutables con
 `.venv/bin/python -m unittest discover -s code/tests -p test_renal_2p5d_program.py -v`.
 No sustituyen una auditoría clínica ni demuestran ausencia universal de leakage.
+
+Auditoría final: `all_runs_verified=true` para las diez corridas y D1.
+Controles E1/F1:450 predicciones exactas; F2/F3:675 exactas; épocas compartidas
+E3/F5:270 valores internos exactos. Al reserializar controles de E2 en F7/D1,
+el redondeo CSV máximo fue 8.89e-16; todos los órdenes y empates de riesgo
+dentro de fold permanecen idénticos. Se exige esa invariancia además de una
+tolerancia de ocho épsilon de máquina; no se informa identidad bit a bit
+donde solo hay equivalencia numérica. Los C-index e intervalos se reprodujeron.
 
 El remuestreo descarta los folds sin pares comparables dentro de cada réplica;
 usa los mismos pesos por paciente y fold para ambos brazos. La corrección Holm
@@ -255,5 +322,18 @@ programa renal286MiB, prefijo renal66MiB, imágenes full135MiB y prefijo full56M
 (tamaños aproximados en disco). El piloto de182.77MiB mide memoria GPU asignada,
 no RAM total ni reserva del controlador. No se descargó un nuevo backbone.
 
-Pendientes para cierre: terminar F6, verificar todos los resultados,
-registrar decisiones y evaluar si justifican otro seguimiento concreto.
+## Cierre y límites de la siguiente etapa
+
+Se probaron las tres líneas solicitadas y las oportunidades derivadas:
+momentos, complementariedad tabular, fusión de momentos, ampliación interna
+a214 casos, más épocas, adaptación sin recorte y conservación de proporciones.
+D1 evaluó si la señal de adaptación justifica reemplazar pipelines existentes:
+no se demostró esa ventaja. Ninguna corrida declarada queda pendiente.
+
+No modificar los defaults de producción ni promover un ganador por la media
+de esta búsqueda. Una etapa nueva debería fijar un protocolo y obtener
+validación independiente; para adaptación también debe resolver convergencia
+de ambos brazos. ROI tumoral y remuestreo físico requieren validación adicional,
+no están resueltos por estas máscaras renales ni por el padding. No se afirma
+haber probado todas las configuraciones posibles. Las imágenes, cohortes,
+splits y predicciones siguen locales; GitHub recibe código, informes y agregados.

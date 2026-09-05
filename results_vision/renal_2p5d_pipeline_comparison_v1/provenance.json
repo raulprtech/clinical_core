@@ -1,0 +1,37 @@
+{
+  "script_sha256": "051ee17f77907793fb282ec54468165e044ccc2c78b4467f674332d1cd012f14",
+  "sources": {
+    "full_adapted": {
+      "source": "fullfield_2p5d_adaptation_v1",
+      "source_model": "adapted",
+      "predictions_sha256": "4d64a1d63c41613da128e8961cd8c362532628ac06a4a87210778816325d0a2e",
+      "provenance_sha256": "03cc32e872f23b76c1e18fc64fa5ea615fa1a8fe5bb296ab10e38af7db79fbaf"
+    },
+    "full_mamba": {
+      "source": "renal_2p5d_program_mamba_v1",
+      "source_model": "full",
+      "predictions_sha256": "ae74a9049bf7e81dbb11505c11a864a679646a030adc5d8916cfb54023ac4e08",
+      "provenance_sha256": "9f1f45d0afe612b8e408d2471b27f0be9b3b5ce5a62554ad52d24571df2fba0f"
+    },
+    "full_cox": {
+      "source": "renal_2p5d_program_cox_v1",
+      "source_model": "full",
+      "predictions_sha256": "0972d175f8476605049d3576da99a1136e6a528c4fb959aef7fa9fd180c8998c",
+      "provenance_sha256": "d39faaeab41392838b6691d3dd0545895d0113906c645e751a2384294fe2d634"
+    }
+  },
+  "n_cases": 75,
+  "events": 20,
+  "analysis": "Post-hoc paired comparison of existing predictions; no refitting or new model selection",
+  "limitation": "Different token counts and heads; not an architecture-only comparison",
+  "hypotheses": [
+    [
+      "full_adapted",
+      "full_mamba"
+    ],
+    [
+      "full_adapted",
+      "full_cox"
+    ]
+  ]
+}

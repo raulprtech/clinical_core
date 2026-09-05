@@ -18,7 +18,22 @@ RUNS = {
     'renal_2p5d_adaptation_extended_v1': 2,
     'fullfield_2p5d_adaptation_v1': 2,
     'renal_2p5d_aspect_mamba_v1': 3,
+    'renal_2p5d_pipeline_comparison_v1': 3,
 }
+
+
+def verify_reused_risks(left,right,expected_rows):
+    """Allow only floating-point CSV roundoff, with identical ranks and ties."""
+    merged=left.merge(right,on=['case_id','model','repeat','fold'],validate='one_to_one')
+    assert len(merged)==len(left)==len(right)==expected_rows
+    tolerance=8*np.finfo(float).eps
+    np.testing.assert_allclose(merged.risk_x,merged.risk_y,atol=tolerance,rtol=tolerance)
+    for _,fold in merged.groupby(['model','repeat','fold']):
+        a,b=fold.risk_x.to_numpy(),fold.risk_y.to_numpy()
+        np.testing.assert_array_equal(np.sign(a[:,None]-a[None,:]),np.sign(b[:,None]-b[None,:]))
+    difference=float(np.max(np.abs(merged.risk_x-merged.risk_y)))
+    return {'predictions':len(merged),'exact':difference==0,'max_csv_roundoff':difference,
+            'within_fold_ranks_and_ties_unchanged':True,'retrained':False}
 
 
 def main():
@@ -85,6 +100,13 @@ def main():
         assert difference == 0
         evidence['reproduced_controls'] = {'predictions':len(merged),'max_absolute_difference':difference}
     fusion = 'renal_2p5d_followup_fusion_v1'
+    aspect = 'renal_2p5d_aspect_mamba_v1'
+    original_mamba = 'renal_2p5d_program_mamba_v1'
+    if aspect in frames and original_mamba in frames:
+        controls = ['full','renal_crop']
+        left = frames[original_mamba].query('model in @controls')
+        right = frames[aspect].query('model in @controls')
+        evidence['reused_aspect_controls'] = verify_reused_risks(left,right,450)
     fusion_moments = 'renal_2p5d_followup_fusion_moments_v1'
     if fusion in frames and fusion_moments in frames:
         controls = ['tabular', 'full', 'tabular_full']
@@ -126,6 +148,28 @@ def main():
                 'note':'Descriptive inner validation averages; folds overlap and are not independent observations'}
         evidence['reproduced_adaptation_inner_scores'] = {'scores':scores_checked,'exact':True}
         evidence['extended_adaptation_selection'] = curves
+    fullfield = 'fullfield_2p5d_adaptation_v1'
+    diagnostic = 'renal_2p5d_pipeline_comparison_v1'
+    if diagnostic in frames:
+        from compare_renal_fullfield_pipelines import SOURCES
+        checked = {}
+        for name,(run,source_model) in SOURCES.items():
+            left = frames[run].query('model == @source_model').copy()
+            left['model'] = name
+            right = frames[diagnostic].query('model == @name')
+            checked[name] = verify_reused_risks(left,right,225)
+        evidence['reused_pipeline_diagnostic_predictions'] = checked
+    if fullfield in frames:
+        curves = {}
+        for name in ('frozen','adapted'):
+            rows = [json.loads(p.read_text()) for p in sorted((root/fullfield/'folds').glob(f'*_*_{name}.json'))]
+            assert len(rows)==15
+            selected = [row['epochs'] for row in rows]
+            curves[name] = {
+                'selected_epochs':{str(e):selected.count(e) for e in sorted(set(selected))},
+                'mean_inner_cindex_by_epoch':{e:float(np.mean([r['inner_scores'][e] for r in rows])) for e in rows[0]['inner_scores']},
+                'note':'Descriptive overlapping inner validation folds; not independent observations'}
+        evidence['fullfield_adaptation_selection'] = curves
     result={'runs':evidence,'all_runs_verified':all(evidence[r]['status']=='verified' for r in RUNS),
             'scope':'Coverage, split pairing, aggregate recomputation and control reproduction; code leakage review and anatomical validity are separate checks'}
     dest=root/'renal_2p5d_program_audit'

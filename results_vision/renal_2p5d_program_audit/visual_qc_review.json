@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-05",
+  "user_authorized_display_and_inspection_in_current_task": true,
+  "samples": 4,
+  "sampling": "Outcome-independent evenly spaced cases; largest renal mask area axial slice per case",
+  "artifact_remains_local_not_in_git": "data/embeddings/vision/renal_2p5d_program_v1/geometry_qc.png",
+  "technical_observations": [
+    "No obvious global displacement between CT, displayed renal contours and crop boxes in these four slices",
+    "Displayed crop boxes enclose the visible renal contours",
+    "Sample 3 has a more irregular contour with small fragments; tumor coverage was not established",
+    "Rectangular crops motivated checking pixel aspect-ratio preservation in F7"
+  ],
+  "expert_radiological_validation": false,
+  "tumor_segmentation_validation": false,
+  "all_75_cases_visually_reviewed": false,
+  "limitations": "Four 2D examples cannot establish mask accuracy, lesion coverage or the validity of all axial slices"
+}
