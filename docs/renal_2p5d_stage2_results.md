@@ -75,6 +75,10 @@ Auditoría: `.venv/bin/python code/tools/verify_renal_stage2.py`.
 Verifica cobertura, etiquetas, particiones, métricas y bootstrap; también
 reproduce la regla de parada a partir de cada curva interna y la selección
 de épocas. No sustituye validación clínica independiente.
+Al cerrar las cuatro corridas, el auditor añadirá una sensibilidad Holm sobre
+sus cuatro contrastes primarios. Es un ajuste secundario registrado después
+de conocer S3/S4 y antes de terminar S1/S2; no cambia modelos ni reemplaza los
+resultados por corrida, y tampoco convierte la cohorte reutilizada en confirmatoria.
 
 Pendiente: terminar S1/S2, auditar cobertura, emparejamiento, curvas y controles,
 consolidar la conclusión y publicar los agregados verificados.

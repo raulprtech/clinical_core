@@ -105,7 +105,21 @@ def main():
             result['paired_image_sources_and_centers_verified']=True
             result['input_shapes']={name:list(x.shape) for name,x in arrays.items()}
         evidence[run]=result
-    output={'runs':evidence,'all_runs_verified':all(v['status']=='verified' for v in evidence.values()),
+    complete=all(v['status']=='verified' for v in evidence.values())
+    family=[]
+    if complete:
+        for run in RUNS:
+            summary=json.loads((root/run/'summary.json').read_text())
+            assert len(summary['paired_comparisons'])==1
+            row=summary['paired_comparisons'][0]
+            family.append({'run':run,'candidate':row['candidate'],'reference':row['reference'],'bootstrap_p':row['bootstrap_p']})
+        maximum=0.
+        for rank,index in enumerate(np.argsort([row['bootstrap_p'] for row in family])):
+            maximum=max(maximum,min(1.,(len(family)-rank)*family[index]['bootstrap_p']))
+            family[index]['holm_across_four_primary_contrasts']=maximum
+    output={'runs':evidence,'all_runs_verified':complete,
+            'stagewise_holm_sensitivity':family,
+            'multiplicity_note':'Secondary transparent adjustment across the four fixed primary contrasts; reused cohort remains exploratory',
             'scope':'Coverage, labels, paired splits, estimates, early-stop replay and selected controls; not independent clinical validation'}
     dest=root/'renal_stage2_audit'; dest.mkdir(exist_ok=True)
     (dest/'verification.json').write_text(json.dumps(output,indent=2)+'\n')
