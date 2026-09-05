@@ -1,0 +1,11 @@
+{
+  "cases": 1,
+  "n_tokens": 16,
+  "paired_source_images": true,
+  "finite_features": true,
+  "elapsed_seconds": 1.4974082519984222,
+  "peak_cuda_mib": 162.06005859375,
+  "pilot_only": true,
+  "outcome_independent": true,
+  "script_sha256": "4c71242be8c5677a0a86452e5e095b42cde5f441bd6b81aafa44f7685201963e"
+}

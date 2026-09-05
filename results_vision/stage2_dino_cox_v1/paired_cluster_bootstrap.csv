@@ -1,0 +1,2 @@
+candidate,reference,delta,ci95_lo,ci95_hi,bootstrap_p,n_bootstrap,p_holm_within_run
+dinov2,resnet18,-0.0035467240157637248,-0.13018001382815916,0.11259143783342643,0.8964,5000,0.8964

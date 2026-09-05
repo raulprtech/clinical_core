@@ -1,0 +1,52 @@
+{
+  "runs": {
+    "stage2_linear_convergence_v1": {
+      "status": "incomplete"
+    },
+    "stage2_joint_mamba_v1": {
+      "status": "incomplete"
+    },
+    "stage2_global_local_v1": {
+      "status": "verified",
+      "n_cases": 75,
+      "events": 20,
+      "models": 3,
+      "heldout_rows": 675,
+      "paired_patient_disjoint_folds": 15,
+      "labels_match_previous_stage": true,
+      "metrics_and_bootstrap_recomputed": true,
+      "reproduced_full_control": {
+        "predictions": 225,
+        "exact": true,
+        "max_csv_roundoff": 0.0,
+        "within_fold_ranks_and_ties_unchanged": true,
+        "retrained": true
+      },
+      "mean_local_weight": 0.3333333333333333,
+      "folds_with_zero_local_weight": 0
+    },
+    "stage2_dino_cox_v1": {
+      "status": "verified",
+      "n_cases": 75,
+      "events": 20,
+      "models": 2,
+      "heldout_rows": 450,
+      "paired_patient_disjoint_folds": 15,
+      "labels_match_previous_stage": true,
+      "metrics_and_bootstrap_recomputed": true,
+      "paired_image_sources_and_centers_verified": true,
+      "input_shapes": {
+        "resnet18": [
+          75,
+          512
+        ],
+        "dinov2": [
+          75,
+          384
+        ]
+      }
+    }
+  },
+  "all_runs_verified": false,
+  "scope": "Coverage, labels, paired splits, estimates, early-stop replay and selected controls; not independent clinical validation"
+}

@@ -167,6 +167,10 @@ is tracked in [renal 2.5D results](docs/renal_2p5d_program_results.md), with
 [predeclared protocol](docs/renal_2p5d_research_program.md) and local reproduction
 commands. These exploratory scores use within-fold C-index averages; do not
 compare them directly with historical pooled OOF scores or different cohorts.
+The follow-up on training saturation, joint encoder/Mamba adaptation,
+global-local fusion and DINOv2 is tracked separately in
+[second-stage 2.5D results](docs/renal_2p5d_stage2_results.md) and its
+[protocol](docs/renal_2p5d_stage2_protocol.md).
 
 For the complete TCGA-KIRC download, embedding-cache and three-modality run,
 see [trimodal data preparation](docs/trimodal_data_preparation.md).

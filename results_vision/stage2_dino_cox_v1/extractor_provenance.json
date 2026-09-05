@@ -1,0 +1,18 @@
+{
+  "script_sha256": "4c71242be8c5677a0a86452e5e095b42cde5f441bd6b81aafa44f7685201963e",
+  "source_revision": "7764ea0f912e53c92e82eb78a2a1631e92725fc8",
+  "dino_weights_url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vits14/dinov2_vits14_pretrain.pth",
+  "dino_weights_sha256": "b938bf1bc15cd2ec0feacfe3a1bb553fe8ea9ca46a7e1d8d00217f29aef60cd9",
+  "resnet_weights_sha256": "f37072fd47e89c5e827621c5baffa7500819f7896bbacec160b1a16c560e07ec",
+  "images_contract_sha256": "b4f88cec39cd0bc17a585715477931e72c6a85eb03558637a8359845aaaa9566",
+  "n_tokens": 16,
+  "size": 224,
+  "dimensions": {
+    "dinov2": 384,
+    "resnet18": 512
+  },
+  "normalization": "ImageNet mean/std then per-token L2",
+  "outcome_independent": true,
+  "pilot": false,
+  "license": "Apache-2.0 DINOv2 code and model card"
+}

@@ -1,0 +1,2 @@
+candidate,reference,delta,ci95_lo,ci95_hi,bootstrap_p,n_bootstrap,p_holm_within_run
+global_local,full,0.016366374316643006,-0.04609990510940545,0.06729692493071761,0.622,5000,0.622

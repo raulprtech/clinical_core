@@ -1,0 +1,19 @@
+{
+  "script_sha256": "685f23bfba545d1582e4bac82b1b8b1197345e182c528e06c7db40998447c7d1",
+  "cache_contract_sha256": "fb273890dc54369a7f5ea7f69d72485a2eb8d768588201a1b18b1a0096919893",
+  "cohort_sha256": "529e95c24450fe6f317dd55273d1503cd4dc9ef8074a3e2b8cf9ff412e4b5c21",
+  "n_cases": 75,
+  "events": 20,
+  "outer": "5x3 seed4049",
+  "inner": 3,
+  "pca": [
+    4,
+    8
+  ],
+  "cox_alpha": [
+    100.0,
+    10.0,
+    1.0
+  ],
+  "local_contract_sha256": "fa0a5bfe6bec5c1cb8d0ee165e35808e89d69a6ad2be64f7e1d3004afb0bb518"
+}

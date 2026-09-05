@@ -1,0 +1,22 @@
+{
+  "script_sha256": "af3aebbd86056c974c9c9b7adcff675a07c8bae8fb4642895eff65dfb784f10a",
+  "n_cases": 75,
+  "events": 20,
+  "outer": "5x3 seed4049",
+  "inner": 3,
+  "full_contract_sha256": "292ee6f7fc2a5136030dd0294384dc2cf575af82c75bf486e58501fc2e81cd3d",
+  "local_contract_sha256": "99db59c8d96ac9bb8ff7448e0feef87e89e492dca182dce7eb0812ac914545e8",
+  "cohort_sha256": "529e95c24450fe6f317dd55273d1503cd4dc9ef8074a3e2b8cf9ff412e4b5c21",
+  "pca": [
+    4,
+    8
+  ],
+  "penalties": [
+    0.1,
+    1.0,
+    10.0,
+    100.0
+  ],
+  "weight_step": 0.1,
+  "local_contract_sha256_complete": "920dc4715135bb5e58d7e4815f31835a66d0ffe07c5e054633d9c13c9ac141b0"
+}

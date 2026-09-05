@@ -1,0 +1,21 @@
+{
+  "mean_within_fold_cindex": {
+    "resnet18": 0.795060925835861,
+    "dinov2": 0.7915142018200972
+  },
+  "paired_comparisons": [
+    {
+      "candidate": "dinov2",
+      "reference": "resnet18",
+      "delta": -0.0035467240157637248,
+      "ci95_lo": -0.13018001382815916,
+      "ci95_hi": 0.11259143783342643,
+      "bootstrap_p": 0.8964,
+      "n_bootstrap": 5000,
+      "p_holm_within_run": 0.8964
+    }
+  ],
+  "primary_estimand": "Arithmetic mean of within-outer-fold C-indices",
+  "uncertainty": "Patient resampling across all repeated folds; fitted predictions fixed",
+  "limitation": "Exploratory reused cohort; bootstrap does not capture retraining uncertainty"
+}

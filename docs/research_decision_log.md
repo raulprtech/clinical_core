@@ -394,3 +394,18 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
 - **Estado:** diez experimentos y D1 completos y verificados; trece pruebas
   pasan. Código, informes y agregados preparados para GitHub; datos clínicos
   por paciente e imágenes excluidos. Detalles de redondeo CSV en el informe.
+
+## 2026-09-05 — Segunda etapa 2.5D
+
+- **Alcance:** continuar las tres opciones prioritarias y el piloto DINOv2,
+  según `docs/renal_2p5d_stage2_protocol.md`, registrado antes de entrenamiento.
+- **S1/S2:** parada interna hasta100 épocas, mínimo20 y paciencia15;
+  cabezas lineal/Mamba, controles congelado/adaptado y17 pruebas técnicas.
+  Entrenamientos en ejecución; no se dispone aún de conclusión global.
+- **S3 global-local:**0.7982 vs full0.7818, delta+0.0164,
+  IC95%[-0.0461,+0.0673], p0.622. No ventaja incremental demostrada.
+- **S4 DINOv2:**0.7915 vs ResNet0.7951 sobre las mismas16 imágenes/caso,
+  delta-0.0035, IC95%[-0.1302,+0.1126], p0.8964. No ventaja demostrada;
+  no afirmar equivalencia ni extrapolar a todos los encoders autosupervisados.
+- **Detalle:** `docs/renal_2p5d_stage2_results.md`, con fuentes oficiales,
+  revisiones, límites y comandos de reproducción.
