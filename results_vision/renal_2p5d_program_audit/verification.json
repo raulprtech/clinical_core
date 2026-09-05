@@ -1,0 +1,87 @@
+{
+  "runs": {
+    "renal_2p5d_program_cox_v1": {
+      "status": "verified",
+      "n_cases": 75,
+      "events": 20,
+      "models": 4,
+      "heldout_rows": 900,
+      "paired_outer_folds": 15,
+      "patient_disjoint_train_test": true,
+      "aggregate_metrics_recomputed": true
+    },
+    "renal_2p5d_program_mamba_v1": {
+      "status": "verified",
+      "n_cases": 75,
+      "events": 20,
+      "models": 3,
+      "heldout_rows": 675,
+      "paired_outer_folds": 15,
+      "patient_disjoint_train_test": true,
+      "aggregate_metrics_recomputed": true
+    },
+    "renal_2p5d_adaptation_v1": {
+      "status": "verified",
+      "n_cases": 75,
+      "events": 20,
+      "models": 2,
+      "heldout_rows": 450,
+      "paired_outer_folds": 15,
+      "patient_disjoint_train_test": true,
+      "aggregate_metrics_recomputed": true
+    },
+    "renal_2p5d_followup_moments_v1": {
+      "status": "verified",
+      "n_cases": 75,
+      "events": 20,
+      "models": 4,
+      "heldout_rows": 900,
+      "paired_outer_folds": 15,
+      "patient_disjoint_train_test": true,
+      "aggregate_metrics_recomputed": true
+    },
+    "renal_2p5d_followup_fusion_v1": {
+      "status": "verified",
+      "n_cases": 75,
+      "events": 20,
+      "models": 5,
+      "heldout_rows": 1125,
+      "paired_outer_folds": 15,
+      "patient_disjoint_train_test": true,
+      "aggregate_metrics_recomputed": true
+    },
+    "renal_2p5d_followup_fusion_moments_v1": {
+      "status": "verified",
+      "n_cases": 75,
+      "events": 20,
+      "models": 5,
+      "heldout_rows": 1125,
+      "paired_outer_folds": 15,
+      "patient_disjoint_train_test": true,
+      "aggregate_metrics_recomputed": true
+    },
+    "fullfield_moments_214_v1": {
+      "status": "verified",
+      "n_cases": 214,
+      "events": 64,
+      "models": 2,
+      "heldout_rows": 1284,
+      "paired_outer_folds": 15,
+      "patient_disjoint_train_test": true,
+      "aggregate_metrics_recomputed": true
+    },
+    "renal_2p5d_adaptation_extended_v1": {
+      "status": "incomplete"
+    },
+    "reproduced_controls": {
+      "predictions": 450,
+      "max_absolute_difference": 0.0
+    },
+    "fusion_weights": {
+      "pairs": 30,
+      "convex": true
+    }
+  },
+  "all_runs_verified": false,
+  "scope": "Coverage, split pairing, aggregate recomputation and control reproduction; code leakage review and anatomical validity are separate checks"
+}

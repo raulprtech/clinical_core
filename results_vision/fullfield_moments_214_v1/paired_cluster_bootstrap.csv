@@ -1,0 +1,2 @@
+candidate,reference,delta,ci95_lo,ci95_hi,bootstrap_p,n_bootstrap,p_holm_within_run
+moments,mean,-0.025581741342307285,-0.0586382843481506,0.005682827455543389,0.108,5000,0.108

@@ -343,3 +343,30 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
   `docs/resnet18_2p5d_context_span_results.md`.
 - **Artefactos agregados:**
   `results_vision/resnet18_2p5d_context_span_nested/`.
+
+## 2026-09-04/05 — Programa renal 2.5D, adaptación y radiomics
+
+- **Alcance autorizado:** ejecutar recorte anatómico, adaptación ligera de
+  ResNet18 y radiomics2D; registrar y probar seguimientos motivados por resultados.
+- **Cohorte inicial:** 75 CT/20 eventos con máscaras reales de STU-Net ya
+  disponibles. Geometría/hashes y centros pareados verificados. Siete máscaras
+  tienen un único riñón; no asumir lateralidad tumoral ni nefrectomía.
+- **Recorte:** Mamba campo completo0.8187, tramo renal sin recorte0.8242,
+  recorte0.6990. Recorte vs mismos centros sin recorte: -0.1252,
+  IC95% [-0.2208,-0.0281], Holm0.0372. Conservar contexto; no promover recorte.
+- **Radiomics:** 27 medidas explícitas, sin mocks; 0.6655 con Cox.
+  Fusión tabular+radiomics0.7372 vs tabular0.7319, delta+0.0053,
+  IC95% [-0.0599,+0.1066]. No ventaja incremental demostrada.
+- **Adaptación inicial:** último bloque adaptado0.7161 vs congelado0.6799,
+  delta+0.0362, IC95% [-0.0207,+0.0958]. Selección en máximo5 épocas en
+  13/15 y15/15 folds: seguimiento predeclarado hasta20 épocas en ejecución.
+- **Momentos ResNet:** mejora media pequeña en75 que no se sostiene al ampliar
+  a214/64 eventos: media0.6771 vs momentos0.6515, delta-0.0256,
+  IC95% [-0.0586,+0.0057]. Fusión con momentos tampoco supera fusión con media.
+- **Interpretación:** cifras de esta etapa son medias de C-index dentro de fold;
+  no compararlas directamente con OOF pooled histórico ni entre cohortes75/214.
+  Todos los seguimientos son exploratorios, con modelos/preprocesamiento en train,
+  CV5x3, bootstrap por paciente y multiplicidad explícita dentro de corrida.
+- **Registro completo:** `docs/renal_2p5d_research_program.md` y
+  `docs/renal_2p5d_program_results.md`; incluye protocolos, revisiones y artefactos.
+- **Estado:** pendiente cierre del seguimiento extendido F5 y auditoría final.

@@ -11,13 +11,16 @@ RUNS = {
     'renal_2p5d_adaptation_v1': 2,
     'renal_2p5d_followup_moments_v1': 4,
     'renal_2p5d_followup_fusion_v1': 5,
+    'renal_2p5d_followup_fusion_moments_v1': 5,
+    'fullfield_moments_214_v1': 2,
+    'renal_2p5d_adaptation_extended_v1': 2,
 }
 
 
 def main():
     root = Path('results_vision')
     evidence, frames, errors = {}, {}, []
-    reference_splits = None
+    reference_splits = {}
     for run, n_models in RUNS.items():
         folder = root/run
         if not (folder/'summary.json').exists():
@@ -28,16 +31,18 @@ def main():
         cohort = pd.read_csv(folder/'cohort_common.csv')
         frames[run] = pred
         expected = set(cohort.case_id)
+        assert len(cohort) == (214 if run == 'fullfield_moments_214_v1' else 75)
         assert not cohort.case_id.duplicated().any()
         assert pred.model.nunique() == n_models
         assert np.isfinite(pred.risk).all()
         assert len(pred) == len(cohort)*3*n_models
         assert not pred.duplicated(['case_id','model','repeat']).any()
         ordered = splits[['repeat','fold','case_id','partition']].sort_values(['repeat','fold','case_id']).reset_index(drop=True)
-        if reference_splits is None:
-            reference_splits = ordered
+        cohort_key = len(cohort)
+        if cohort_key not in reference_splits:
+            reference_splits[cohort_key] = ordered
         else:
-            pd.testing.assert_frame_equal(ordered, reference_splits)
+            pd.testing.assert_frame_equal(ordered, reference_splits[cohort_key])
         for (repeat,fold), s in splits.groupby(['repeat','fold']):
             train = set(s.loc[s.partition=='train','case_id'])
             test = set(s.loc[s.partition=='heldout','case_id'])

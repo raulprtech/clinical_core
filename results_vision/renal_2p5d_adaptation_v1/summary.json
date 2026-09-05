@@ -1,0 +1,21 @@
+{
+  "mean_within_fold_cindex": {
+    "frozen": 0.6798866342771607,
+    "adapted": 0.7161317531566882
+  },
+  "paired_comparisons": [
+    {
+      "candidate": "adapted",
+      "reference": "frozen",
+      "delta": 0.03624511887952753,
+      "ci95_lo": -0.020698109001323753,
+      "ci95_hi": 0.0958355917037279,
+      "bootstrap_p": 0.1792,
+      "n_bootstrap": 5000,
+      "p_holm_within_run": 0.1792
+    }
+  ],
+  "primary_estimand": "Arithmetic mean of within-outer-fold C-indices",
+  "uncertainty": "Patient resampling across all repeated folds; fitted predictions fixed",
+  "limitation": "Exploratory reused cohort; bootstrap does not capture retraining uncertainty"
+}

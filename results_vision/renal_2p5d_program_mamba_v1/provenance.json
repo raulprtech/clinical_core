@@ -1,0 +1,29 @@
+{
+  "arguments": {
+    "cache": "data/embeddings/vision/renal_2p5d_program_v1",
+    "targets": "results/20260715_174428_6da68b83/raw_targets.csv",
+    "output": "results_vision/renal_2p5d_program_mamba_v1",
+    "kind": "mamba",
+    "device": "cuda",
+    "outer_repeats": 3,
+    "epochs": 200,
+    "bootstrap_iterations": 5000,
+    "use_position": false,
+    "inner_folds": 3,
+    "patience": 20,
+    "lr": 0.001,
+    "weight_decay": 0.001,
+    "dropout": 0.1,
+    "model_dim": 128,
+    "attention_dim": 64,
+    "state_dim": 16,
+    "mamba_blocks": 2
+  },
+  "script_sha256": "c61df5f1a4989027fdba51804cd6664b1f4d232990815beb92c3c28ae3e32f60",
+  "targets_sha256": "fdf76c68ac0e78ab382081a47ef6b59cf4615c614e65a4f3c3f3c86c2a958222",
+  "cache_contract_sha256": "292ee6f7fc2a5136030dd0294384dc2cf575af82c75bf486e58501fc2e81cd3d",
+  "radiomics_sha256": "5b320d2043db7a9e0914c17e22b3ec50c2ca2a8fe66918bd9851a2247807c5cb",
+  "ids_sha256": "8e0a50384008a9ad0f8c28a67571eedd2ca4b7c1c573b4d35275dcd258b61fc9",
+  "n_cases": 75,
+  "events": 20
+}

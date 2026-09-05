@@ -1,0 +1,42 @@
+{
+  "mean_within_fold_cindex": {
+    "full": 0.8186800540675215,
+    "renal_slices": 0.8241609898979197,
+    "renal_crop": 0.6990031967270567
+  },
+  "paired_comparisons": [
+    {
+      "candidate": "renal_crop",
+      "reference": "full",
+      "delta": -0.11967685734046485,
+      "ci95_lo": -0.22864079437298054,
+      "ci95_hi": -0.012750186179167594,
+      "bootstrap_p": 0.0344,
+      "n_bootstrap": 5000,
+      "p_holm_within_run": 0.0688
+    },
+    {
+      "candidate": "renal_slices",
+      "reference": "full",
+      "delta": 0.005480935830398215,
+      "ci95_lo": -0.06391402470635964,
+      "ci95_hi": 0.06386423919847377,
+      "bootstrap_p": 0.8504,
+      "n_bootstrap": 5000,
+      "p_holm_within_run": 0.8504
+    },
+    {
+      "candidate": "renal_crop",
+      "reference": "renal_slices",
+      "delta": -0.12515779317086306,
+      "ci95_lo": -0.22076856360270766,
+      "ci95_hi": -0.02805796687226991,
+      "bootstrap_p": 0.0124,
+      "n_bootstrap": 5000,
+      "p_holm_within_run": 0.0372
+    }
+  ],
+  "primary_estimand": "Arithmetic mean of within-outer-fold C-indices",
+  "uncertainty": "Patient resampling across all repeated folds; fitted predictions fixed",
+  "limitation": "Exploratory reused cohort; bootstrap does not capture retraining uncertainty"
+}

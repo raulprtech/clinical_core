@@ -1,0 +1,34 @@
+{
+  "mean_within_fold_cindex": {
+    "tabular": 0.7318680670031708,
+    "full": 0.7817997458072079,
+    "full_moments": 0.8109242659659791,
+    "tabular_full": 0.8046844116518755,
+    "tabular_full_moments": 0.8004144064593176
+  },
+  "paired_comparisons": [
+    {
+      "candidate": "tabular_full_moments",
+      "reference": "tabular_full",
+      "delta": -0.004270005192557935,
+      "ci95_lo": -0.052950961234484506,
+      "ci95_hi": 0.05117114045490497,
+      "bootstrap_p": 0.8604,
+      "n_bootstrap": 5000,
+      "p_holm_within_run": 0.8604
+    },
+    {
+      "candidate": "tabular_full_moments",
+      "reference": "tabular",
+      "delta": 0.06854633945614685,
+      "ci95_lo": -0.040700311216979035,
+      "ci95_hi": 0.17678319212132895,
+      "bootstrap_p": 0.2172,
+      "n_bootstrap": 5000,
+      "p_holm_within_run": 0.4344
+    }
+  ],
+  "primary_estimand": "Arithmetic mean of within-outer-fold C-indices",
+  "uncertainty": "Patient resampling across all repeated folds; fitted predictions fixed",
+  "limitation": "Exploratory reused cohort; bootstrap does not capture retraining uncertainty"
+}

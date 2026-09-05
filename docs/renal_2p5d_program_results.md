@@ -35,8 +35,15 @@ Artefactos: `results_vision/renal_2p5d_program_cox_v1/`.
 
 ## E2 — Mamba y recorte renal
 
-En ejecución: mismos tres brazos, cohorte y particiones; Mamba-64 sin posición.
-No se escogerá la representación por folds individuales.
+Completado: mismos tres brazos, cohorte y particiones; Mamba-64 sin posición.
+Campo completo0.8187, selección axial renal sin recorte0.8242, recorte0.6990.
+Recorte-campo completo: -0.1197, IC95% [-0.2286,-0.0128], Holm0.0688.
+Selección renal-campo completo: +0.0055, IC95% [-0.0639,+0.0639], Holm0.8504.
+Recorte-selección renal: -0.1252, IC95% [-0.2208,-0.0281], Holm0.0372.
+El contraste más limpio de recorte, con idénticos centros axiales, evidencia
+degradación dentro de esta corrida. Conservar contexto de campo completo;
+no promover el recorte ni atribuir ventaja confirmada a selección axial renal.
+Esto no demuestra que el tumor esté mal segmentado ni identifica el mecanismo.
 
 ## E3 — Adaptación ligera
 
@@ -129,5 +136,39 @@ estadísticas de pooling ResNet a partir de la clasificación de medias.
   --output results_vision/renal_2p5d_adaptation_v1 --device cuda
 ```
 
-Pendientes para cierre: terminar E2/E3, ejecutar F1/F2, verificar resultados,
+## Registro de corridas y reproducción
+
+| ID | Salida bajo results_vision/ | Revisión de implementación |
+|---|---|---|
+| E1 | renal_2p5d_program_cox_v1 | 66d3cf8 |
+| E2 | renal_2p5d_program_mamba_v1 | 66d3cf8 |
+| E3 | renal_2p5d_adaptation_v1 | 25a28fa |
+| F1 | renal_2p5d_followup_moments_v1 | e8794f5 |
+| F2 | renal_2p5d_followup_fusion_v1 | e8794f5 |
+| F3 | renal_2p5d_followup_fusion_moments_v1 | 3cd1224 |
+| F4 | fullfield_moments_214_v1 | 3cd1224 |
+| F5 | renal_2p5d_adaptation_extended_v1 | 59d4e07 |
+
+Cada salida completa incluye summary, métricas por fold/repetición, bootstrap,
+selección de hiperparámetros y procedencia. Cohortes, splits y predicciones,
+incluidos checkpoints reanudables folds/, quedan excluidos de Git.
+Las corridas rechazan reanudar con un contrato distinto. Para reproducir,
+usar la revisión correspondiente y las entradas locales, o una salida nueva;
+no sobrescribir una corrida histórica con código cambiado.
+
+F1/F2/F3: `code/tools/evaluate_renal_2p5d_followups.py` con el cache y targets
+anteriores, `--kind moments`, `--kind fusion` o `--kind fusion_moments` y salida
+propia. Fusión requiere además
+`--features results/20260715_174428_6da68b83/raw_features.csv`.
+
+F4: `code/tools/evaluate_fullfield_moments_214.py` con
+`--sequence-dir data/embeddings/vision/resnet18_2p5d_sequences`, los mismos
+targets y salida propia. F5: el comando E3 con salida propia y
+`--epoch-grid 1 3 5 10 20`. Usar `--pilot` para repetir únicamente el piloto
+técnico de adaptación y `--prepare-only` para construir los prefijos congelados.
+
+Verificación agregada: `.venv/bin/python code/tools/verify_renal_2p5d_program.py`.
+Informa corridas incompletas sin tratarlas como experimentos terminados.
+
+Pendientes para cierre: terminar F5, verificar todos los resultados,
 registrar decisiones y evaluar si justifican otro seguimiento concreto.

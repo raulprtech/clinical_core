@@ -1,0 +1,29 @@
+{
+  "kind": "moments",
+  "n_cases": 75,
+  "events": 20,
+  "script_sha256": "24690a892a351f133cfede2ec33d60dad0c5909d90d1d5d822a8f8fc1984dd41",
+  "targets_sha256": "fdf76c68ac0e78ab382081a47ef6b59cf4615c614e65a4f3c3f3c86c2a958222",
+  "cache_contract_sha256": "292ee6f7fc2a5136030dd0294384dc2cf575af82c75bf486e58501fc2e81cd3d",
+  "radiomics_sha256": "5b320d2043db7a9e0914c17e22b3ec50c2ca2a8fe66918bd9851a2247807c5cb",
+  "features_sha256": null,
+  "outer": "5x3, seed4049",
+  "inner": 3,
+  "hypotheses": [
+    [
+      "full_moments",
+      "full"
+    ],
+    [
+      "renal_crop_moments",
+      "renal_crop"
+    ]
+  ],
+  "arguments": {
+    "cache": "data/embeddings/vision/renal_2p5d_program_v1",
+    "targets": "results/20260715_174428_6da68b83/raw_targets.csv",
+    "features": null,
+    "output": "results_vision/renal_2p5d_followup_moments_v1",
+    "kind": "moments"
+  }
+}

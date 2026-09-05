@@ -1,0 +1,23 @@
+{
+  "script_sha256": "347dea7f529956e7e01bd76d2c7aa3872f1f3e8ff78cd65d178782f85de095e1",
+  "sequence_manifest_sha256": "4183f39a75f40293a33c6df28c95e19e58ca458c06bfaae3e89a8a369aedd711",
+  "targets_sha256": "fdf76c68ac0e78ab382081a47ef6b59cf4615c614e65a4f3c3f3c86c2a958222",
+  "n_cases": 214,
+  "events": 64,
+  "outer": "5x3 seed4049",
+  "inner": 3,
+  "components": [
+    4,
+    8
+  ],
+  "alphas": [
+    100.0,
+    10.0,
+    1.0
+  ],
+  "arguments": {
+    "sequence_dir": "data/embeddings/vision/resnet18_2p5d_sequences",
+    "targets": "results/20260715_174428_6da68b83/raw_targets.csv",
+    "output": "results_vision/fullfield_moments_214_v1"
+  }
+}
