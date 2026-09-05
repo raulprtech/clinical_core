@@ -12,13 +12,26 @@ Esta regla cambia respecto a F6; reportar resultados como nueva corrida.
 
 ## S2 — Mamba y encoder adaptado conjuntamente
 
-En ejecución, con controles idénticos y entrenamiento estrictamente por partición.
+Completado y auditado, con controles idénticos y entrenamiento estrictamente por partición.
 Piloto técnico sin batching:60 pacientes train,10.772s/época,187.629MiB de GPU
 asignada; batching:3.858s,187.160MiB. Ambos dan pérdida inicial3.22703576,
 cambio máximo de layer4=1.00136e-5 y predicciones held-out finitas.
 La prueba de gradientes compara ejecución por lotes con ejecución individual
 en brazos congelado y adaptado. No usar el piloto para seleccionar rendimiento.
 Las mediciones de tiempo no son benchmarks aislados de carga del sistema.
+
+Resultado: Mamba adaptado0.8199 frente a congelado0.8106;
+delta+0.0093, IC95%[-0.0171,+0.0476], p0.5224. No demuestra una ventaja
+incremental de adaptar conjuntamente el encoder; no promover este cambio.
+El auditor verificó cobertura y etiquetas de las450 filas de predicción,
+recalculó métricas y bootstrap, y revisó las90 curvas internas y las30 selecciones
+de época. Esta comprobación no vuelve a entrenar los modelos.
+Ninguna selección interna alcanzó el máximo100: todas pararon por paciencia.
+Esto no prueba convergencia matemática ni descarta otros optimizadores.
+Los deltas medios por repetición fueron+0.0111,+0.0012,+0.0158; son positivos
+pero las repeticiones comparten pacientes y no son tres replicaciones independientes.
+El resultado tampoco demuestra equivalencia ni permite atribuir diferencias
+frente al Mamba histórico64 tokens únicamente al encoder (aquí16 tokens).
 
 ## S3 — Fusión global-local
 
@@ -80,5 +93,5 @@ sus cuatro contrastes primarios. Es un ajuste secundario registrado después
 de conocer S3/S4 y antes de terminar S1/S2; no cambia modelos ni reemplaza los
 resultados por corrida, y tampoco convierte la cohorte reutilizada en confirmatoria.
 
-Pendiente: terminar S1/S2, auditar cobertura, emparejamiento, curvas y controles,
+Pendiente: terminar S1, auditar su cobertura, emparejamiento, curvas y controles,
 consolidar la conclusión y publicar los agregados verificados.

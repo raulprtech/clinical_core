@@ -401,7 +401,12 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
   según `docs/renal_2p5d_stage2_protocol.md`, registrado antes de entrenamiento.
 - **S1/S2:** parada interna hasta100 épocas, mínimo20 y paciencia15;
   cabezas lineal/Mamba, controles congelado/adaptado y17 pruebas técnicas.
-  Entrenamientos en ejecución; no se dispone aún de conclusión global.
+  S1 sigue en ejecución; no se dispone aún de conclusión global.
+- **S2 Mamba conjunto completado:** adaptado0.8199 vs congelado0.8106,
+  delta+0.0093, IC95%[-0.0171,+0.0476], p0.5224. No ventaja demostrada.
+  Auditoría de450 filas de predicción,90 curvas y30 selecciones de época;
+  ninguna curva interna alcanzó100 épocas. No promover adaptación conjunta
+  por esta cifra ni interpretar parada temprana como convergencia matemática.
 - **S3 global-local:**0.7982 vs full0.7818, delta+0.0164,
   IC95%[-0.0461,+0.0673], p0.622. No ventaja incremental demostrada.
 - **S4 DINOv2:**0.7915 vs ResNet0.7951 sobre las mismas16 imágenes/caso,

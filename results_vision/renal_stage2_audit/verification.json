@@ -4,7 +4,44 @@
       "status": "incomplete"
     },
     "stage2_joint_mamba_v1": {
-      "status": "incomplete"
+      "status": "verified",
+      "n_cases": 75,
+      "events": 20,
+      "models": 2,
+      "heldout_rows": 450,
+      "paired_patient_disjoint_folds": 15,
+      "labels_match_previous_stage": true,
+      "metrics_and_bootstrap_recomputed": true,
+      "inner_curves_verified": 90,
+      "inner_runs_at_cap": 0,
+      "selected_epoch_counts": {
+        "adapted": {
+          "1": 1,
+          "2": 1,
+          "4": 1,
+          "5": 2,
+          "6": 1,
+          "7": 1,
+          "10": 2,
+          "11": 1,
+          "12": 2,
+          "15": 1,
+          "16": 1,
+          "20": 1
+        },
+        "frozen": {
+          "1": 1,
+          "3": 3,
+          "5": 1,
+          "6": 1,
+          "9": 2,
+          "11": 2,
+          "12": 1,
+          "13": 2,
+          "14": 1,
+          "20": 1
+        }
+      }
     },
     "stage2_global_local_v1": {
       "status": "verified",
@@ -48,5 +85,7 @@
     }
   },
   "all_runs_verified": false,
+  "stagewise_holm_sensitivity": [],
+  "multiplicity_note": "Secondary transparent adjustment across the four fixed primary contrasts; reused cohort remains exploratory",
   "scope": "Coverage, labels, paired splits, estimates, early-stop replay and selected controls; not independent clinical validation"
 }
