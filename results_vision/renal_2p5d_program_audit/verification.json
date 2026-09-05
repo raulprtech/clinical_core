@@ -8,7 +8,8 @@
       "heldout_rows": 900,
       "paired_outer_folds": 15,
       "patient_disjoint_train_test": true,
-      "aggregate_metrics_recomputed": true
+      "aggregate_metrics_recomputed": true,
+      "bootstrap_intervals_and_pvalues_reproduced": true
     },
     "renal_2p5d_program_mamba_v1": {
       "status": "verified",
@@ -18,7 +19,8 @@
       "heldout_rows": 675,
       "paired_outer_folds": 15,
       "patient_disjoint_train_test": true,
-      "aggregate_metrics_recomputed": true
+      "aggregate_metrics_recomputed": true,
+      "bootstrap_intervals_and_pvalues_reproduced": true
     },
     "renal_2p5d_adaptation_v1": {
       "status": "verified",
@@ -28,7 +30,8 @@
       "heldout_rows": 450,
       "paired_outer_folds": 15,
       "patient_disjoint_train_test": true,
-      "aggregate_metrics_recomputed": true
+      "aggregate_metrics_recomputed": true,
+      "bootstrap_intervals_and_pvalues_reproduced": true
     },
     "renal_2p5d_followup_moments_v1": {
       "status": "verified",
@@ -38,7 +41,8 @@
       "heldout_rows": 900,
       "paired_outer_folds": 15,
       "patient_disjoint_train_test": true,
-      "aggregate_metrics_recomputed": true
+      "aggregate_metrics_recomputed": true,
+      "bootstrap_intervals_and_pvalues_reproduced": true
     },
     "renal_2p5d_followup_fusion_v1": {
       "status": "verified",
@@ -49,6 +53,7 @@
       "paired_outer_folds": 15,
       "patient_disjoint_train_test": true,
       "aggregate_metrics_recomputed": true,
+      "bootstrap_intervals_and_pvalues_reproduced": true,
       "fusion_weights": {
         "pairs": 30,
         "convex": true
@@ -63,6 +68,7 @@
       "paired_outer_folds": 15,
       "patient_disjoint_train_test": true,
       "aggregate_metrics_recomputed": true,
+      "bootstrap_intervals_and_pvalues_reproduced": true,
       "fusion_weights": {
         "pairs": 30,
         "convex": true
@@ -76,7 +82,8 @@
       "heldout_rows": 1284,
       "paired_outer_folds": 15,
       "patient_disjoint_train_test": true,
-      "aggregate_metrics_recomputed": true
+      "aggregate_metrics_recomputed": true,
+      "bootstrap_intervals_and_pvalues_reproduced": true
     },
     "renal_2p5d_adaptation_extended_v1": {
       "status": "verified",
@@ -86,7 +93,8 @@
       "heldout_rows": 450,
       "paired_outer_folds": 15,
       "patient_disjoint_train_test": true,
-      "aggregate_metrics_recomputed": true
+      "aggregate_metrics_recomputed": true,
+      "bootstrap_intervals_and_pvalues_reproduced": true
     },
     "fullfield_2p5d_adaptation_v1": {
       "status": "incomplete"

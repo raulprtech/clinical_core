@@ -14,10 +14,21 @@ from evaluate_renal_2p5d_program import comparable_scores, cox_nested
 from evaluate_resnet_sequence_models import safe_cindex
 from evaluate_renal_resnet_adaptation import two_pass_backward, cox_ph_loss, new_model, train_epoch
 from build_fullfield_adaptation_cache import selected_centers
+from build_renal_letterbox_cache import square_pad
 from evaluate_stunet_trimodal_pooling_nested_cv import fit_outer_modality
 
 
 class RenalProgramTests(unittest.TestCase):
+    def test_letterbox_preserves_pixels_and_only_adds_zero_padding(self):
+        for height,width in [(4,8),(8,4),(5,8),(7,7)]:
+            image=torch.arange(3*height*width,dtype=torch.float32).reshape(3,height,width)+1
+            padded=square_pad(image)
+            side=max(height,width)
+            top,left=(side-height)//2,(side-width)//2
+            self.assertEqual(padded.shape,(3,side,side))
+            torch.testing.assert_close(padded[:,top:top+height,left:left+width],image,rtol=0,atol=0)
+            self.assertEqual(int(torch.count_nonzero(padded)),image.numel())
+
     @staticmethod
     def synthetic_cohort():
         rng = np.random.default_rng(47)

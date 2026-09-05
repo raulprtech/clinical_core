@@ -1,9 +1,11 @@
 """Audit completed experiment coverage, paired splits and aggregate claims."""
 import json
+import tempfile
 from pathlib import Path
 import numpy as np
 import pandas as pd
 from evaluate_resnet_sequence_models import safe_cindex
+from evaluate_renal_2p5d_program import summarize
 
 RUNS = {
     'renal_2p5d_program_cox_v1': 4,
@@ -15,6 +17,7 @@ RUNS = {
     'fullfield_moments_214_v1': 2,
     'renal_2p5d_adaptation_extended_v1': 2,
     'fullfield_2p5d_adaptation_v1': 2,
+    'renal_2p5d_aspect_mamba_v1': 3,
 }
 
 
@@ -60,9 +63,16 @@ def main():
             actual = summary['mean_within_fold_cindex'][row['candidate']] - summary['mean_within_fold_cindex'][row['reference']]
             assert np.isclose(row['delta'],actual,atol=1e-12,rtol=0)
             assert row['n_bootstrap'] == 5000 and row['ci95_lo']<=row['ci95_hi']
+        comparisons = [(row['candidate'],row['reference']) for row in summary['paired_comparisons']]
+        with tempfile.TemporaryDirectory(prefix='renal-program-bootstrap-audit-') as temporary:
+            recomputed = summarize(pred,Path(temporary),comparisons)
+        for reported, checked in zip(summary['paired_comparisons'],recomputed['paired_comparisons']):
+            for field in ('delta','ci95_lo','ci95_hi','bootstrap_p','p_holm_within_run'):
+                assert np.isclose(reported[field],checked[field],atol=1e-12,rtol=0), (run,field)
         evidence[run] = {'status':'verified', 'n_cases':len(cohort), 'events':int(cohort.event.sum()),
                          'models':n_models, 'heldout_rows':len(pred), 'paired_outer_folds':15,
-                         'patient_disjoint_train_test':True, 'aggregate_metrics_recomputed':True}
+                         'patient_disjoint_train_test':True, 'aggregate_metrics_recomputed':True,
+                         'bootstrap_intervals_and_pvalues_reproduced':True}
     if 'renal_2p5d_program_cox_v1' in frames and 'renal_2p5d_followup_moments_v1' in frames:
         left = frames['renal_2p5d_program_cox_v1']
         left = left[left.model.isin(['full','renal_crop'])]
