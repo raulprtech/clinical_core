@@ -120,6 +120,23 @@ estadísticas de pooling ResNet a partir de la clasificación de medias.
 
 ## Reproducción inicial
 
+F6 predeclarado el 2026-09-05 mientras F5 aún está en ejecución: la degradación
+del recorte en E2 motiva trasladar la adaptación ligera a campo completo.
+Reconstruir 16 imágenes de los 64 centros del brazo full ya existente, mediante
+la misma selección uniforme de posiciones usada por E3/F5. Mismos 75 pacientes,
+CT NIfTI, ventana HU, vecinos, resolución, inicializaciones, optimizer y folds;
+sin nuevos pacientes ni elección por desenlace. Usar candidatos1/3/5/10/20 como
+F5 y comparar adaptado-congelado dentro de F6 (único contraste principal,
+bootstrap5000). Las comparaciones entre F5 y F6 son descriptivas, no una nueva
+búsqueda del mejor brazo. No atribuir a campo completo un efecto independiente
+del cambio de centros axiales. Esta prueba no establece convergencia si vuelve
+a elegirse el máximo de épocas. No ampliar automáticamente la búsqueda de
+épocas o arquitecturas por el mayor C-index observado.
+
+Salida: `results_vision/fullfield_2p5d_adaptation_v1/`; extractor específico
+`code/tools/build_fullfield_adaptation_cache.py` y evaluador de adaptación F5
+sin cambios. Entradas nuevas separadas de los cachés históricos.
+
 ```bash
 .venv/bin/python code/tools/build_renal_2p5d_program_cache.py \
   --source data/embeddings/vision/stunet_volumetric_moments_pilot_76 \

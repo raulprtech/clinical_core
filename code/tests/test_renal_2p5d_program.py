@@ -13,9 +13,20 @@ from build_renal_2p5d_program_cache import aligned_arrays, renal_box, plane_feat
 from evaluate_renal_2p5d_program import comparable_scores
 from evaluate_resnet_sequence_models import safe_cindex
 from evaluate_renal_resnet_adaptation import two_pass_backward, cox_ph_loss
+from build_fullfield_adaptation_cache import selected_centers
 
 
 class RenalProgramTests(unittest.TestCase):
+    def test_fullfield_centers_match_existing_image_subsampling(self):
+        for n in (1, 5, 16, 32, 64):
+            centers = np.arange(n)*2+3
+            expected = centers[np.linspace(0,n-1,min(16,n),dtype=int)]
+            np.testing.assert_array_equal(selected_centers(centers),expected)
+        with self.assertRaises(ValueError):
+            selected_centers([])
+        with self.assertRaises(ValueError):
+            selected_centers([[1,2]])
+
     def test_two_pass_gradient_matches_full_cohort_with_tied_times(self):
         class Tiny(torch.nn.Module):
             def __init__(self):

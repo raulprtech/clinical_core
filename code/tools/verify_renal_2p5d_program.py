@@ -14,12 +14,13 @@ RUNS = {
     'renal_2p5d_followup_fusion_moments_v1': 5,
     'fullfield_moments_214_v1': 2,
     'renal_2p5d_adaptation_extended_v1': 2,
+    'fullfield_2p5d_adaptation_v1': 2,
 }
 
 
 def main():
     root = Path('results_vision')
-    evidence, frames, errors = {}, {}, []
+    evidence, frames = {}, {}
     reference_splits = {}
     for run, n_models in RUNS.items():
         folder = root/run
@@ -73,12 +74,48 @@ def main():
         difference = float(np.max(np.abs(merged.risk_x-merged.risk_y)))
         assert difference == 0
         evidence['reproduced_controls'] = {'predictions':len(merged),'max_absolute_difference':difference}
-    if 'renal_2p5d_followup_fusion_v1' in frames:
-        fit = pd.read_csv(root/'renal_2p5d_followup_fusion_v1'/'fitting_metrics.csv')
+    fusion = 'renal_2p5d_followup_fusion_v1'
+    fusion_moments = 'renal_2p5d_followup_fusion_moments_v1'
+    if fusion in frames and fusion_moments in frames:
+        controls = ['tabular', 'full', 'tabular_full']
+        left = frames[fusion].query('model in @controls')
+        right = frames[fusion_moments].query('model in @controls')
+        merged = left.merge(right, on=['case_id','model','repeat','fold'], validate='one_to_one')
+        assert len(merged) == len(left) == len(right) == 675
+        difference = float(np.max(np.abs(merged.risk_x-merged.risk_y)))
+        assert difference == 0
+        evidence['reproduced_fusion_controls'] = {'predictions':len(merged),'max_absolute_difference':difference}
+    for run in (fusion, fusion_moments):
+        if run not in frames:
+            continue
+        fit = pd.read_csv(root/run/'fitting_metrics.csv')
         weights = fit[['weight_tabular','weight_other']].dropna().to_numpy()
         assert len(weights)==30 and np.allclose(weights.sum(axis=1),1)
         assert ((weights>=0)&(weights<=1)).all()
-        evidence['fusion_weights']={'pairs':len(weights),'convex':True}
+        evidence[run]['fusion_weights']={'pairs':len(weights),'convex':True}
+    initial = 'renal_2p5d_adaptation_v1'
+    extended = 'renal_2p5d_adaptation_extended_v1'
+    if initial in frames and extended in frames:
+        scores_checked, curves = 0, {}
+        for name in ('frozen', 'adapted'):
+            selected, rows = [], []
+            for repeat in range(3):
+                for fold in range(5):
+                    checkpoint = f'{repeat}_{fold}_{name}.json'
+                    a = json.loads((root/initial/'folds'/checkpoint).read_text())
+                    b = json.loads((root/extended/'folds'/checkpoint).read_text())
+                    assert a['ids'] == b['ids']
+                    for epoch in ('1','3','5'):
+                        np.testing.assert_array_equal(a['inner_scores'][epoch],b['inner_scores'][epoch])
+                        scores_checked += len(a['inner_scores'][epoch])
+                    selected.append(b['epochs'])
+                    rows.append(b['inner_scores'])
+            curves[name] = {
+                'selected_epochs':{str(e):selected.count(e) for e in sorted(set(selected))},
+                'mean_inner_cindex_by_epoch':{e:float(np.mean([r[e] for r in rows])) for e in rows[0]},
+                'note':'Descriptive inner validation averages; folds overlap and are not independent observations'}
+        evidence['reproduced_adaptation_inner_scores'] = {'scores':scores_checked,'exact':True}
+        evidence['extended_adaptation_selection'] = curves
     result={'runs':evidence,'all_runs_verified':all(evidence[r]['status']=='verified' for r in RUNS),
             'scope':'Coverage, split pairing, aggregate recomputation and control reproduction; code leakage review and anatomical validity are separate checks'}
     dest=root/'renal_2p5d_program_audit'

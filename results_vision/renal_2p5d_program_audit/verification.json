@@ -48,7 +48,11 @@
       "heldout_rows": 1125,
       "paired_outer_folds": 15,
       "patient_disjoint_train_test": true,
-      "aggregate_metrics_recomputed": true
+      "aggregate_metrics_recomputed": true,
+      "fusion_weights": {
+        "pairs": 30,
+        "convex": true
+      }
     },
     "renal_2p5d_followup_fusion_moments_v1": {
       "status": "verified",
@@ -58,7 +62,11 @@
       "heldout_rows": 1125,
       "paired_outer_folds": 15,
       "patient_disjoint_train_test": true,
-      "aggregate_metrics_recomputed": true
+      "aggregate_metrics_recomputed": true,
+      "fusion_weights": {
+        "pairs": 30,
+        "convex": true
+      }
     },
     "fullfield_moments_214_v1": {
       "status": "verified",
@@ -77,9 +85,9 @@
       "predictions": 450,
       "max_absolute_difference": 0.0
     },
-    "fusion_weights": {
-      "pairs": 30,
-      "convex": true
+    "reproduced_fusion_controls": {
+      "predictions": 675,
+      "max_absolute_difference": 0.0
     }
   },
   "all_runs_verified": false,
