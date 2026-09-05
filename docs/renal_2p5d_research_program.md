@@ -55,6 +55,20 @@ supervivencia. Nunca mezclar cortes del mismo paciente entre train y test.
 
 ## Registro de ejecución
 
+Adaptación predeclarada antes de entrenamiento: 16 tokens uniformes del recorte,
+prefijo ImageNet congelado hasta layer3, cabeza lineal sobre media de features
+normalizada. Control idéntico con layer4 congelado. Candidatos de época 1/3/5,
+3 inner folds, lr head=1e-3, lr layer4=1e-5, weight decay=1e-3 y BatchNorm fija.
+Gradiente Cox Breslow calculado con el conjunto completo de entrenamiento y
+repropagado por paciente en dos pasadas; prueba contra gradiente monolítico.
+Los dos brazos se reinicializan dentro de cada partición. El piloto mide cambio
+real de pesos, memoria y tiempo; no selecciona configuración por C-index.
+
+Auditoría Cox: la pérdida secuencial histórica usa acumulación ordenada sin
+agrupación de empates. En los 75 casos actuales no hay tiempos empatados con
+eventos, por lo que no afecta a esta comparación Mamba. La adaptación nueva usa
+Breslow explícito para admitir correctamente empates en cohortes futuras.
+
 El comparador Cox inicial incluye media de tokens de cada uno de los tres
 brazos y radiomics renal de 27 medidas. Pipeline train-only: scaler, PCA 4/8,
 scaler de componentes y Cox ridge con alpha 100/10/1; selección en 3 inner folds.

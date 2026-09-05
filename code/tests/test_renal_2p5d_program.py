@@ -5,14 +5,43 @@ from pathlib import Path
 
 import numpy as np
 import SimpleITK as sitk
+import torch
+import copy
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from build_renal_2p5d_program_cache import aligned_arrays, renal_box, plane_features, radiomics_2d
 from evaluate_renal_2p5d_program import comparable_scores
 from evaluate_resnet_sequence_models import safe_cindex
+from evaluate_renal_resnet_adaptation import two_pass_backward, cox_ph_loss
 
 
 class RenalProgramTests(unittest.TestCase):
+    def test_two_pass_gradient_matches_full_cohort_with_tied_times(self):
+        class Tiny(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.linear = torch.nn.Linear(3, 1)
+            def forward(self, x):
+                return self.linear(x).squeeze()
+        torch.manual_seed(5)
+        first = Tiny()
+        second = copy.deepcopy(first)
+        xs = torch.randn(6, 3)
+        times = torch.tensor([1., 2., 2., 3., 4., 4.])
+        events = torch.tensor([1., 1., 0., 1., 0., 1.])
+        risk = torch.stack([first(x) for x in xs])
+        cox_ph_loss(risk, times, events).backward()
+        two_pass_backward(second, list(xs), times, events, torch.device('cpu'))
+        for p, q in zip(first.parameters(), second.parameters()):
+            torch.testing.assert_close(p.grad, q.grad, rtol=1e-5, atol=1e-6)
+
+    def test_breslow_is_invariant_to_order_of_ties(self):
+        risk = torch.tensor([.2, .5, -.8])
+        times = torch.tensor([1., 1., 2.])
+        events = torch.tensor([1., 0., 1.])
+        order = torch.tensor([1, 0, 2])
+        torch.testing.assert_close(cox_ph_loss(risk, times, events),
+                                   cox_ph_loss(risk[order], times[order], events[order]))
     def test_pair_matrix_handles_censoring_and_ties(self):
         rng = np.random.default_rng(4)
         for _ in range(30):
