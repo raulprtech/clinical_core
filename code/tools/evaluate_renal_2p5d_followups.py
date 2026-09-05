@@ -19,13 +19,13 @@ def main():
     p.add_argument('--targets', type=Path, required=True)
     p.add_argument('--features', type=Path)
     p.add_argument('--output', type=Path, required=True)
-    p.add_argument('--kind', choices=['moments', 'fusion'], required=True)
+    p.add_argument('--kind', choices=['moments', 'fusion', 'fusion_moments'], required=True)
     args = p.parse_args()
     sets = {a: load_sequences(args.cache/a) for a in ['full', 'renal_crop']}
     targets = load_targets(args.targets)
     radio = pd.read_csv(args.cache/'radiomics_2d.csv').set_index('case_id')
     ids = set(targets.index) & set(radio.index) & set(sets['full']) & set(sets['renal_crop'])
-    if args.kind == 'fusion':
+    if args.kind.startswith('fusion'):
         if args.features is None:
             raise ValueError('Fusion requires features')
         tabular = load_indexed_csv(args.features, {'case_id'}).astype(float)
@@ -43,6 +43,11 @@ def main():
         arrays = {'tabular': tabular.loc[ids].to_numpy(float),
                   'full': arrays['full'], 'radiomics': radio.loc[ids].to_numpy(float)}
         comparisons = [('tabular_full','tabular'), ('tabular_radiomics','tabular')]
+        if args.kind == 'fusion_moments':
+            del arrays['radiomics']
+            arrays['full_moments'] = np.stack([np.r_[sets['full'][c][0].mean(axis=0),
+                                                     sets['full'][c][0].std(axis=0)] for c in ids])
+            comparisons = [('tabular_full_moments','tabular_full'), ('tabular_full_moments','tabular')]
     args.output.mkdir(parents=True, exist_ok=True)
     (args.output/'folds').mkdir(exist_ok=True)
     contract = {'kind': args.kind, 'n_cases': len(ids), 'events': int(events.sum()),
@@ -77,8 +82,8 @@ def main():
                         x,times,events,train,test,'tabular' if name=='tabular' else 'vision',
                         seed,[4,8],[.1,1.,10.,100.],3)
                 risks[name], meta[name] = risk.tolist(), details
-            if args.kind == 'fusion':
-                for other in ['full','radiomics']:
+            if args.kind.startswith('fusion'):
+                for other in [x for x in arrays if x != 'tabular']:
                     weights, inner_score = select_bimodal_weights(
                         np.column_stack([oof['tabular'],oof[other]]),times[train],events[train],.1)
                     name = 'tabular_'+other

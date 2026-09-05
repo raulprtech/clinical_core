@@ -69,6 +69,29 @@ evaluación externa del fold permanece independiente de esas selecciones.
 Estos seguimientos se registran después de E1 y antes de sus propias corridas;
 son exploratorios y no equivalen a una validación independiente.
 
+F1 completado: campo completo media+std 0.7993 vs media0.7829, delta+0.0164,
+IC95% [-0.0483,+0.0923]; recorte media+std0.7196 vs media0.7343,
+delta-0.0146, IC95% [-0.0837,+0.0687]. Controles reproducidos exactamente
+en sus 450 predicciones. Ningún contraste significativo (Holm1.0).
+
+F2 completado: tabular0.7319, campo completo0.7818, radiomics0.6651,
+tabular+campo completo0.8047, tabular+radiomics0.7372.
+Delta fusión visual-tabular+0.0728, IC95% [-0.0214,+0.1653], Holm0.2536;
+delta fusión radiomics-tabular+0.0053, IC95% [-0.0599,+0.1066], Holm0.7224.
+Los modelos unimodales de F2 se reajustan con el comparador de fusión existente
+(lifelines y percentiles train); no son los mismos fits scikit-survival de E1.
+
+F3 predeclarado tras F1/F2: combinar momentos de campo completo con tabular.
+Comparar contra tabular+media y contra tabular dentro del mismo protocolo F2.
+No seleccionar pesos con held-out. Reproducir los controles F2 como verificación.
+
+F4 predeclarado tras F1/F2: extender solo media vs media+std de campo completo a
+los 214 casos/64 eventos del caché DICOM histórico, sin necesidad de máscaras.
+Los dos brazos usarán ese mismo caché, PCA4/8 y Cox alpha100/10/1, outer5x3
+semilla4049, inner3 y bootstrap5000. No comparar numéricamente medias entre las
+cohortes75/214 como un efecto arquitectónico. No es validación externa: incluye
+los casos anteriores y datos usados en experimentos históricos.
+
 ## Reproducción inicial
 
 ```bash
