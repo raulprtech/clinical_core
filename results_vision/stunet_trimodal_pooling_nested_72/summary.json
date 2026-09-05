@@ -1,0 +1,200 @@
+{
+  "status": "stunet_trimodal_pooling_nested_repeated_cv",
+  "created_at_utc": "2026-08-27T23:56:28.227716+00:00",
+  "elapsed_seconds": 119.281422783999,
+  "cohort": {
+    "n_cases": 72,
+    "n_events": 20
+  },
+  "protocol": {
+    "outer_folds": 5,
+    "outer_repeats": 5,
+    "inner_folds": 3,
+    "random_state": 20260827,
+    "pca_dims": [
+      4,
+      8
+    ],
+    "penalizers": [
+      0.1,
+      1.0,
+      10.0,
+      100.0
+    ],
+    "fusion": "train-only empirical-risk percentiles and simplex weights",
+    "weight_step": 0.1,
+    "patient_clustered_bootstrap_iterations": 5000
+  },
+  "results": {
+    "tabular": {
+      "mean_pooled_repeat_cindex": 0.776410998552822,
+      "std_across_repeats": 0.010829688529012851,
+      "per_repeat": [
+        0.7771345875542692,
+        0.7612156295224313,
+        0.7894356005788712,
+        0.7713458755426917,
+        0.7829232995658466
+      ],
+      "mean_outer_fold_cindex": 0.7859963356797118
+    },
+    "text": {
+      "mean_pooled_repeat_cindex": 0.3703328509406657,
+      "std_across_repeats": 0.05675770505720248,
+      "per_repeat": [
+        0.39290882778581765,
+        0.45875542691751087,
+        0.31982633863965265,
+        0.3306801736613603,
+        0.34949348769898697
+      ],
+      "mean_outer_fold_cindex": 0.3477731949870057
+    },
+    "vision_mean": {
+      "mean_pooled_repeat_cindex": 0.5733719247467437,
+      "std_across_repeats": 0.056108716750987477,
+      "per_repeat": [
+        0.5643994211287988,
+        0.48118668596237335,
+        0.58972503617945,
+        0.6244573082489147,
+        0.6070911722141823
+      ],
+      "mean_outer_fold_cindex": 0.5682219714856543
+    },
+    "vision_moments": {
+      "mean_pooled_repeat_cindex": 0.7531114327062229,
+      "std_across_repeats": 0.007698660537348977,
+      "per_repeat": [
+        0.7612156295224313,
+        0.7539797395079595,
+        0.7467438494934877,
+        0.7597684515195369,
+        0.743849493487699
+      ],
+      "mean_outer_fold_cindex": 0.740598552330266
+    },
+    "fusion_mean": {
+      "mean_pooled_repeat_cindex": 0.7567293777134587,
+      "std_across_repeats": 0.03194627003337745,
+      "per_repeat": [
+        0.7670043415340086,
+        0.7105643994211288,
+        0.7749638205499276,
+        0.7395079594790159,
+        0.7916063675832128
+      ],
+      "mean_outer_fold_cindex": 0.7492088946656722
+    },
+    "fusion_moments": {
+      "mean_pooled_repeat_cindex": 0.7824891461649782,
+      "std_across_repeats": 0.025074212180102525,
+      "per_repeat": [
+        0.8118668596237337,
+        0.7698986975397974,
+        0.748191027496382,
+        0.7821997105643994,
+        0.8002894356005789
+      ],
+      "mean_outer_fold_cindex": 0.769442406606601
+    }
+  },
+  "paired_comparisons": [
+    {
+      "candidate": "vision_moments",
+      "reference": "vision_mean",
+      "mean_delta_across_repeats": 0.17973950795947904,
+      "ci95_lo": 0.0747047318927571,
+      "ci95_hi": 0.279964946877123,
+      "bootstrap_p": 0.0008,
+      "n_bootstrap": 5000
+    },
+    {
+      "candidate": "fusion_moments",
+      "reference": "fusion_mean",
+      "mean_delta_across_repeats": 0.025759768451519525,
+      "ci95_lo": -0.005998109848096621,
+      "ci95_hi": 0.059936806488530565,
+      "bootstrap_p": 0.116,
+      "n_bootstrap": 5000
+    },
+    {
+      "candidate": "fusion_moments",
+      "reference": "tabular",
+      "mean_delta_across_repeats": 0.006078147612156281,
+      "ci95_lo": -0.037217324722018774,
+      "ci95_hi": 0.053954374135757856,
+      "bootstrap_p": 0.768,
+      "n_bootstrap": 5000
+    },
+    {
+      "candidate": "fusion_moments",
+      "reference": "vision_moments",
+      "mean_delta_across_repeats": 0.029377713458755415,
+      "ci95_lo": -0.04887079605515698,
+      "ci95_hi": 0.10317077860236108,
+      "bootstrap_p": 0.458,
+      "n_bootstrap": 5000
+    }
+  ],
+  "fold_stability": {
+    "delta_vision_moments_minus_mean": {
+      "mean": 0.17237658084461152,
+      "median": 0.14583333333333337,
+      "positive_folds": 21,
+      "ties": 0,
+      "negative_folds": 4
+    },
+    "delta_fusion_moments_minus_mean": {
+      "mean": 0.020233511940928834,
+      "median": 0.0,
+      "positive_folds": 12,
+      "ties": 10,
+      "negative_folds": 3
+    },
+    "delta_fusion_moments_minus_tabular": {
+      "mean": -0.016553929073110648,
+      "median": 0.0,
+      "positive_folds": 7,
+      "ties": 9,
+      "negative_folds": 9
+    }
+  },
+  "weight_stability": {
+    "mean": {
+      "tabular": {
+        "mean": 0.752,
+        "std": 0.1530795000427338,
+        "zero_fraction": 0.0
+      },
+      "text": {
+        "mean": 0.044000000000000004,
+        "std": 0.08205689083394115,
+        "zero_fraction": 0.72
+      },
+      "vision": {
+        "mean": 0.20400000000000001,
+        "std": 0.16703293088490068,
+        "zero_fraction": 0.24
+      }
+    },
+    "moments": {
+      "tabular": {
+        "mean": 0.5920000000000001,
+        "std": 0.2289832599412746,
+        "zero_fraction": 0.0
+      },
+      "text": {
+        "mean": 0.05200000000000001,
+        "std": 0.07702813338860895,
+        "zero_fraction": 0.64
+      },
+      "vision": {
+        "mean": 0.3559999999999999,
+        "std": 0.2467792535850613,
+        "zero_fraction": 0.16
+      }
+    }
+  },
+  "claim_boundary": "Internal repeated nested CV on a previously explored cohort; external validation remains required."
+}

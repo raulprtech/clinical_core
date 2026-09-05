@@ -1,0 +1,18 @@
+{
+  "n_cases": 1,
+  "n_tokens": 56,
+  "n_failures": 0,
+  "identical_case_ids": true,
+  "identical_series": true,
+  "identical_token_counts": true,
+  "identical_positions": true,
+  "all_candidate_features_finite": true,
+  "by_modality": {
+    "CT": {
+      "n_cases": 1,
+      "mean_patient_mean_token_cosine": 0.17363500595092773,
+      "minimum_patient_mean_token_cosine": 0.17363500595092773,
+      "minimum_token_cosine": 0.09407885372638702
+    }
+  }
+}

@@ -447,6 +447,12 @@ class MultimodalPipeline:
                 E_val = torch.tensor(y_df.iloc[val_idx]['event'].values, dtype=torch.float32)
                 
                 prognosis_name = self.config['phase_5_multimodal']['prognosis_proc']
+                # Model initialization must be derived from the declared seed
+                # and fold. Split determinism alone does not make the neural
+                # Cox head reproducible across independent processes.
+                fold_seed = int(seed) * 1000 + int(fold)
+                np.random.seed(fold_seed)
+                torch.manual_seed(fold_seed)
                 prognosis = get_prognosis_proc(
                     prognosis_name,
                     fused_dim=fusion.fused_dim,

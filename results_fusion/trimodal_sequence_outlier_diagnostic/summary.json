@@ -1,0 +1,68 @@
+{
+  "fold": {
+    "repeat": 2,
+    "fold": 4,
+    "split_seed": 3235,
+    "n_heldout": 42,
+    "events_heldout": 12
+  },
+  "fixed_epoch_initialization_sensitivity": {
+    "epochs": 19,
+    "n_seeds": 10,
+    "mean": 0.4170138888888889,
+    "std": 0.036726490315274,
+    "min": 0.3611111111111111,
+    "max": 0.4791666666666667,
+    "values": [
+      0.3611111111111111,
+      0.3888888888888889,
+      0.4236111111111111,
+      0.4548611111111111,
+      0.4791666666666667,
+      0.4097222222222222,
+      0.4548611111111111,
+      0.3819444444444444,
+      0.40625,
+      0.4097222222222222
+    ]
+  },
+  "epoch_sensitivity_same_initialization": [
+    {
+      "epochs": 3,
+      "cindex": 0.5451388888888888
+    },
+    {
+      "epochs": 5,
+      "cindex": 0.53125
+    },
+    {
+      "epochs": 10,
+      "cindex": 0.46875
+    },
+    {
+      "epochs": 19,
+      "cindex": 0.3611111111111111
+    },
+    {
+      "epochs": 30,
+      "cindex": 0.40625
+    },
+    {
+      "epochs": 50,
+      "cindex": 0.4027777777777778
+    }
+  ],
+  "contains_patient_level_data": false,
+  "input_composition_aggregate": {
+    "n_heldout": 42,
+    "events": 12,
+    "ct": 39,
+    "mr": 3,
+    "token_count_mean": 63.61904761904762,
+    "token_count_min": 48,
+    "token_count_max": 64,
+    "geometry_pass": 14,
+    "geometry_fail": 25,
+    "slice_gap_ratio_median": 1.0000020000000007
+  }
+}

@@ -1,0 +1,2 @@
+candidate,reference,mean_delta_across_repeats,ci95_lo,ci95_hi,bootstrap_p,n_bootstrap
+mamba_bidirectional,mamba_unidirectional,-0.013640022027364732,-0.031265619035717736,0.0033218253291070424,0.108,5000

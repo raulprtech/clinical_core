@@ -1,0 +1,31 @@
+{
+  "script": "/home/raulprtech/clinical_core/code/tools/evaluate_mamba_bidirectional_ablation.py",
+  "sequence_manifest": "/home/raulprtech/clinical_core/data/embeddings/vision/resnet18_2p5d_sequences/manifest.csv",
+  "sequence_manifest_sha256": "4183f39a75f40293a33c6df28c95e19e58ca458c06bfaae3e89a8a369aedd711",
+  "targets": "/home/raulprtech/clinical_core/results/20260715_174428_6da68b83/raw_targets.csv",
+  "targets_sha256": "fdf76c68ac0e78ab382081a47ef6b59cf4615c614e65a4f3c3f3c86c2a958222",
+  "modality_manifest": "/home/raulprtech/clinical_core/data/manifests/tcia_kirc/series_selected.csv",
+  "modality_manifest_sha256": "098bc094638a5dcfbb8ce2abff3fd1b3fd5f975bc968dc8591e1c32925f2c773",
+  "arguments": {
+    "sequence_dir": "data/embeddings/vision/resnet18_2p5d_sequences",
+    "targets": "results/20260715_174428_6da68b83/raw_targets.csv",
+    "modality_manifest": "data/manifests/tcia_kirc/series_selected.csv",
+    "output_dir": "results_vision/mamba_bidirectional_ablation",
+    "max_tokens": 64,
+    "outer_folds": 5,
+    "outer_repeats": 3,
+    "inner_folds": 3,
+    "random_state": 4049,
+    "epochs": 200,
+    "patience": 20,
+    "lr": 0.001,
+    "weight_decay": 0.001,
+    "model_dim": 128,
+    "attention_dim": 64,
+    "state_dim": 16,
+    "mamba_blocks": 2,
+    "dropout": 0.1,
+    "bootstrap_iterations": 5000,
+    "device": "cuda"
+  }
+}

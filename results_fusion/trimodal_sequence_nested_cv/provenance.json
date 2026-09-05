@@ -1,0 +1,49 @@
+{
+  "script": "/home/raulprtech/clinical_core/code/tools/evaluate_trimodal_sequence_fusion_nested_cv.py",
+  "features": "/home/raulprtech/clinical_core/results_trimodal/20260721_012302_d9a7599d/raw_features.csv",
+  "features_sha256": "421cfb6fdb722e82b2655203a1f9cec94547fd999d11fe836bb764c3d0f44f89",
+  "targets": "/home/raulprtech/clinical_core/results_trimodal/20260721_012302_d9a7599d/raw_targets.csv",
+  "targets_sha256": "fdf76c68ac0e78ab382081a47ef6b59cf4615c614e65a4f3c3f3c86c2a958222",
+  "text_embeddings": "/home/raulprtech/clinical_core/data/embeddings/text_embeddings_TCGA-KIRC_20260528.npz",
+  "text_embeddings_sha256": "50cb1ae0d03b278c0f94080b66ad46d06a38cf263ba56b22bb84f9f889572c1a",
+  "vision_embeddings": "/home/raulprtech/clinical_core/data/embeddings/vision/vision_resnet18_2p5d_embeddings_768.csv",
+  "vision_embeddings_sha256": "fba88272d882979bf449b01b33f00f55db2efa47c27e47bf5d532012c3e1c488",
+  "sequence_manifest": "/home/raulprtech/clinical_core/data/embeddings/vision/resnet18_2p5d_sequences/manifest.csv",
+  "sequence_manifest_sha256": "4183f39a75f40293a33c6df28c95e19e58ca458c06bfaae3e89a8a369aedd711",
+  "arguments": {
+    "features": "results_trimodal/20260721_012302_d9a7599d/raw_features.csv",
+    "targets": "results_trimodal/20260721_012302_d9a7599d/raw_targets.csv",
+    "text_embeddings": "data/embeddings/text_embeddings_TCGA-KIRC_20260528.npz",
+    "vision_embeddings": "data/embeddings/vision/vision_resnet18_2p5d_embeddings_768.csv",
+    "sequence_dir": "data/embeddings/vision/resnet18_2p5d_sequences",
+    "output_dir": "results_fusion/trimodal_sequence_nested_cv",
+    "outer_folds": 5,
+    "outer_repeats": 3,
+    "inner_folds": 3,
+    "random_state": 3031,
+    "pca_dims": [
+      4,
+      8,
+      16,
+      32
+    ],
+    "penalizers": [
+      0.01,
+      0.1,
+      1.0,
+      10.0
+    ],
+    "weight_step": 0.1,
+    "epochs": 200,
+    "patience": 20,
+    "lr": 0.001,
+    "weight_decay": 0.001,
+    "model_dim": 128,
+    "attention_dim": 64,
+    "state_dim": 16,
+    "mamba_blocks": 2,
+    "dropout": 0.1,
+    "bootstrap_iterations": 5000,
+    "device": "cuda"
+  }
+}

@@ -47,3 +47,15 @@ checkpoint/
 # podemos ignorar todo excepto un archivo .gitkeep
 # !data/.gitkeep
 # !results/.gitkeep
+
+# Patient-level vision artifacts stay local; publish aggregate metrics only.
+results_vision/**/cohort_common.csv
+results_vision/**/heldout_predictions.csv
+results_vision/**/official_pca_cox_predictions.csv
+results_vision/**/paired_predictions.csv
+results_vision/**/splits.csv
+
+# Patient-level fusion artifacts also stay local.
+results_fusion/**/cohort_common.csv
+results_fusion/**/heldout_predictions.csv
+results_fusion/**/splits.csv

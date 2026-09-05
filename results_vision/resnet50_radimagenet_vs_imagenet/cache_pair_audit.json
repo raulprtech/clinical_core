@@ -1,0 +1,24 @@
+{
+  "n_cases": 214,
+  "n_tokens": 13526,
+  "n_failures": 0,
+  "identical_case_ids": true,
+  "identical_series": true,
+  "identical_token_counts": true,
+  "identical_positions": true,
+  "all_candidate_features_finite": true,
+  "by_modality": {
+    "CT": {
+      "n_cases": 190,
+      "mean_patient_mean_token_cosine": 0.1927005362353827,
+      "minimum_patient_mean_token_cosine": 0.116141676902771,
+      "minimum_token_cosine": 0.03444693982601166
+    },
+    "MR": {
+      "n_cases": 24,
+      "mean_patient_mean_token_cosine": 0.1822914108633995,
+      "minimum_patient_mean_token_cosine": 0.13266733288764954,
+      "minimum_token_cosine": 0.03304043039679527
+    }
+  }
+}

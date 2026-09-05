@@ -1,0 +1,71 @@
+{
+  "alpha_grid": [
+    100.0,
+    10.0,
+    1.0
+  ],
+  "components_grid": [
+    4,
+    8
+  ],
+  "design": "5x repeated nested stratified CV with 5 outer folds; train-only PCA; inner-selected ridge Cox",
+  "fold_cindex": {
+    "stunet_mean_768": {
+      "max": 0.7931034482758621,
+      "mean": 0.536521735127423,
+      "median": 0.5333333333333333,
+      "min": 0.3055555555555556,
+      "std": 0.13166547560579359
+    },
+    "stunet_renal_moments_512": {
+      "max": 0.9310344827586207,
+      "mean": 0.6707806314701723,
+      "median": 0.6666666666666666,
+      "min": 0.391304347826087,
+      "std": 0.13335533911041297
+    }
+  },
+  "inner_splits": 3,
+  "input_sha256": {
+    "cohort": "497f17b2ba5417e590abeccd774af463f3e7a004919e9ab0a23aeea658d6b344",
+    "stunet_mean_768": "f215f52d9ecb20e7220dd1510ab9b1f046b80e7ba22b2d96f4bf173cab9d69a7",
+    "stunet_renal_moments_512": "13a054ed17420d5570bd78372f58ef9a1e2f16eeba13e81acff6f131de38010c",
+    "targets": "fdf76c68ac0e78ab382081a47ef6b59cf4615c614e65a4f3c3f3c86c2a958222"
+  },
+  "interpretation_guardrail": "Exploratory representation comparison; not an external validation or a claim of clinical utility. Bootstrap ranks normalize fold-specific risk scales.",
+  "n_cases": 75,
+  "n_events": 20,
+  "outer_splits": 5,
+  "paired_fold_delta": {
+    "max": 0.5555555555555556,
+    "mean": 0.1342588963427493,
+    "median": 0.08333333333333337,
+    "min": -0.12121212121212127,
+    "n_folds": 25,
+    "positive_folds": 21,
+    "std": 0.17183584361746343
+  },
+  "patient_clustered_rank_bootstrap": {
+    "bootstrap_valid_iterations": 5000,
+    "delta_ci95": [
+      0.024961939973901656,
+      0.29219968777742344
+    ],
+    "observed_cindex": {
+      "stunet_mean_768": 0.5379494007989347,
+      "stunet_renal_moments_512": 0.6910785619174434
+    },
+    "observed_delta_candidate_minus_historical": 0.15312916111850872,
+    "probability_delta_gt_zero": 0.9888,
+    "stunet_mean_768_ci95": [
+      0.3952373823781009,
+      0.6764715752072641
+    ],
+    "stunet_renal_moments_512_ci95": [
+      0.5827134928132802,
+      0.7905730516736166
+    ]
+  },
+  "repeats": 5,
+  "schema_version": 1
+}

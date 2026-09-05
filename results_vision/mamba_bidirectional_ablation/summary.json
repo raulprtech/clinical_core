@@ -1,0 +1,110 @@
+{
+  "status": "shared_weight_bidirectional_mamba_ablation",
+  "created_at_utc": "2026-08-21T23:56:08.592929+00:00",
+  "elapsed_seconds": 2282.061679108003,
+  "cohort": {
+    "n_cases": 214,
+    "n_events": 64,
+    "n_ct": 190,
+    "n_mr": 24,
+    "events_ct": 53,
+    "events_mr": 11
+  },
+  "protocol": {
+    "outer_folds": 5,
+    "outer_repeats": 3,
+    "inner_folds": 3,
+    "outer_refit": true,
+    "max_tokens": 64,
+    "use_position": false,
+    "shared_weights": true,
+    "patient_clustered_bootstrap_iterations": 5000,
+    "device": "cuda"
+  },
+  "parameter_counts": {
+    "mamba_unidirectional": 319041,
+    "mamba_bidirectional": 319041
+  },
+  "results": {
+    "mamba_unidirectional": {
+      "all": {
+        "mean_pooled_repeat_cindex": 0.6867878171728724,
+        "std_across_repeats": 0.009998560350795238,
+        "per_repeat": [
+          0.695386961494472,
+          0.6758164951073834,
+          0.6891599949167619
+        ],
+        "n_cases_per_repeat": 214,
+        "events_per_repeat": 64
+      },
+      "ct": {
+        "mean_pooled_repeat_cindex": 0.7075962539021852,
+        "std_across_repeats": 0.01815892224411656,
+        "per_repeat": [
+          0.7282344779743323,
+          0.7004856052722858,
+          0.6940686784599376
+        ],
+        "n_cases_per_repeat": 190,
+        "events_per_repeat": 53
+      },
+      "mr": {
+        "mean_pooled_repeat_cindex": 0.5675675675675675,
+        "std_across_repeats": 0.05405405405405406,
+        "per_repeat": [
+          0.5135135135135135,
+          0.5675675675675675,
+          0.6216216216216216
+        ],
+        "n_cases_per_repeat": 24,
+        "events_per_repeat": 11
+      }
+    },
+    "mamba_bidirectional": {
+      "all": {
+        "mean_pooled_repeat_cindex": 0.6731477951455077,
+        "std_across_repeats": 0.014180207019859944,
+        "per_repeat": [
+          0.6869996187571483,
+          0.6737831998983352,
+          0.6586605667810396
+        ],
+        "n_cases_per_repeat": 214,
+        "events_per_repeat": 64
+      },
+      "ct": {
+        "mean_pooled_repeat_cindex": 0.6995606428488843,
+        "std_across_repeats": 0.019317329367420817,
+        "per_repeat": [
+          0.7211238293444329,
+          0.693721817551162,
+          0.6838362816510579
+        ],
+        "n_cases_per_repeat": 190,
+        "events_per_repeat": 53
+      },
+      "mr": {
+        "mean_pooled_repeat_cindex": 0.5382882882882883,
+        "std_across_repeats": 0.030467903735289792,
+        "per_repeat": [
+          0.5067567567567568,
+          0.5675675675675675,
+          0.5405405405405406
+        ],
+        "n_cases_per_repeat": 24,
+        "events_per_repeat": 11
+      }
+    }
+  },
+  "paired_comparison": {
+    "candidate": "mamba_bidirectional",
+    "reference": "mamba_unidirectional",
+    "mean_delta_across_repeats": -0.013640022027364732,
+    "ci95_lo": -0.031265619035717736,
+    "ci95_hi": 0.0033218253291070424,
+    "bootstrap_p": 0.108,
+    "n_bootstrap": 5000
+  },
+  "claim_boundary": "Internal architecture ablation; CT/MR subgroup estimates are exploratory."
+}

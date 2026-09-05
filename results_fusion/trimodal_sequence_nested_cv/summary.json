@@ -1,0 +1,239 @@
+{
+  "status": "confirmatory_trimodal_nested_repeated_cv",
+  "created_at_utc": "2026-08-21T21:25:39.559033+00:00",
+  "elapsed_seconds": 2188.809482626002,
+  "cohort": {
+    "n_cases": 210,
+    "n_events": 64
+  },
+  "protocol": {
+    "outer_folds": 5,
+    "outer_repeats": 3,
+    "inner_folds": 3,
+    "mamba_outer_train_risks": "nested cross-fitted",
+    "mamba_heldout_risks": "selected inside and refitted on outer-train",
+    "fusion": "train-only risk percentiles and simplex weights",
+    "patient_clustered_bootstrap_iterations": 5000,
+    "device": "cuda"
+  },
+  "results": {
+    "tabular": {
+      "mean_pooled_repeat_cindex": 0.789204097714736,
+      "std_across_repeats": 0.009654163699278701,
+      "per_repeat": [
+        0.791042815865511,
+        0.77876280535855,
+        0.7978066719201471
+      ],
+      "mean_outer_fold_cindex": 0.7950385331527329
+    },
+    "vision_resnet": {
+      "mean_pooled_repeat_cindex": 0.6326722703791262,
+      "std_across_repeats": 0.020751386242290438,
+      "per_repeat": [
+        0.6199763593380615,
+        0.6214210664565275,
+        0.6566193853427896
+      ],
+      "mean_outer_fold_cindex": 0.6410279985415926
+    },
+    "vision_mamba": {
+      "mean_pooled_repeat_cindex": 0.6774144120479818,
+      "std_across_repeats": 0.021259800408327548,
+      "per_repeat": [
+        0.6890596270028894,
+        0.6903073286052009,
+        0.652876280535855
+      ],
+      "mean_outer_fold_cindex": 0.6792953550007471
+    },
+    "fusion_resnet": {
+      "mean_pooled_repeat_cindex": 0.7840600647929253,
+      "std_across_repeats": 0.014973331262535146,
+      "per_repeat": [
+        0.7995797215655371,
+        0.7697005516154453,
+        0.7828999211977935
+      ],
+      "mean_outer_fold_cindex": 0.7868441493035075
+    },
+    "fusion_mamba": {
+      "mean_pooled_repeat_cindex": 0.7865992470011384,
+      "std_across_repeats": 0.010712289210197705,
+      "per_repeat": [
+        0.796033622274757,
+        0.7749540320462306,
+        0.7888100866824271
+      ],
+      "mean_outer_fold_cindex": 0.7869992358150228
+    }
+  },
+  "paired_comparisons": [
+    {
+      "candidate": "vision_mamba",
+      "reference": "vision_resnet",
+      "mean_delta_across_repeats": 0.04474214166885556,
+      "ci95_lo": -0.007588787893398263,
+      "ci95_hi": 0.09951175437907679,
+      "bootstrap_p": 0.0988,
+      "n_bootstrap": 5000
+    },
+    {
+      "candidate": "fusion_mamba",
+      "reference": "fusion_resnet",
+      "mean_delta_across_repeats": 0.002539182208212957,
+      "ci95_lo": -0.01168797365228338,
+      "ci95_hi": 0.016900340418103264,
+      "bootstrap_p": 0.7328,
+      "n_bootstrap": 5000
+    },
+    {
+      "candidate": "fusion_mamba",
+      "reference": "tabular",
+      "mean_delta_across_repeats": -0.002604850713597765,
+      "ci95_lo": -0.017484607476871247,
+      "ci95_hi": 0.011015839828340706,
+      "bootstrap_p": 0.7372,
+      "n_bootstrap": 5000
+    }
+  ],
+  "weight_stability": {
+    "resnet": {
+      "tabular": {
+        "mean": 0.7,
+        "std": 0.11952286093343939,
+        "zero_fraction": 0.0,
+        "values": [
+          0.8,
+          0.7,
+          0.6,
+          0.9,
+          0.6,
+          0.7,
+          0.6,
+          0.8,
+          0.5,
+          0.7,
+          0.6,
+          0.7,
+          0.9,
+          0.6,
+          0.8
+        ]
+      },
+      "text": {
+        "mean": 0.06666666666666667,
+        "std": 0.06172133998483677,
+        "zero_fraction": 0.4,
+        "values": [
+          0.1,
+          0.1,
+          0.1,
+          0.0,
+          0.2,
+          0.0,
+          0.0,
+          0.0,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.0,
+          0.1,
+          0.0
+        ]
+      },
+      "vision": {
+        "mean": 0.23333333333333336,
+        "std": 0.09759000729485333,
+        "zero_fraction": 0.0,
+        "values": [
+          0.1,
+          0.2,
+          0.3,
+          0.1,
+          0.2,
+          0.3,
+          0.4,
+          0.2,
+          0.4,
+          0.2,
+          0.3,
+          0.2,
+          0.1,
+          0.3,
+          0.2
+        ]
+      }
+    },
+    "mamba": {
+      "tabular": {
+        "mean": 0.7466666666666665,
+        "std": 0.09154754164341272,
+        "zero_fraction": 0.0,
+        "values": [
+          0.8,
+          0.7,
+          0.8,
+          0.9,
+          0.7,
+          0.8,
+          0.6,
+          0.9,
+          0.6,
+          0.8,
+          0.8,
+          0.7,
+          0.7,
+          0.7,
+          0.7
+        ]
+      },
+      "text": {
+        "mean": 0.08000000000000002,
+        "std": 0.04140393356054126,
+        "zero_fraction": 0.2,
+        "values": [
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.0,
+          0.1,
+          0.0,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.0,
+          0.1,
+          0.1
+        ]
+      },
+      "vision": {
+        "mean": 0.17333333333333337,
+        "std": 0.08837151016885368,
+        "zero_fraction": 0.06666666666666667,
+        "values": [
+          0.1,
+          0.2,
+          0.1,
+          0.0,
+          0.2,
+          0.2,
+          0.3,
+          0.1,
+          0.3,
+          0.1,
+          0.1,
+          0.2,
+          0.3,
+          0.2,
+          0.2
+        ]
+      }
+    }
+  },
+  "claim_boundary": "Internal repeated-CV confirmation; external validation remains required."
+}

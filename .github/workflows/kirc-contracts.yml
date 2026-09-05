@@ -1,0 +1,38 @@
+name: KIRC integration contracts
+
+on:
+  pull_request:
+  push:
+    branches: [master, codex/kirc-integration-ci]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cpu-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CUDA_VISIBLE_DEVICES: ""
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-luad.lock
+      - name: Install CPU contract environment
+        run: python -m pip install -r requirements-luad.lock
+      - name: Run all component and LUAD contracts including registry
+        run: python code/tools/run_contract_tests.py
+      - name: Verify LUAD publication integrity
+        run: python code/tools/verify_luad_publication_package.py
+      - name: Reject new patient-level result artifacts
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python code/tools/check_result_artifacts.py --base "$BASE_SHA"

@@ -27,6 +27,51 @@ The package index, aggregate summary and claim bounds are in
 in `docs/data_retention_policy.md`. External validation of the current line,
 clinical utility and prospective performance remain explicitly unclaimed.
 
+## Prepared variant registry
+
+Prepared and frozen Clinical-Core variants are declared in
+[`variants/registry-v1.json`](variants/registry-v1.json). The catalog seals the
+source revision, entrypoints, evidence, artifact hashes, resource needs,
+scientific claim limits and downstream approvals. It contains no patient rows
+or predictions.
+
+The catalog also exposes all seven portable, configuration-ready TCGA-KIRC
+combinations of tabular, text and vision. Their setup, required embedding
+caches, aggregate validation and evidence limits are documented in
+[`docs/modality_variant_configurations.md`](docs/modality_variant_configurations.md).
+
+The registry is passive: Clinical-Core does not select, approve or execute a
+variant from a request. Deterministic compatibility assessment and explanation
+belong to Clinical-Nigma; data access and scientific execution remain separate
+human approval gates.
+
+### Use with Clinical-Nigma
+
+Keep `Clinical-Nigma` and `clinical_core` as sibling checkouts. Start the
+Clinical-Nigma API and follow its README section **Clinical-Core integration**.
+That workflow builds a bounded request from this registry, selects an exact
+modality profile, requires an API-only human approval and emits an immutable
+coding-agent handoff.
+
+The handoff returns a repository-relative `configuration_ref.path`, its
+SHA-256, the sealed Clinical-Core source revision and required runtime inputs.
+It does not grant access to datasets or permission to run an experiment. After
+those permissions are separately approved, run the returned KIRC configuration
+from this repository:
+
+```bash
+export CLINICAL_CORE_DATA_ROOT=/absolute/path/to/authorized/kirc-data
+export CLINICAL_CORE_OUTPUT_ROOT=/absolute/path/to/new/output-directory
+python code/core/experiment_runner.py \
+  code/experiments/experiment_config_kirc_tabular_text_portable_v1.yaml
+```
+
+The path above is only the tabular+text example. Always use the exact
+`configuration_ref.path` selected by Clinical-Nigma, verify its hash first and
+write outputs outside Nigma. Clinical-Core remains the scientific executor;
+Clinical-Nigma remains the deterministic selector, approval gate and provenance
+handoff layer.
+
 End-to-end multimodal ecosystem for CLINICAL-CORE, validated on TCGA-KIRC. This repository implements a modular, modality-centric structure based on **Hexagonal Architecture** principles, where logic and models are isolated from external interfaces via **Adapters**.
 
 ```mermaid
@@ -98,6 +143,25 @@ code/
 
 See [VISION-L0 integration](docs/vision_resnet_integration.md) for raw DICOM/NIfTI
 and precomputed-Colab workflows.
+See [ResNet18 sequence Fast Proof](docs/resnet18_sequence_mamba_fastproof.md)
+for the paired baseline, attention-pooling and Mamba survival benchmark.
+The completed exploratory run is reported in
+[ResNet18 sequence preliminary results](docs/resnet18_sequence_mamba_preliminary_results.md).
+The symmetric nested repeated-CV follow-up is reported in
+[ResNet18 sequence confirmatory results](docs/resnet18_sequence_mamba_confirmatory_results.md).
+The append-only experiment history and review checklist are maintained in the
+[research decision log](docs/research_decision_log.md).
+The Mamba risk integration is summarized in [trimodal Mamba fusion results](docs/trimodal_mamba_fusion_results.md).
+The repeated-CV correction is in [trimodal sequence nested-CV results](docs/trimodal_sequence_nested_cv_results.md).
+The post-hoc training-stability analysis is in [Mamba epoch stability](docs/mamba_epoch_stability_diagnostic.md).
+The paired architecture/token/position study is in
+[sequence factorial ablation](docs/sequence_factorial_ablation_results.md).
+The shared-weight directionality test is reported in
+[Mamba bidirectional ablation](docs/mamba_bidirectional_ablation_results.md).
+The post-hoc complementarity check is in
+[fixed sequence ensemble](docs/fixed_sequence_ensemble_results.md).
+The leakage-safe train-derived scaling follow-up is in
+[train-scaled sequence ensemble](docs/train_scaled_sequence_ensemble_results.md).
 
 For the complete TCGA-KIRC download, embedding-cache and three-modality run,
 see [trimodal data preparation](docs/trimodal_data_preparation.md).

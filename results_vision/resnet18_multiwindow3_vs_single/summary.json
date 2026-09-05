@@ -1,0 +1,200 @@
+{
+  "status": "paired_single_vs_fixed_ct_multiwindow",
+  "created_at_utc": "2026-08-23T01:53:02.816924+00:00",
+  "cohort": {
+    "n_cases": 214,
+    "n_events": 64,
+    "outer_repeats": 3
+  },
+  "primary_comparison": "multiwindow_ensemble_train_percentile50 vs single_ensemble_train_percentile50",
+  "paired_comparisons": [
+    {
+      "subgroup": "all",
+      "candidate": "multiwindow_mamba",
+      "reference": "single_mamba",
+      "mean_delta_across_repeats": -0.008514423687889164,
+      "ci95_lo": -0.04211633848141658,
+      "ci95_hi": 0.025940467665539684,
+      "bootstrap_p": 0.6172,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "all",
+      "candidate": "multiwindow_attention",
+      "reference": "single_attention",
+      "mean_delta_across_repeats": 0.012919896640826859,
+      "ci95_lo": 0.0018460619750305849,
+      "ci95_hi": 0.024056336792184975,
+      "bootstrap_p": 0.0228,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "all",
+      "candidate": "multiwindow_ensemble_train_percentile50",
+      "reference": "single_ensemble_train_percentile50",
+      "mean_delta_across_repeats": 0.006947091964247883,
+      "ci95_lo": -0.0037181743363171667,
+      "ci95_hi": 0.018244563780010454,
+      "bootstrap_p": 0.2052,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "all",
+      "candidate": "multiwindow_ensemble_raw50",
+      "reference": "single_ensemble_raw50",
+      "mean_delta_across_repeats": -0.00338882534841356,
+      "ci95_lo": -0.02884910196037614,
+      "ci95_hi": 0.022174333058370604,
+      "bootstrap_p": 0.7924,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "all",
+      "candidate": "multiwindow_ensemble_train_z50",
+      "reference": "single_ensemble_train_z50",
+      "mean_delta_across_repeats": 0.005464480874316983,
+      "ci95_lo": -0.006565196972864907,
+      "ci95_hi": 0.01751504195048713,
+      "bootstrap_p": 0.3724,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "CT",
+      "candidate": "multiwindow_mamba",
+      "reference": "single_mamba",
+      "mean_delta_across_repeats": -0.0005202913631633758,
+      "ci95_lo": -0.032680857731220335,
+      "ci95_hi": 0.03233998924297428,
+      "bootstrap_p": 0.9812,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "CT",
+      "candidate": "multiwindow_attention",
+      "reference": "single_attention",
+      "mean_delta_across_repeats": 0.012082321655682793,
+      "ci95_lo": 0.0,
+      "ci95_hi": 0.02525095881581383,
+      "bootstrap_p": 0.0504,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "CT",
+      "candidate": "multiwindow_ensemble_train_percentile50",
+      "reference": "single_ensemble_train_percentile50",
+      "mean_delta_across_repeats": 0.0072840790842872245,
+      "ci95_lo": -0.004338697593619277,
+      "ci95_hi": 0.019435484208810437,
+      "bootstrap_p": 0.212,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "CT",
+      "candidate": "multiwindow_ensemble_raw50",
+      "reference": "single_ensemble_raw50",
+      "mean_delta_across_repeats": 0.00618568620649788,
+      "ci95_lo": -0.01801805372271451,
+      "ci95_hi": 0.03065460039958703,
+      "bootstrap_p": 0.6084,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "CT",
+      "candidate": "multiwindow_ensemble_train_z50",
+      "reference": "single_ensemble_train_z50",
+      "mean_delta_across_repeats": 0.007688750144525376,
+      "ci95_lo": -0.0051692146718867625,
+      "ci95_hi": 0.020580491193103068,
+      "bootstrap_p": 0.2384,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "MR",
+      "candidate": "multiwindow_mamba",
+      "reference": "single_mamba",
+      "mean_delta_across_repeats": -0.022522522522522515,
+      "ci95_lo": -0.12397335865715314,
+      "ci95_hi": 0.08656028687358693,
+      "bootstrap_p": 0.6708,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "MR",
+      "candidate": "multiwindow_attention",
+      "reference": "single_attention",
+      "mean_delta_across_repeats": 0.03378378378378379,
+      "ci95_lo": -0.02941393371507894,
+      "ci95_hi": 0.10063056865828092,
+      "bootstrap_p": 0.3016,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "MR",
+      "candidate": "multiwindow_ensemble_train_percentile50",
+      "reference": "single_ensemble_train_percentile50",
+      "mean_delta_across_repeats": 0.023648648648648646,
+      "ci95_lo": -0.03073773488338086,
+      "ci95_hi": 0.08555630630630628,
+      "bootstrap_p": 0.3904,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "MR",
+      "candidate": "multiwindow_ensemble_raw50",
+      "reference": "single_ensemble_raw50",
+      "mean_delta_across_repeats": -0.03378378378378375,
+      "ci95_lo": -0.12250148133517678,
+      "ci95_hi": 0.04848927228489267,
+      "bootstrap_p": 0.4044,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "MR",
+      "candidate": "multiwindow_ensemble_train_z50",
+      "reference": "single_ensemble_train_z50",
+      "mean_delta_across_repeats": 0.0,
+      "ci95_lo": -0.06813466718804309,
+      "ci95_hi": 0.06825526932084307,
+      "bootstrap_p": 1.0,
+      "n_bootstrap": 5000
+    }
+  ],
+  "fold_wins": [
+    {
+      "model": "mamba",
+      "mean_fold_delta": 0.00816446970363125,
+      "wins": 9,
+      "ties": 0,
+      "losses": 6
+    },
+    {
+      "model": "attention",
+      "mean_fold_delta": 0.011983108466677035,
+      "wins": 10,
+      "ties": 0,
+      "losses": 5
+    },
+    {
+      "model": "ensemble_train_percentile50",
+      "mean_fold_delta": 0.009296869778268824,
+      "wins": 9,
+      "ties": 0,
+      "losses": 6
+    },
+    {
+      "model": "ensemble_raw50",
+      "mean_fold_delta": 0.004143251201251837,
+      "wins": 8,
+      "ties": 2,
+      "losses": 5
+    },
+    {
+      "model": "ensemble_train_z50",
+      "mean_fold_delta": 0.006311640814477615,
+      "wins": 9,
+      "ties": 0,
+      "losses": 6
+    }
+  ],
+  "claim_boundary": "Internal same-cohort representation ablation; fixed windows were predeclared before outcome evaluation, but external confirmation remains required."
+}
