@@ -11,7 +11,7 @@ import torch
 from torchvision.models import resnet18, ResNet18_Weights
 from sklearn.model_selection import StratifiedKFold, RepeatedStratifiedKFold
 from build_renal_2p5d_program_cache import sha
-from evaluate_renal_resnet_adaptation import LastBlockSurvival, train_epoch, predict
+from evaluate_renal_resnet_adaptation import LastBlockSurvival, train_epoch as linear_train_epoch, predict as linear_predict, cox_ph_loss
 from evaluate_resnet_sequence_models import seed_everything, safe_cindex
 from evaluate_resnet_sequence_nested_cv import make_model
 from evaluate_renal_2p5d_program import summarize
@@ -23,12 +23,65 @@ class JointMamba(LastBlockSurvival):
         config=argparse.Namespace(model_dim=128,attention_dim=64,state_dim=16,
                                   mamba_blocks=2,dropout=0.,use_position=False)
         self.head=make_model('mamba',config,torch.device('cpu'))
+        self._tokens_cache={}
+
+    def encode(self,x):
+        return torch.nn.functional.normalize(self.layer4(x).mean(dim=(2,3)),dim=1)
+
+    def risk_from_tokens(self,tokens):
+        positions=tokens.new_zeros(tokens.shape[:2])
+        mask=torch.ones_like(positions,dtype=torch.bool)
+        return self.head(tokens,positions,mask)
 
     def forward(self,x):
-        tokens=torch.nn.functional.normalize(self.layer4(x).mean(dim=(2,3)),dim=1)[None]
-        positions=tokens.new_zeros((1,tokens.shape[1]))
-        mask=torch.ones_like(positions,dtype=torch.bool)
-        return self.head(tokens,positions,mask).squeeze()
+        return self.risk_from_tokens(self.encode(x)[None]).squeeze()
+
+
+def detached_tokens(model,xs,device):
+    tune=any(p.requires_grad for p in model.layer4.parameters())
+    rows=[]
+    with torch.no_grad():
+        for x in xs:
+            if not tune and id(x) in model._tokens_cache:
+                tokens=model._tokens_cache[id(x)]
+            else:
+                tokens=model.encode(x.to(device))
+                if not tune: model._tokens_cache[id(x)]=tokens
+            rows.append(tokens)
+    return torch.stack(rows),tune
+
+
+def batched_mamba_backward(model,xs,times,events,device):
+    """Exact chain rule: batched head gradient then per-patient encoder VJP."""
+    model.eval()
+    tokens,tune=detached_tokens(model,xs,device)
+    tokens.requires_grad_(tune)
+    risk=model.risk_from_tokens(tokens)
+    loss=cox_ph_loss(risk,torch.as_tensor(times,dtype=torch.float32,device=device),
+                     torch.as_tensor(events,dtype=torch.float32,device=device))
+    loss.backward()
+    if tune:
+        for x,gradient in zip(xs,tokens.grad):
+            model.encode(x.to(device)).backward(gradient)
+    return float(loss.detach())
+
+
+def train_epoch(model,optimizer,xs,times,events,device):
+    if not isinstance(model,JointMamba):
+        return linear_train_epoch(model,optimizer,xs,times,events,device)
+    optimizer.zero_grad(set_to_none=True)
+    loss=batched_mamba_backward(model,xs,times,events,device)
+    torch.nn.utils.clip_grad_norm_(model.parameters(),5.)
+    optimizer.step()
+    return loss
+
+
+def predict(model,xs,device):
+    if not isinstance(model,JointMamba): return linear_predict(model,xs,device)
+    model.eval()
+    with torch.no_grad():
+        tokens,_=detached_tokens(model,xs,device)
+        return model.risk_from_tokens(tokens).cpu().numpy()
 
 
 def initialize(layer4,tune,head,seed,device):
@@ -106,7 +159,7 @@ def main():
         if device.type=='cuda': torch.cuda.reset_peak_memory_stats()
         started=time.monotonic()
         loss=train_epoch(model,optimizer,[xs[i] for i in train],times[train],events[train],device)
-        pilot={'head':args.head,'n_train':len(train),'loss':loss,'epoch_seconds':time.monotonic()-started,
+        pilot={'head':args.head,'script_sha256':sha(__file__),'n_train':len(train),'loss':loss,'epoch_seconds':time.monotonic()-started,
                'layer4_max_change':float((parameter.detach()-before).abs().max()),
                'heldout_finite':bool(np.isfinite(predict(model,[xs[i] for i in test],device)).all()),
                'peak_cuda_mib':torch.cuda.max_memory_allocated()/2**20 if device.type=='cuda' else None,

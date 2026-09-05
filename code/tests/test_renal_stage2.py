@@ -7,11 +7,25 @@ import numpy as np
 import torch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
-from evaluate_stage2_joint_adaptation import JointMamba, select_epoch
+from evaluate_stage2_joint_adaptation import JointMamba, select_epoch, batched_mamba_backward
 from evaluate_renal_resnet_adaptation import two_pass_backward, cox_ph_loss
 
 
 class Stage2Tests(unittest.TestCase):
+    def test_batched_mamba_gradient_matches_unbatched_two_pass(self):
+        torch.set_num_threads(1)
+        torch.manual_seed(29)
+        block=torch.nn.Sequential(torch.nn.Conv2d(3,512,1),torch.nn.BatchNorm2d(512),torch.nn.ReLU())
+        xs=[torch.randn(2,3,2,2) for _ in range(3)]
+        times,events=np.array([1.,2.,2.]),np.array([1.,1.,0.])
+        for tune in (False,True):
+            first=JointMamba(block,tune).eval(); second=copy.deepcopy(first)
+            two_pass_backward(first,xs,times,events,torch.device('cpu'))
+            batched_mamba_backward(second,xs,times,events,torch.device('cpu'))
+            for a,b in zip(first.parameters(),second.parameters()):
+                if a.requires_grad:
+                    torch.testing.assert_close(a.grad,b.grad,rtol=1e-4,atol=1e-6)
+
     def test_joint_mamba_two_pass_gradient_matches_monolithic(self):
         torch.set_num_threads(1)
         torch.manual_seed(47)

@@ -1,0 +1,12 @@
+{
+  "head": "mamba",
+  "script_sha256": "48f0f7904b471f66b76fd9bd97053015a66d83779449960f055c46ce890ef10e",
+  "n_train": 60,
+  "loss": 3.2270357608795166,
+  "epoch_seconds": 3.8581817089980177,
+  "layer4_max_change": 1.0013580322265625e-05,
+  "heldout_finite": true,
+  "peak_cuda_mib": 187.16015625,
+  "technical_only": true,
+  "no_performance_selection": true
+}

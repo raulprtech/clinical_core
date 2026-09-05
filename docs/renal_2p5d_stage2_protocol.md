@@ -38,6 +38,11 @@ gradiente correspondan al mismo forward; BN fija. No comparar directamente
 con Mamba64/dropout0.1 como una ablación pura. Principal adaptado-frozen.
 Piloto técnico previo: gradiente correcto, pesos que cambian, BN estable,
 riesgos finitos y consumo de memoria. No seleccionar hiperparámetros con piloto.
+La ejecución optimizada calcula Mamba en lote de pacientes y propaga el gradiente
+de tokens al encoder paciente por paciente; una prueba compara todos los
+gradientes con las dos pasadas sin batching. El control congelado puede guardar
+tokens pretrained dentro del fit; nunca se reutilizan tokens de un encoder adaptado
+entre particiones. Esta optimización no cambia el objetivo ni el protocolo.
 
 ## S3 — Campo completo más detalle renal
 
