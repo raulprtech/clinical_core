@@ -1,6 +1,7 @@
 import copy
 import sys
 import unittest
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 import numpy as np
@@ -9,9 +10,22 @@ import torch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
 from evaluate_stage2_joint_adaptation import JointMamba, select_epoch, batched_mamba_backward
 from evaluate_renal_resnet_adaptation import two_pass_backward, cox_ph_loss
+from evaluate_stage2_dino import load_arrays
 
 
 class Stage2Tests(unittest.TestCase):
+    def test_dino_pairing_checks_centers_and_dimensions(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            cache=Path(temporary)
+            for name,dimension in [('resnet18',512),('dinov2',384)]:
+                folder=cache/name/'cases'; folder.mkdir(parents=True)
+                np.savez(folder/'case.npz',features=np.ones((16,dimension)),center_indices=np.arange(16),source_sha256='same')
+            arrays=load_arrays(cache,['case'])
+            self.assertEqual(arrays['dinov2'].shape,(1,384))
+            np.testing.assert_allclose(arrays['dinov2'],1/np.sqrt(384),rtol=1e-6)
+            np.savez(cache/'dinov2'/'cases'/'case.npz',features=np.ones((16,384)),center_indices=np.arange(16)+1,source_sha256='same')
+            with self.assertRaises(AssertionError): load_arrays(cache,['case'])
+
     def test_batched_mamba_gradient_matches_unbatched_two_pass(self):
         torch.set_num_threads(1)
         torch.manual_seed(29)
