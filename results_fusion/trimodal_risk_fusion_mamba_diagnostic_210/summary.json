@@ -1,0 +1,122 @@
+{
+  "status": "diagnostic_paired_trimodal_sequence_fusion",
+  "created_at_utc": "2026-08-21T20:40:09.499412+00:00",
+  "cohort": {
+    "n_cases": 210,
+    "n_events": 64
+  },
+  "protocol": {
+    "outer_split": "80/20 event-stratified holdout",
+    "seeds": [
+      42,
+      123,
+      456,
+      789,
+      1024
+    ],
+    "inner_folds": 3,
+    "mamba_outer_train_risks": "cross-fitted with nested epoch selection",
+    "mamba_heldout_risks": "epoch selection inside outer-train then full refit",
+    "fusion": "train-only empirical percentiles and simplex weights",
+    "weight_step": 0.1,
+    "device": "cuda"
+  },
+  "results": {
+    "tabular": {
+      "cindex_mean": 0.7990417444441612,
+      "cindex_std_across_seeds": 0.09894255443801225,
+      "cindex_per_seed": [
+        0.8571428571428571,
+        0.7919161676646707,
+        0.8681506849315068,
+        0.8479623824451411,
+        0.63003663003663
+      ]
+    },
+    "vision_resnet": {
+      "cindex_mean": 0.6397046069112132,
+      "cindex_std_across_seeds": 0.044687738772581954,
+      "cindex_per_seed": [
+        0.6810631229235881,
+        0.6676646706586826,
+        0.6284246575342466,
+        0.6536050156739812,
+        0.5677655677655677
+      ]
+    },
+    "vision_mamba": {
+      "cindex_mean": 0.7264732907047194,
+      "cindex_std_across_seeds": 0.06580727856201941,
+      "cindex_per_seed": [
+        0.7591362126245847,
+        0.7709580838323353,
+        0.7123287671232876,
+        0.7727272727272727,
+        0.6172161172161172
+      ]
+    },
+    "fusion_resnet": {
+      "cindex_mean": 0.8111093418671931,
+      "cindex_std_across_seeds": 0.08203997764185456,
+      "cindex_per_seed": [
+        0.8571428571428571,
+        0.8143712574850299,
+        0.8767123287671232,
+        0.8369905956112853,
+        0.6703296703296703
+      ]
+    },
+    "fusion_mamba": {
+      "cindex_mean": 0.8179923004348316,
+      "cindex_std_across_seeds": 0.09130792809005832,
+      "cindex_per_seed": [
+        0.8571428571428571,
+        0.8308383233532934,
+        0.8698630136986302,
+        0.8746081504702194,
+        0.6575091575091575
+      ]
+    },
+    "fusion_mamba_minus_resnet": {
+      "mean": 0.006882958567638364,
+      "std_across_seeds": 0.020375523088646926,
+      "wins": 2,
+      "ties": 1,
+      "losses": 2,
+      "per_seed": [
+        0.0,
+        0.01646706586826352,
+        -0.006849315068493067,
+        0.037617554858934144,
+        -0.012820512820512775
+      ]
+    },
+    "fusion_mamba_minus_tabular": {
+      "mean": 0.018950555990670394,
+      "std_across_seeds": 0.017226325281770823,
+      "wins": 4,
+      "ties": 1,
+      "losses": 0,
+      "per_seed": [
+        0.0,
+        0.038922155688622784,
+        0.00171232876712335,
+        0.026645768025078342,
+        0.027472527472527486
+      ]
+    }
+  },
+  "limitations": [
+    "Repeated holdouts overlap and are not independent replicates.",
+    "This diagnostic reuses a cohort previously explored during architecture development.",
+    "External validation remains required."
+  ],
+  "paired_seed_bootstrap": {
+    "iterations_per_seed": 5000,
+    "individual_intervals_excluding_zero": {
+      "vision_mamba_minus_vision_resnet": 1,
+      "fusion_mamba_minus_fusion_resnet": 0,
+      "fusion_mamba_minus_tabular": 1
+    }
+  }
+}

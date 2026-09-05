@@ -1,5 +1,20 @@
 # Reparación de la fusión trimodal
 
+## Aclaración histórica: VAE, concatenación y fusión convexa
+
+El cambio fechado el 2026-05-28 desde VAE Stage A a concatenación tardía fue
+una prueba diagnóstica: buscaba separar una posible dilución de señal en el VAE
+de la hipótesis de que texto o visión no aportaban información incremental.
+Los YAML `experiment_config_late_fusion_text_n444.yaml` y
+`experiment_config_late_fusion_turbolatent_n444.yaml` conservan esa decisión.
+
+La concatenación no quedó como solución final. Los experimentos pareados que
+siguen en este documento mostraron su desventaja en el régimen `p >> n` y
+motivaron la fusión de riesgos convexa, que puede descartar una modalidad. La
+secuencia ResNet18 + Mamba de 2026-08-21 es un nuevo candidato de visión, no un
+cambio automático del fusionador. Debe evaluarse dentro de cada split con este
+mismo protocolo para evitar leakage.
+
 ## Diagnóstico
 
 La caída del C-index de la primera Phase 5 no demuestra que la información
@@ -169,3 +184,30 @@ Artefactos:
 
 - `code/tools/evaluate_hierarchical_orthogonal_fusion.py`
 - `results_fusion/hierarchical_orthogonal_resnet_diagnostic_210/`
+
+Las decisiones históricas y los enlaces cruzados con los experimentos de
+visión se registran también en `docs/research_decision_log.md`.
+
+## Quinta referencia: riesgo Mamba secuencial
+
+Se integró Mamba mediante riesgos cross-fitted alineados con los mismos 210
+pacientes y cinco outer splits. La visión Mamba mejoró a ResNet18 en las cinco
+seeds (0.7265 frente a 0.6397), pero la fusión convexa sólo subió de 0.8111 a
+0.8180: dos victorias, un empate y dos derrotas.
+
+Ningún intervalo bootstrap individual de fusión Mamba menos fusión ResNet
+excluyó cero. Por tanto, Mamba queda como representación visual preferida y
+candidata de fusión, mientras 0.8111 permanece como referencia formal. El
+detalle está en docs/trimodal_mamba_fusion_results.md.
+
+## Sexta referencia: outer repeated CV de fusión
+
+La ventaja diagnóstica Mamba no quedó confirmada al pasar a 5 outer folds por
+3 repeticiones. Los C-index OOF fueron 0.7892 tabular, 0.7841 fusión ResNet y
+0.7866 fusión Mamba. Mamba menos ResNet fue +0.0025 con IC95%
+[-0.0117, +0.0169] y p=0.7328.
+
+La visión Mamba mantuvo una señal media mayor que ResNet (+0.0447), pero su
+intervalo también cruzó cero. La decisión vigente es no reemplazar el baseline
+de fusión ni aumentar su complejidad. Véase
+docs/trimodal_sequence_nested_cv_results.md.

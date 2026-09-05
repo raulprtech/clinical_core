@@ -1,0 +1,239 @@
+{
+  "status": "fixed_50_50_sequence_ensemble_diagnostic",
+  "created_at_utc": "2026-08-22T00:25:26.147705+00:00",
+  "cohort": {
+    "n_cases_per_repeat": 214,
+    "events_per_repeat": 64,
+    "n_ct_per_repeat": 190,
+    "n_mr_per_repeat": 24
+  },
+  "protocol": {
+    "weights": {
+      "mamba_t64_posoff": 0.5,
+      "attention_t32_posoff": 0.5
+    },
+    "primary_harmonization": "within_outer_heldout_fold_percentile_rank",
+    "sensitivities": [
+      "raw_risk",
+      "within_outer_heldout_fold_zscore"
+    ],
+    "bootstrap_iterations": 5000,
+    "random_state": 7049
+  },
+  "results": {
+    "mamba": {
+      "all": {
+        "mean_pooled_repeat_cindex": 0.6867878171728724,
+        "std_across_repeats": 0.009998560350795238,
+        "per_repeat": [
+          0.695386961494472,
+          0.6758164951073834,
+          0.6891599949167619
+        ],
+        "n_cases_per_repeat": 214,
+        "events_per_repeat": 64
+      },
+      "ct": {
+        "mean_pooled_repeat_cindex": 0.7075962539021852,
+        "std_across_repeats": 0.01815892224411656,
+        "per_repeat": [
+          0.7282344779743323,
+          0.7004856052722858,
+          0.6940686784599376
+        ],
+        "n_cases_per_repeat": 190,
+        "events_per_repeat": 53
+      },
+      "mr": {
+        "mean_pooled_repeat_cindex": 0.5675675675675675,
+        "std_across_repeats": 0.05405405405405406,
+        "per_repeat": [
+          0.5135135135135135,
+          0.5675675675675675,
+          0.6216216216216216
+        ],
+        "n_cases_per_repeat": 24,
+        "events_per_repeat": 11
+      }
+    },
+    "attention": {
+      "all": {
+        "mean_pooled_repeat_cindex": 0.6750963697208455,
+        "std_across_repeats": 0.01988373599993026,
+        "per_repeat": [
+          0.6589147286821705,
+          0.6972931757529547,
+          0.6690812047274114
+        ],
+        "n_cases_per_repeat": 214,
+        "events_per_repeat": 64
+      },
+      "ct": {
+        "mean_pooled_repeat_cindex": 0.690831309978032,
+        "std_across_repeats": 0.010881062275204202,
+        "per_repeat": [
+          0.6805411030176899,
+          0.7022199098161637,
+          0.6897329171002428
+        ],
+        "n_cases_per_repeat": 190,
+        "events_per_repeat": 53
+      },
+      "mr": {
+        "mean_pooled_repeat_cindex": 0.5270270270270271,
+        "std_across_repeats": 0.06192669858048434,
+        "per_repeat": [
+          0.47297297297297297,
+          0.5945945945945946,
+          0.5135135135135135
+        ],
+        "n_cases_per_repeat": 24,
+        "events_per_repeat": 11
+      }
+    },
+    "ensemble_rank50": {
+      "all": {
+        "mean_pooled_repeat_cindex": 0.6996653534968442,
+        "std_across_repeats": 0.00913886408105101,
+        "per_repeat": [
+          0.6963400686237133,
+          0.7100012708095057,
+          0.6926547210573135
+        ],
+        "n_cases_per_repeat": 214,
+        "events_per_repeat": 64
+      },
+      "ct": {
+        "mean_pooled_repeat_cindex": 0.7169325933633944,
+        "std_across_repeats": 0.005986701051486369,
+        "per_repeat": [
+          0.7167013527575442,
+          0.7230315643426986,
+          0.711064862989941
+        ],
+        "n_cases_per_repeat": 190,
+        "events_per_repeat": 53
+      },
+      "mr": {
+        "mean_pooled_repeat_cindex": 0.5551801801801802,
+        "std_across_repeats": 0.07105311510967277,
+        "per_repeat": [
+          0.4864864864864865,
+          0.6283783783783784,
+          0.5506756756756757
+        ],
+        "n_cases_per_repeat": 24,
+        "events_per_repeat": 11
+      }
+    },
+    "ensemble_raw50": {
+      "all": {
+        "mean_pooled_repeat_cindex": 0.6902613631549964,
+        "std_across_repeats": 0.0018076492814293747,
+        "per_repeat": [
+          0.6890329139661965,
+          0.6923370186808997,
+          0.689414156817893
+        ],
+        "n_cases_per_repeat": 214,
+        "events_per_repeat": 64
+      },
+      "ct": {
+        "mean_pooled_repeat_cindex": 0.7083477858711991,
+        "std_across_repeats": 0.009910352972181607,
+        "per_repeat": [
+          0.7178286507110648,
+          0.7091571279916753,
+          0.6980575789108567
+        ],
+        "n_cases_per_repeat": 190,
+        "events_per_repeat": 53
+      },
+      "mr": {
+        "mean_pooled_repeat_cindex": 0.563063063063063,
+        "std_across_repeats": 0.05503059334626403,
+        "per_repeat": [
+          0.5,
+          0.5878378378378378,
+          0.6013513513513513
+        ],
+        "n_cases_per_repeat": 24,
+        "events_per_repeat": 11
+      }
+    },
+    "ensemble_z50": {
+      "all": {
+        "mean_pooled_repeat_cindex": 0.7040284661329267,
+        "std_across_repeats": 0.0070538513591957945,
+        "per_repeat": [
+          0.7041555470834922,
+          0.7110179184140297,
+          0.6969119329012581
+        ],
+        "n_cases_per_repeat": 214,
+        "events_per_repeat": 64
+      },
+      "ct": {
+        "mean_pooled_repeat_cindex": 0.7210660191929703,
+        "std_across_repeats": 0.006859461323249437,
+        "per_repeat": [
+          0.725112729795352,
+          0.7249392993409642,
+          0.7131460284425946
+        ],
+        "n_cases_per_repeat": 190,
+        "events_per_repeat": 53
+      },
+      "mr": {
+        "mean_pooled_repeat_cindex": 0.5563063063063063,
+        "std_across_repeats": 0.050713199320710355,
+        "per_repeat": [
+          0.5067567567567568,
+          0.6081081081081081,
+          0.5540540540540541
+        ],
+        "n_cases_per_repeat": 24,
+        "events_per_repeat": 11
+      }
+    }
+  },
+  "paired_comparisons": [
+    {
+      "candidate": "ensemble_rank50",
+      "reference": "mamba",
+      "mean_delta_across_repeats": 0.012877536323971742,
+      "ci95_lo": -0.011601443779610223,
+      "ci95_hi": 0.0364287154618771,
+      "bootstrap_p": 0.2952,
+      "n_bootstrap": 5000
+    },
+    {
+      "candidate": "ensemble_rank50",
+      "reference": "attention",
+      "mean_delta_across_repeats": 0.02456898377599866,
+      "ci95_lo": 0.00354932127563687,
+      "ci95_hi": 0.04567539762615746,
+      "bootstrap_p": 0.0268,
+      "n_bootstrap": 5000
+    },
+    {
+      "candidate": "ensemble_raw50",
+      "reference": "mamba",
+      "mean_delta_across_repeats": 0.0034735459821239414,
+      "ci95_lo": -0.01021668706462546,
+      "ci95_hi": 0.017399280029821815,
+      "bootstrap_p": 0.5964,
+      "n_bootstrap": 5000
+    },
+    {
+      "candidate": "ensemble_z50",
+      "reference": "mamba",
+      "mean_delta_across_repeats": 0.01724064896005421,
+      "ci95_lo": -0.00548278555593301,
+      "ci95_hi": 0.03989713180892037,
+      "bootstrap_p": 0.1252,
+      "n_bootstrap": 5000
+    }
+  ],
+  "claim_boundary": "Post-hoc transductive diagnostic. Rank and z-score harmonization use unlabeled held-out risk distributions; deployment requires a predeclared train-derived scaling rule and new validation."
+}

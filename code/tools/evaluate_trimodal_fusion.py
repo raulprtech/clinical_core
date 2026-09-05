@@ -45,15 +45,25 @@ def load_vision_csv(path: Path) -> pd.DataFrame:
     frame = pd.read_csv(path)
     if "case_id" not in frame:
         raise ValueError("Vision CSV requires case_id")
-    z_cols = [f"z{i:03d}" for i in range(768)]
-    if not set(z_cols).issubset(frame.columns):
-        # Accept the raw 512D export from the Colab notebook as well.
-        f_cols = sorted(c for c in frame.columns if c.startswith("f") and c[1:].isdigit())
-        if len(f_cols) < 2:
-            raise ValueError("Vision CSV needs z000..z767 or numeric f* feature columns")
-        value_cols = f_cols
-    else:
-        value_cols = z_cols
+    z_cols = sorted(
+        (
+            column
+            for column in frame.columns
+            if column[1:].isdigit() and column.startswith("z")
+        ),
+        key=lambda column: int(column[1:]),
+    )
+    f_cols = sorted(
+        (
+            column
+            for column in frame.columns
+            if column[1:].isdigit() and column.startswith("f")
+        ),
+        key=lambda column: int(column[1:]),
+    )
+    value_cols = z_cols if len(z_cols) >= 2 else f_cols
+    if len(value_cols) < 2:
+        raise ValueError("Vision CSV needs numeric z* or f* feature columns")
     frame["case_id"] = frame["case_id"].astype(str).str.strip().str.upper()
     if frame["case_id"].duplicated().any():
         raise ValueError("Vision CSV contains duplicate case_id values")

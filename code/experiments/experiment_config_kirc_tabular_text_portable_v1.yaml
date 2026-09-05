@@ -1,0 +1,86 @@
+# Portable, configuration-ready TCGA-KIRC modality profile.
+# This contract reuses precomputed embeddings when declared.
+# It is not a new validation result and requires separate execution approval.
+
+experiment:
+  name: "kirc_tabular_text_portable_v1"
+  description: "Exact tabular+text post-surgery overall-survival evaluation."
+  author: "Clinical-Core"
+  protocol_version: "modality-config-v1"
+
+clinical_context:
+  moment: "post_surgery"
+  pathology_modalities: [text]
+
+data:
+  xml_dir: "${CLINICAL_CORE_DATA_ROOT}/raw/clinicalsupplement"
+  feature_config: "../components/adapters/ingestion/tabular/configs/tabular_mapping_no_leakage.yaml"
+  drug_file: null
+
+output:
+  base_dir: "${CLINICAL_CORE_OUTPUT_ROOT}/kirc_tabular_text_portable_v1"
+  save_raw_extraction: false
+  save_resolved_config: true
+
+random:
+  seeds: [42, 123, 456, 789, 1024]
+  n_folds: 5
+
+runtime:
+  verbosity: "normal"
+  fail_fast: true
+
+phase_1_imputation: {enabled: false}
+phase_2_variants: {enabled: false}
+phase_2_holdout: {enabled: false}
+phase_2_external_baselines: {enabled: false}
+phase_2_external_holdout: {enabled: false}
+phase_2_mahootiha: {enabled: false}
+phase_2_late_fusion_holdout: {enabled: false}
+phase_2_text_only_nested_cv: {enabled: false}
+phase_3_efficiency: {enabled: false}
+phase_4_stress: {enabled: false}
+
+phase_5_multimodal:
+  enabled: true
+  clinical_moment: "post_surgery"
+  modalities: [tabular, text]
+  required_precomputed_modalities: [text]
+  modality_dim: 768
+  tabular_imputation: "knn_5"
+  text_conn: "text_baseline_docling_clinicalbert"
+  text_embeddings_npz: "${CLINICAL_CORE_DATA_ROOT}/embeddings/text_embeddings_TCGA-KIRC_20260528.npz"
+  text_dir: null
+  vision_conn: "vision_resnet18_2p5d"
+  vision_embeddings_csv: null
+  vision_dir: null
+  vision_params:
+    use_imagenet_weights: true
+    image_size: 224
+    aggregation: "mean3"
+    window_low: -150
+    window_high: 250
+    min_slices: 16
+    slice_offsets: [-1, 0, 1]
+    projection_seed: 2026
+    device: "auto"
+    weights_dir: "${CLINICAL_CORE_DATA_ROOT}/models/torch"
+  fusion_proc: "fusion_baseline_concat"
+  prognosis_proc: "prognosis_baseline_linear_cox"
+  prognosis_epochs: 200
+  prognosis_patience: 20
+  inner_validation_fraction: 0.20
+  ablations:
+    - [tabular, text]
+
+phase_6_fusion_proc: {enabled: false}
+phase_7_turbolatent: {enabled: false}
+phase_8_prognosis_benchmark: {enabled: false}
+
+cohort_filter:
+  enabled: false
+  modality_policy: "per_modality"
+
+resource_guidance:
+  minimum_ram_gb: 6
+  gpu_required_with_precomputed_embeddings: false

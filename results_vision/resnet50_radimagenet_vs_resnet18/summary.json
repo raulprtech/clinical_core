@@ -1,0 +1,202 @@
+{
+  "status": "paired_frozen_sequence_encoder_comparison",
+  "created_at_utc": "2026-08-23T03:11:55.148491+00:00",
+  "baseline_encoder": "resnet18_imagenet",
+  "candidate_encoder": "radimagenet50",
+  "cohort": {
+    "n_cases": 214,
+    "n_events": 64,
+    "outer_repeats": 3
+  },
+  "primary_comparison": "radimagenet50_ensemble_train_percentile50 vs resnet18_imagenet_ensemble_train_percentile50",
+  "paired_comparisons": [
+    {
+      "subgroup": "all",
+      "candidate": "radimagenet50_mamba",
+      "reference": "resnet18_imagenet_mamba",
+      "mean_delta_across_repeats": -0.037404159783115176,
+      "ci95_lo": -0.08814428308038832,
+      "ci95_hi": 0.01407074465097512,
+      "bootstrap_p": 0.1404,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "all",
+      "candidate": "radimagenet50_attention",
+      "reference": "resnet18_imagenet_attention",
+      "mean_delta_across_repeats": -0.034481297920108456,
+      "ci95_lo": -0.09572425708758815,
+      "ci95_hi": 0.030820248365581396,
+      "bootstrap_p": 0.2844,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "all",
+      "candidate": "radimagenet50_ensemble_train_percentile50",
+      "reference": "resnet18_imagenet_ensemble_train_percentile50",
+      "mean_delta_across_repeats": -0.01666878468250943,
+      "ci95_lo": -0.06658752979639553,
+      "ci95_hi": 0.031621643820985215,
+      "bootstrap_p": 0.4972,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "all",
+      "candidate": "radimagenet50_ensemble_raw50",
+      "reference": "resnet18_imagenet_ensemble_raw50",
+      "mean_delta_across_repeats": -0.02766128690642607,
+      "ci95_lo": -0.07998833434191376,
+      "ci95_hi": 0.02707806784072319,
+      "bootstrap_p": 0.3052,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "all",
+      "candidate": "radimagenet50_ensemble_train_z50",
+      "reference": "resnet18_imagenet_ensemble_train_z50",
+      "mean_delta_across_repeats": -0.013851823611640538,
+      "ci95_lo": -0.0615540351302973,
+      "ci95_hi": 0.03510265631122867,
+      "bootstrap_p": 0.5948,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "CT",
+      "candidate": "radimagenet50_mamba",
+      "reference": "resnet18_imagenet_mamba",
+      "mean_delta_across_repeats": -0.03769221875361314,
+      "ci95_lo": -0.08894159273397423,
+      "ci95_hi": 0.014150097429720333,
+      "bootstrap_p": 0.1436,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "CT",
+      "candidate": "radimagenet50_attention",
+      "reference": "resnet18_imagenet_attention",
+      "mean_delta_across_repeats": -0.030176899063475537,
+      "ci95_lo": -0.09274186946290171,
+      "ci95_hi": 0.03164825666536417,
+      "bootstrap_p": 0.3356,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "CT",
+      "candidate": "radimagenet50_ensemble_train_percentile50",
+      "reference": "resnet18_imagenet_ensemble_train_percentile50",
+      "mean_delta_across_repeats": -0.004104520753844376,
+      "ci95_lo": -0.055554104378768523,
+      "ci95_hi": 0.045570122197014395,
+      "bootstrap_p": 0.8716,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "CT",
+      "candidate": "radimagenet50_ensemble_raw50",
+      "reference": "resnet18_imagenet_ensemble_raw50",
+      "mean_delta_across_repeats": -0.02404902300844025,
+      "ci95_lo": -0.07758296900188823,
+      "ci95_hi": 0.029528218240131045,
+      "bootstrap_p": 0.362,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "CT",
+      "candidate": "radimagenet50_ensemble_train_z50",
+      "reference": "resnet18_imagenet_ensemble_train_z50",
+      "mean_delta_across_repeats": -0.0006359116660885252,
+      "ci95_lo": -0.05325599031447378,
+      "ci95_hi": 0.05017011569631478,
+      "bootstrap_p": 0.9704,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "MR",
+      "candidate": "radimagenet50_mamba",
+      "reference": "resnet18_imagenet_mamba",
+      "mean_delta_across_repeats": -0.08108108108108107,
+      "ci95_lo": -0.25295098039215685,
+      "ci95_hi": 0.08889269406392686,
+      "bootstrap_p": 0.3352,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "MR",
+      "candidate": "radimagenet50_attention",
+      "reference": "resnet18_imagenet_attention",
+      "mean_delta_across_repeats": -0.06531531531531533,
+      "ci95_lo": -0.30159019812304483,
+      "ci95_hi": 0.17561240842490822,
+      "bootstrap_p": 0.6056,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "MR",
+      "candidate": "radimagenet50_ensemble_train_percentile50",
+      "reference": "resnet18_imagenet_ensemble_train_percentile50",
+      "mean_delta_across_repeats": -0.0777027027027027,
+      "ci95_lo": -0.2773337887067395,
+      "ci95_hi": 0.11178211821741521,
+      "bootstrap_p": 0.4288,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "MR",
+      "candidate": "radimagenet50_ensemble_raw50",
+      "reference": "resnet18_imagenet_ensemble_raw50",
+      "mean_delta_across_repeats": -0.09909909909909909,
+      "ci95_lo": -0.3173365079365079,
+      "ci95_hi": 0.1205834945196645,
+      "bootstrap_p": 0.3728,
+      "n_bootstrap": 5000
+    },
+    {
+      "subgroup": "MR",
+      "candidate": "radimagenet50_ensemble_train_z50",
+      "reference": "resnet18_imagenet_ensemble_train_z50",
+      "mean_delta_across_repeats": -0.08558558558558559,
+      "ci95_lo": -0.29108824604312505,
+      "ci95_hi": 0.10279166666666645,
+      "bootstrap_p": 0.3808,
+      "n_bootstrap": 5000
+    }
+  ],
+  "fold_wins": [
+    {
+      "model": "mamba",
+      "mean_fold_delta": -0.019401978201412876,
+      "wins": 4,
+      "ties": 2,
+      "losses": 9
+    },
+    {
+      "model": "attention",
+      "mean_fold_delta": -0.001376390513732395,
+      "wins": 9,
+      "ties": 0,
+      "losses": 6
+    },
+    {
+      "model": "ensemble_train_percentile50",
+      "mean_fold_delta": -0.01234548245183867,
+      "wins": 3,
+      "ties": 0,
+      "losses": 12
+    },
+    {
+      "model": "ensemble_raw50",
+      "mean_fold_delta": -0.013863103636222274,
+      "wins": 5,
+      "ties": 0,
+      "losses": 10
+    },
+    {
+      "model": "ensemble_train_z50",
+      "mean_fold_delta": -0.014365048508973985,
+      "wins": 2,
+      "ties": 1,
+      "losses": 12
+    }
+  ],
+  "claim_boundary": "Internal same-cohort frozen representation ablation. Encoder weights and their prescribed normalization change together; external confirmation remains required."
+}

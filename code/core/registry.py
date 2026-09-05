@@ -15,6 +15,7 @@ from components.adapters.ingestion.vision.models.resnet_multiview import (
     VisionResNet18_2D,
     VisionResNet50_2D,
     VisionResNet18_2p5D,
+    VisionResNet50_2p5D,
 )
 from components.processors.fusion.models.concatenation import FusionProc_Concatenation
 from components.processors.prognosis.models.linear_cox import PrognosisProc_LinearCox
@@ -76,6 +77,7 @@ VISION_CONN_REGISTRY = {
     'vision_resnet18_2d': lambda **kw: VisionResNet18_2D(**kw),
     'vision_resnet50_2d': lambda **kw: VisionResNet50_2D(**kw),
     'vision_resnet18_2p5d': lambda **kw: VisionResNet18_2p5D(**kw),
+    'vision_resnet50_2p5d': lambda **kw: VisionResNet50_2p5D(**kw),
 }
 
 

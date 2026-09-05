@@ -1,0 +1,11 @@
+{
+  "script": "/home/raulprtech/clinical_core/code/tools/evaluate_fixed_sequence_ensemble.py",
+  "source_predictions": "/home/raulprtech/clinical_core/results_vision/sequence_factorial_ablation/heldout_predictions.csv",
+  "source_predictions_sha256": "3f54b607042ee59a8ff06797b9435fbccfb048d618d945dd88809dd08d34fb4f",
+  "arguments": {
+    "predictions": "results_vision/sequence_factorial_ablation/heldout_predictions.csv",
+    "output_dir": "results_vision/fixed_sequence_ensemble",
+    "bootstrap_iterations": 5000,
+    "random_state": 7049
+  }
+}

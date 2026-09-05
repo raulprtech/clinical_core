@@ -1,0 +1,8 @@
+{
+  "baseline_predictions": "/home/raulprtech/clinical_core/results_vision/train_scaled_sequence_ensemble/heldout_predictions.csv",
+  "baseline_predictions_sha256": "81b92807b8160a07d11caa733cbd30ba179fa62eb6eb5d89d3975578cbbea8c2",
+  "candidate_predictions": "/home/raulprtech/clinical_core/results_vision/resnet18_multiwindow3_train_scaled_ensemble/heldout_predictions.csv",
+  "candidate_predictions_sha256": "769d0b754a387360055752d14108a6f6558a12dfd2567952ed16575ab06f2eff",
+  "bootstrap_iterations": 5000,
+  "random_state": 84049
+}

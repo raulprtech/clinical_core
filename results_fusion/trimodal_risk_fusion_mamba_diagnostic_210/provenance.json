@@ -1,0 +1,47 @@
+{
+  "features": "/home/raulprtech/clinical_core/results_trimodal/20260721_012302_d9a7599d/raw_features.csv",
+  "targets": "/home/raulprtech/clinical_core/results_trimodal/20260721_012302_d9a7599d/raw_targets.csv",
+  "text_embeddings": "/home/raulprtech/clinical_core/data/embeddings/text_embeddings_TCGA-KIRC_20260528.npz",
+  "vision_embeddings": "/home/raulprtech/clinical_core/data/embeddings/vision/vision_resnet18_2p5d_embeddings_768.csv",
+  "sequence_manifest": "/home/raulprtech/clinical_core/data/embeddings/vision/resnet18_2p5d_sequences/manifest.csv",
+  "arguments": {
+    "features": "results_trimodal/20260721_012302_d9a7599d/raw_features.csv",
+    "targets": "results_trimodal/20260721_012302_d9a7599d/raw_targets.csv",
+    "text_embeddings": "data/embeddings/text_embeddings_TCGA-KIRC_20260528.npz",
+    "vision_embeddings": "data/embeddings/vision/vision_resnet18_2p5d_embeddings_768.csv",
+    "sequence_dir": "data/embeddings/vision/resnet18_2p5d_sequences",
+    "output_dir": "results_fusion/trimodal_risk_fusion_mamba_diagnostic_210",
+    "seeds": [
+      42,
+      123,
+      456,
+      789,
+      1024
+    ],
+    "inner_folds": 3,
+    "pca_dims": [
+      4,
+      8,
+      16,
+      32
+    ],
+    "penalizers": [
+      0.01,
+      0.1,
+      1.0,
+      10.0
+    ],
+    "weight_step": 0.1,
+    "epochs": 200,
+    "patience": 20,
+    "lr": 0.001,
+    "weight_decay": 0.001,
+    "model_dim": 128,
+    "attention_dim": 64,
+    "state_dim": 16,
+    "mamba_blocks": 2,
+    "dropout": 0.1,
+    "device": "cuda",
+    "bootstrap_iterations": 5000
+  }
+}

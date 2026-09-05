@@ -1,0 +1,23 @@
+{
+  "audit_local_date": "2026-08-21",
+  "definitions": {
+    "censoring": "Alive at maximum nonnegative GDC diagnosis or follow-up day",
+    "event": "Dead with nonnegative GDC days_to_death",
+    "external_scope": "MMIST cases with C3L-/C3N- identifiers only; all TCGA identifiers excluded",
+    "time_origin": "Initial diagnosis, according to GDC day-field definitions"
+  },
+  "input_sha256": {
+    "gdc_cptac3_cases": "a03649a8ceb0db0d26e34921b7db1f5a48c1e95b97fb7ee34e8eef545c03f3b1",
+    "mmist_clinical": "ae986a2af8bdb88aab13027a7cbb1444488e1f95ab3aa92253c140e9b5c70eb5",
+    "mmist_ct": "f7e3eadd7bff09e8287bb5556971a1e462cdcbfe672fd7d0b20521e3078b610a",
+    "mmist_mr": "778005aab55d279ca6f29dcc0959f78c8083b9cf77a1ad9e8bbf52ca9ad05522",
+    "tcia_series": "b84e2346f37eb803d2ee2d85bdd6be76bde6500e272e895aaabc1685a4373a95"
+  },
+  "sources": {
+    "gdc_cases_api": "https://api.gdc.cancer.gov/cases",
+    "mmist_clinical": "https://raw.githubusercontent.com/Multi-Modal-IST/multi-modal-ist.github.io/refs/heads/master/datasets/ccRCC/Code/clinical%2Bgenomic_split.csv",
+    "mmist_ct": "https://raw.githubusercontent.com/Multi-Modal-IST/multi-modal-ist.github.io/refs/heads/master/datasets/ccRCC/Code/patients_with_labels_CT_final.csv",
+    "mmist_mr": "https://raw.githubusercontent.com/Multi-Modal-IST/multi-modal-ist.github.io/refs/heads/master/datasets/ccRCC/Code/patients_with_labels_MR_final.csv",
+    "tcia_series_api": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSeries?Collection=CPTAC-CCRCC&format=json"
+  }
+}
