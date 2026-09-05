@@ -1,0 +1,62 @@
+# Programa experimental renal 2.5D
+
+Inicio: 2026-09-04. Estado: en ejecución.
+
+## Objetivo y alcance
+
+Evaluar recorte anatómico, adaptación ligera de ResNet18 y radiomics 2D;
+identificar oportunidades a partir de los resultados y ejecutar seguimientos
+justificados. Documentar protocolos, resultados negativos, decisiones y
+limitaciones. No declarar completado el programa hasta evaluar las tres líneas
+y resolver los seguimientos registrados.
+
+## Predeclaración inicial
+
+Los experimentos son exploratorios sobre TCGA-KIRC reutilizado. La inferencia
+posterior debe reconocer todas las comparaciones realizadas. Una mejora visual
+no demuestra aporte incremental sobre tabular ni generalización externa.
+
+1. Recorte: referencia de campo completo, control con selección axial renal
+   sin recorte y recorte renal con margen físico fijo de 10 mm. Mantener encoder
+   ResNet18 congelado y máximo de 64 tokens, vecinos [-1,0,+1]. Comparar sobre
+   la misma intersección de pacientes con máscaras reales verificadas.
+2. Adaptación: comparar el último bloque ResNet18 congelado/adaptado dentro de
+   cada partición de entrenamiento, usando el mismo recorte y cabeza en ambos
+   brazos. BatchNorm congelada. Hacer primero un piloto de memoria y gradientes.
+3. Radiomics: estadísticas de intensidad, forma 2D y textura explícitas dentro
+   de máscaras renales, resumidas entre cortes; sin relleno aleatorio ni mocks.
+   Estandarización, selección/reducción y regularización ajustadas solo en train.
+
+Radiomics inicial: por riñón se usa el corte de mayor área segmentada; intensidad
+y textura con ventana [-150,250] HU y 16 niveles fijos, forma con espaciado físico.
+Resumir ambos riñones mediante media y diferencia absoluta. No seleccionar lado
+usando desenlaces. El wrapper legacy de PyRadiomics no se usa.
+
+Los tres brazos se reconstruyen desde el mismo NIfTI original y su máscara
+geométricamente coincidente; el control de campo completo se vuelve a extraer.
+El control de selección renal y el recorte comparten los centros axiales.
+
+La ROI renal no es una segmentación tumoral y puede omitir tumor exofítico.
+Reutilizar máscaras obtenidas con STU-Net implica un localizador 3D previo;
+el encoder pronóstico nuevo sigue siendo 2.5D. Registrar esta dependencia.
+
+## Evaluación y seguimientos
+
+Outer CV estratificada por paciente: 5 folds x 3 repeticiones, semilla 4049;
+inner CV 3 folds. Mantener todas las comparaciones pareadas dentro de cada
+cohorte. Reportar C-index por fold y repetición, diferencias e intervalos
+agrupados por paciente; tratar inferencia pooled OOF como secundaria por la
+variación de escala entre modelos de distintos folds. Documentar multiplicidad
+de contrastes y no interpretar intervalos exploratorios como confirmación.
+
+Antes de cada seguimiento, registrar hipótesis, evidencia motivadora, cambios
+exactos y criterio de decisión. No seleccionar pacientes usando resultados de
+supervivencia. Nunca mezclar cortes del mismo paciente entre train y test.
+
+## Registro de ejecución
+
+- Inspección inicial: rama codex/resnet-mamba-fastproof limpia; GPU RTX 3050 Ti
+  4 GB. Cachés STU-Net existentes por caso. La utilidad legacy de radiomics
+  incluye fallback mock y no es apta para estas evaluaciones científicas.
+- Pendiente: auditoría geométrica de máscaras y cobertura, extracción,
+  evaluaciones de las tres líneas, seguimientos e informe consolidado.
