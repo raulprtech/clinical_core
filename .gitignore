@@ -54,6 +54,7 @@ results_vision/**/heldout_predictions.csv
 results_vision/**/official_pca_cox_predictions.csv
 results_vision/**/paired_predictions.csv
 results_vision/**/splits.csv
+results_vision/**/folds/
 
 # Patient-level fusion artifacts also stay local.
 results_fusion/**/cohort_common.csv

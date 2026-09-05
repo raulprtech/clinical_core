@@ -8,9 +8,21 @@ import SimpleITK as sitk
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from build_renal_2p5d_program_cache import aligned_arrays, renal_box, plane_features, radiomics_2d
+from evaluate_renal_2p5d_program import comparable_scores
+from evaluate_resnet_sequence_models import safe_cindex
 
 
 class RenalProgramTests(unittest.TestCase):
+    def test_pair_matrix_handles_censoring_and_ties(self):
+        rng = np.random.default_rng(4)
+        for _ in range(30):
+            times = rng.integers(1, 6, 20)
+            events = rng.integers(0, 2, 20)
+            risks = rng.integers(0, 4, 20)
+            denominator, numerator = comparable_scores(times, events, risks)
+            self.assertAlmostEqual(numerator.sum() / denominator.sum(),
+                                   safe_cindex(times, risks, events))
+
     def test_geometry_mismatch_is_rejected(self):
         with tempfile.TemporaryDirectory() as folder:
             p, q = Path(folder) / 'i.nii.gz', Path(folder) / 'm.nii.gz'

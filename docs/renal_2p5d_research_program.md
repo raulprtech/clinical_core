@@ -55,6 +55,17 @@ supervivencia. Nunca mezclar cortes del mismo paciente entre train y test.
 
 ## Registro de ejecución
 
+El comparador Cox inicial incluye media de tokens de cada uno de los tres
+brazos y radiomics renal de 27 medidas. Pipeline train-only: scaler, PCA 4/8,
+scaler de componentes y Cox ridge con alpha 100/10/1; selección en 3 inner folds.
+Contrastes: crop-full, renal_slices-full y radiomics-crop. Mamba usa configuración
+histórica fija (128D, estado16, dos bloques, dropout0.1, lr=weight_decay=0.001,
+200 épocas máximas, paciencia20). Contrastes: crop-full, renal_slices-full,
+crop-renal_slices. Incertidumbre: 5,000 bootstraps por paciente de la media de
+C-index calculados dentro de cada outer fold, más ajuste Holm dentro de corrida.
+El bootstrap condiciona en los modelos entrenados; no estima incertidumbre de
+reentrenamiento. Guardar checkpoints de predicción locales por fold para reanudar.
+
 - Inspección inicial: rama codex/resnet-mamba-fastproof limpia; GPU RTX 3050 Ti
   4 GB. Cachés STU-Net existentes por caso. La utilidad legacy de radiomics
   incluye fallback mock y no es apta para estas evaluaciones científicas.
