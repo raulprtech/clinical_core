@@ -162,6 +162,11 @@ The post-hoc complementarity check is in
 [fixed sequence ensemble](docs/fixed_sequence_ensemble_results.md).
 The leakage-safe train-derived scaling follow-up is in
 [train-scaled sequence ensemble](docs/train_scaled_sequence_ensemble_results.md).
+The renal ROI, explicit 2D radiomics, token-moment and light fine-tuning program
+is tracked in [renal 2.5D results](docs/renal_2p5d_program_results.md), with
+[predeclared protocol](docs/renal_2p5d_research_program.md) and local reproduction
+commands. These exploratory scores use within-fold C-index averages; do not
+compare them directly with historical pooled OOF scores or different cohorts.
 
 For the complete TCGA-KIRC download, embedding-cache and three-modality run,
 see [trimodal data preparation](docs/trimodal_data_preparation.md).

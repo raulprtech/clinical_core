@@ -10,13 +10,59 @@ import copy
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from build_renal_2p5d_program_cache import aligned_arrays, renal_box, plane_features, radiomics_2d
-from evaluate_renal_2p5d_program import comparable_scores
+from evaluate_renal_2p5d_program import comparable_scores, cox_nested
 from evaluate_resnet_sequence_models import safe_cindex
-from evaluate_renal_resnet_adaptation import two_pass_backward, cox_ph_loss
+from evaluate_renal_resnet_adaptation import two_pass_backward, cox_ph_loss, new_model, train_epoch
 from build_fullfield_adaptation_cache import selected_centers
+from evaluate_stunet_trimodal_pooling_nested_cv import fit_outer_modality
 
 
 class RenalProgramTests(unittest.TestCase):
+    @staticmethod
+    def synthetic_cohort():
+        rng = np.random.default_rng(47)
+        values = rng.normal(size=(48,12))
+        times = rng.uniform(1,100,48)
+        events = np.tile([0,1],24)
+        train, heldout = np.arange(36), np.arange(36,48)
+        return values, times, events, train, heldout
+
+    def test_cox_selection_ignores_heldout_outcomes(self):
+        values, times, events, train, heldout = self.synthetic_cohort()
+        first, a = cox_nested(values,times,events,train,heldout,4049)
+        times[heldout] = times[heldout][::-1]*10
+        events[heldout] = 1-events[heldout]
+        second, b = cox_nested(values,times,events,train,heldout,4049)
+        np.testing.assert_array_equal(first,second)
+        self.assertEqual(a,b)
+
+    def test_fusion_modality_ignores_heldout_outcomes(self):
+        values, times, events, train, heldout = self.synthetic_cohort()
+        first = fit_outer_modality(values,times,events,train,heldout,'vision',4049,[4],[1.],3)
+        times[heldout] = times[heldout][::-1]*10
+        events[heldout] = 1-events[heldout]
+        second = fit_outer_modality(values,times,events,train,heldout,'vision',4049,[4],[1.],3)
+        np.testing.assert_array_equal(first[0],second[0])
+        np.testing.assert_array_equal(first[1],second[1])
+        self.assertEqual(first[2],second[2])
+
+    def test_adaptation_keeps_batchnorm_frozen(self):
+        torch.manual_seed(47)
+        block = torch.nn.Sequential(torch.nn.Conv2d(3,512,1),torch.nn.BatchNorm2d(512),torch.nn.ReLU())
+        xs = [torch.randn(2,3,2,2) for _ in range(4)]
+        for tune in (False,True):
+            model, optimizer = new_model(block,tune,47,torch.device('cpu'))
+            before = {k:v.clone() for k,v in model.layer4.state_dict().items()}
+            head = model.head.weight.detach().clone()
+            train_epoch(model,optimizer,xs,np.array([1.,2.,3.,4.]),np.array([1,0,1,0]),torch.device('cpu'))
+            after = model.layer4.state_dict()
+            for k in before:
+                if not tune or k.startswith('1.'):
+                    torch.testing.assert_close(before[k],after[k],rtol=0,atol=0)
+            self.assertFalse(torch.equal(head,model.head.weight))
+            if tune:
+                self.assertFalse(torch.equal(before['0.weight'],after['0.weight']))
+
     def test_fullfield_centers_match_existing_image_subsampling(self):
         for n in (1, 5, 16, 32, 64):
             centers = np.arange(n)*2+3

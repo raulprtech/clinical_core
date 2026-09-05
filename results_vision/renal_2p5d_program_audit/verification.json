@@ -79,6 +79,16 @@
       "aggregate_metrics_recomputed": true
     },
     "renal_2p5d_adaptation_extended_v1": {
+      "status": "verified",
+      "n_cases": 75,
+      "events": 20,
+      "models": 2,
+      "heldout_rows": 450,
+      "paired_outer_folds": 15,
+      "patient_disjoint_train_test": true,
+      "aggregate_metrics_recomputed": true
+    },
+    "fullfield_2p5d_adaptation_v1": {
       "status": "incomplete"
     },
     "reproduced_controls": {
@@ -88,6 +98,42 @@
     "reproduced_fusion_controls": {
       "predictions": 675,
       "max_absolute_difference": 0.0
+    },
+    "reproduced_adaptation_inner_scores": {
+      "scores": 270,
+      "exact": true
+    },
+    "extended_adaptation_selection": {
+      "frozen": {
+        "selected_epochs": {
+          "5": 2,
+          "10": 5,
+          "20": 8
+        },
+        "mean_inner_cindex_by_epoch": {
+          "1": 0.5510652849038068,
+          "3": 0.6259078211564053,
+          "5": 0.6786960450840966,
+          "10": 0.7255608778254722,
+          "20": 0.7327714665068702
+        },
+        "note": "Descriptive inner validation averages; folds overlap and are not independent observations"
+      },
+      "adapted": {
+        "selected_epochs": {
+          "5": 2,
+          "10": 2,
+          "20": 11
+        },
+        "mean_inner_cindex_by_epoch": {
+          "1": 0.5982436570802817,
+          "3": 0.6958831508406615,
+          "5": 0.7310525064407684,
+          "10": 0.7393034161545861,
+          "20": 0.7495140113494421
+        },
+        "note": "Descriptive inner validation averages; folds overlap and are not independent observations"
+      }
     }
   },
   "all_runs_verified": false,

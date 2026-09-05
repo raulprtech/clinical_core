@@ -359,7 +359,14 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
   IC95% [-0.0599,+0.1066]. No ventaja incremental demostrada.
 - **Adaptación inicial:** último bloque adaptado0.7161 vs congelado0.6799,
   delta+0.0362, IC95% [-0.0207,+0.0958]. Selección en máximo5 épocas en
-  13/15 y15/15 folds: seguimiento predeclarado hasta20 épocas en ejecución.
+  13/15 y15/15 folds: seguimiento predeclarado hasta20 épocas.
+- **Adaptación extendida F5:** adaptado0.7545 vs congelado0.7474,
+  delta+0.0071, IC95% [-0.0460,+0.0778], p0.7368. La ventaja inicial se reduce
+  al permitir entrenar más al control; no promover fine-tuning por esta cifra.
+  Máximo20 seleccionado en11/15 y8/15: convergencia no establecida.
+- **Oportunidad F6:** repetir la comparación adaptado-congelado con campo
+  completo, dado el daño del recorte observado en E2. Protocolo registrado
+  antes de entrenamiento, mismos75 casos y cuadrícula1/3/5/10/20.
 - **Momentos ResNet:** mejora media pequeña en75 que no se sostiene al ampliar
   a214/64 eventos: media0.6771 vs momentos0.6515, delta-0.0256,
   IC95% [-0.0586,+0.0057]. Fusión con momentos tampoco supera fusión con media.
@@ -369,4 +376,4 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
   CV5x3, bootstrap por paciente y multiplicidad explícita dentro de corrida.
 - **Registro completo:** `docs/renal_2p5d_research_program.md` y
   `docs/renal_2p5d_program_results.md`; incluye protocolos, revisiones y artefactos.
-- **Estado:** pendiente cierre del seguimiento extendido F5 y auditoría final.
+- **Estado:** F5 verificado, pendiente F6 y auditoría final.

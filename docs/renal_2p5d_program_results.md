@@ -63,6 +63,26 @@ siendo adaptado-congelado dentro de esta nueva corrida. Registrar selección de
 
 Artefacto técnico: `results_vision/renal_2p5d_adaptation_pilot/technical_pilot.json`.
 
+F5 completado: congelado0.7474, adaptado0.7545; delta+0.0071,
+IC95% [-0.0460,+0.0778], p=0.7368. La diferencia inicial de E3 se reduce al
+permitir más entrenamiento al control. No demuestra una ventaja incremental
+de adaptar layer4. Los 270 valores de validación interna compartidos de épocas
+1/3/5 reproducen exactamente E3. Esto verifica continuidad del protocolo, no
+convierte la comparación entre corridas en validación independiente.
+
+| Brazo F5 | Selección5 épocas | Selección10 | Selección20 |
+|---|---:|---:|---:|
+| Congelado | 2/15 | 5/15 | 8/15 |
+| Adaptado | 2/15 | 2/15 | 11/15 |
+
+El límite20 continúa activo; no afirmar convergencia ni descartar todo posible
+fine-tuning. Las medias de validación interna entre10 y20 suben de0.7256 a0.7328
+(congelado) y de0.7393 a0.7495 (adaptado). Son diagnósticos descriptivos de folds
+solapados, no nuevas observaciones independientes. No justificar otra ampliación
+automática de épocas con el resultado held-out. F6 prueba la oportunidad de
+preservar contexto anatómico; una búsqueda de convergencia más extensa queda
+como limitación, no como experimento ya realizado.
+
 ## Oportunidades derivadas de E1: predeclaración de seguimientos
 
 F1. El campo completo conserva más señal media y el pooling medio puede perder
@@ -165,6 +185,7 @@ sin cambios. Entradas nuevas separadas de los cachés históricos.
 | F3 | renal_2p5d_followup_fusion_moments_v1 | 3cd1224 |
 | F4 | fullfield_moments_214_v1 | 3cd1224 |
 | F5 | renal_2p5d_adaptation_extended_v1 | 59d4e07 |
+| F6 | fullfield_2p5d_adaptation_v1 | 486c92f (extractor); evaluador59d4e07 |
 
 Cada salida completa incluye summary, métricas por fold/repetición, bootstrap,
 selección de hiperparámetros y procedencia. Cohortes, splits y predicciones,
@@ -184,8 +205,16 @@ targets y salida propia. F5: el comando E3 con salida propia y
 `--epoch-grid 1 3 5 10 20`. Usar `--pilot` para repetir únicamente el piloto
 técnico de adaptación y `--prepare-only` para construir los prefijos congelados.
 
+F6: construir imágenes con
+`code/tools/build_fullfield_adaptation_cache.py --parent-cache data/embeddings/vision/renal_2p5d_program_v1 --output data/embeddings/vision/fullfield_2p5d_adaptation_v1`.
+Ejecutar el evaluador F5 con ese `--cache`,
+`--prefix-cache data/embeddings/vision/fullfield_2p5d_prefix_v1`,
+`--output results_vision/fullfield_2p5d_adaptation_v1` y la misma cuadrícula de
+épocas1/3/5/10/20. Los75 CT y centros se comprobaron mediante hashes;
+las imágenes son finitas y están en[0,1]. No se realizó revisión visual.
+
 Verificación agregada: `.venv/bin/python code/tools/verify_renal_2p5d_program.py`.
 Informa corridas incompletas sin tratarlas como experimentos terminados.
 
-Pendientes para cierre: terminar F5, verificar todos los resultados,
+Pendientes para cierre: terminar F6, verificar todos los resultados,
 registrar decisiones y evaluar si justifican otro seguimiento concreto.
