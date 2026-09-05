@@ -1,0 +1,11 @@
+{
+  "n_cases": 75,
+  "n_train": 60,
+  "loss": 3.2772226333618164,
+  "epoch_seconds": 3.53624617999958,
+  "layer4_max_change": 1.0013580322265625e-05,
+  "peak_cuda_mib": 182.76806640625,
+  "heldout_finite": true,
+  "pilot_only": true,
+  "no_performance_selection": true
+}

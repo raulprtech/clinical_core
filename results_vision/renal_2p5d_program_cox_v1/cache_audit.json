@@ -1,0 +1,13 @@
+{
+  "cases": 75,
+  "errors": [],
+  "single_kidney_cases": 7,
+  "crop_fraction_xy_min_median_max": [
+    0.027545928955078125,
+    0.15594482421875,
+    0.28466796875
+  ],
+  "source_hashes_verified": true,
+  "paired_axial_centers_verified": true,
+  "scope": "Geometry/hash verification plus four outcome-independent QC samples; not expert tumor segmentation validation"
+}
