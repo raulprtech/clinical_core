@@ -1,7 +1,7 @@
 # Segunda etapa 2.5D — resultados y seguimiento
 
-Estado: cuatro experimentos completados y auditados; publicación de los últimos
-agregados pendiente de autorización explícita para GitHub.
+Estado: cuatro experimentos completados y auditados; publicación de código,
+informes y agregados autorizada explícitamente por el usuario para GitHub.
 Protocolo: `renal_2p5d_stage2_protocol.md`.
 Mismos75 CT/20 eventos, outer5x3 seed4049, inner3. Datos reutilizados:
 interpretación exploratoria, no confirmación externa.
@@ -151,7 +151,7 @@ resultados por corrida, y tampoco convierte la cohorte reutilizada en confirmato
 Auditoría final: cuatro corridas verificadas,2025 filas de predicción en total,
 180 curvas internas y60 selecciones de época de S1/S2, ninguna curva al máximo100.
 Las17 pruebas técnicas pasan. La auditoría no vuelve a entrenar los modelos.
-Resultados y conclusión conservados localmente; queda pendiente autorización
-explícita para publicar los informes y agregados en `raulprtech/clinical_core`,
+Resultados y conclusión conservados localmente; el usuario autorizó explícitamente
+publicar código, informes y agregados en `raulprtech/clinical_core`,
 rama `codex/resnet-mamba-fastproof`. No se publican imágenes, identificadores,
 predicciones ni registros individuales de pacientes.

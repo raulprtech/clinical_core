@@ -424,6 +424,6 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
   estos resultados. Adaptación lineal queda como candidato para validación
   independiente, no como reemplazo validado. No afirmar agotamiento de2.5D
   ni mejora garantizada con3D. No se inicia otra búsqueda de arquitecturas.
-- **Publicación:** los últimos agregados e informes quedan locales mientras
-  se obtiene autorización específica para el repositorio/rama de GitHub;
+- **Publicación:** el usuario autorizó explícitamente subir código, informes
+  y agregados a `raulprtech/clinical_core`, rama `codex/resnet-mamba-fastproof`;
   imágenes y registros por paciente permanecen excluidos.
