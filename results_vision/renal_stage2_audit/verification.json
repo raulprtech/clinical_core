@@ -1,7 +1,46 @@
 {
   "runs": {
     "stage2_linear_convergence_v1": {
-      "status": "incomplete"
+      "status": "verified",
+      "n_cases": 75,
+      "events": 20,
+      "models": 2,
+      "heldout_rows": 450,
+      "paired_patient_disjoint_folds": 15,
+      "labels_match_previous_stage": true,
+      "metrics_and_bootstrap_recomputed": true,
+      "inner_curves_verified": 90,
+      "inner_runs_at_cap": 0,
+      "selected_epoch_counts": {
+        "adapted": {
+          "2": 1,
+          "3": 2,
+          "4": 1,
+          "5": 2,
+          "7": 2,
+          "9": 1,
+          "11": 1,
+          "13": 1,
+          "14": 1,
+          "17": 1,
+          "20": 1,
+          "22": 1
+        },
+        "frozen": {
+          "7": 1,
+          "8": 1,
+          "9": 1,
+          "10": 1,
+          "12": 2,
+          "14": 1,
+          "16": 1,
+          "18": 1,
+          "21": 2,
+          "22": 2,
+          "31": 1,
+          "32": 1
+        }
+      }
     },
     "stage2_joint_mamba_v1": {
       "status": "verified",
@@ -84,8 +123,37 @@
       }
     }
   },
-  "all_runs_verified": false,
-  "stagewise_holm_sensitivity": [],
+  "all_runs_verified": true,
+  "stagewise_holm_sensitivity": [
+    {
+      "run": "stage2_linear_convergence_v1",
+      "candidate": "adapted",
+      "reference": "frozen",
+      "bootstrap_p": 0.0128,
+      "holm_across_four_primary_contrasts": 0.0512
+    },
+    {
+      "run": "stage2_joint_mamba_v1",
+      "candidate": "adapted",
+      "reference": "frozen",
+      "bootstrap_p": 0.5224,
+      "holm_across_four_primary_contrasts": 1.0
+    },
+    {
+      "run": "stage2_global_local_v1",
+      "candidate": "global_local",
+      "reference": "full",
+      "bootstrap_p": 0.622,
+      "holm_across_four_primary_contrasts": 1.0
+    },
+    {
+      "run": "stage2_dino_cox_v1",
+      "candidate": "dinov2",
+      "reference": "resnet18",
+      "bootstrap_p": 0.8964,
+      "holm_across_four_primary_contrasts": 1.0
+    }
+  ],
   "multiplicity_note": "Secondary transparent adjustment across the four fixed primary contrasts; reused cohort remains exploratory",
   "scope": "Coverage, labels, paired splits, estimates, early-stop replay and selected controls; not independent clinical validation"
 }

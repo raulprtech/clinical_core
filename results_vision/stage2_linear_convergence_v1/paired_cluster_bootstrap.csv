@@ -1,0 +1,2 @@
+candidate,reference,delta,ci95_lo,ci95_hi,bootstrap_p,n_bootstrap,p_holm_within_run
+adapted,frozen,0.050372437183245466,0.01118708247865782,0.11821535264441398,0.0128,5000,0.0128

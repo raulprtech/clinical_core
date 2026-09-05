@@ -1,0 +1,19 @@
+{
+  "script_sha256": "48f0f7904b471f66b76fd9bd97053015a66d83779449960f055c46ce890ef10e",
+  "source_contract_sha256": "bba91e8be04b54b24c529042f412c24562bf5a4cfaf97b8ad14d600c075c176d",
+  "head": "linear",
+  "n_cases": 75,
+  "events": 20,
+  "outer": "5x3 seed4049",
+  "inner": 3,
+  "max_epochs": 100,
+  "min_epochs": 20,
+  "patience": 15,
+  "selection": "rounded median of best inner epochs",
+  "dropout": 0,
+  "frozen_batchnorm": true,
+  "lr_head": 0.001,
+  "lr_layer4": 1e-05,
+  "weight_decay": 0.001,
+  "n_tokens": 16
+}

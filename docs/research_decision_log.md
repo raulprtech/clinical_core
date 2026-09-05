@@ -401,7 +401,11 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
   según `docs/renal_2p5d_stage2_protocol.md`, registrado antes de entrenamiento.
 - **S1/S2:** parada interna hasta100 épocas, mínimo20 y paciencia15;
   cabezas lineal/Mamba, controles congelado/adaptado y17 pruebas técnicas.
-  S1 sigue en ejecución; no se dispone aún de conclusión global.
+  Ambas corridas completas y auditadas.
+- **S1 lineal completado:** adaptado0.7902 vs congelado0.7399,
+  delta+0.0504, IC95%[+0.0112,+0.1182], p0.0128; Holm secundario entre4=0.0512.
+  Señal exploratoria favorable, no confirmación ni superioridad frente al
+  pipeline Mamba existente. Ninguna de90 curvas alcanzó100 épocas.
 - **S2 Mamba conjunto completado:** adaptado0.8199 vs congelado0.8106,
   delta+0.0093, IC95%[-0.0171,+0.0476], p0.5224. No ventaja demostrada.
   Auditoría de450 filas de predicción,90 curvas y30 selecciones de época;
@@ -414,3 +418,12 @@ el detalle numérico; este archivo mantiene la trazabilidad entre ellos.
   no afirmar equivalencia ni extrapolar a todos los encoders autosupervisados.
 - **Detalle:** `docs/renal_2p5d_stage2_results.md`, con fuentes oficiales,
   revisiones, límites y comandos de reproducción.
+- **Cierre científico:** cuatro corridas verificadas;2025 filas de predicción,
+  180 curvas internas,60 selecciones de época y17 pruebas técnicas.
+  Conservar defaults. No promover Mamba conjunto, global-local o DINOv2 por
+  estos resultados. Adaptación lineal queda como candidato para validación
+  independiente, no como reemplazo validado. No afirmar agotamiento de2.5D
+  ni mejora garantizada con3D. No se inicia otra búsqueda de arquitecturas.
+- **Publicación:** los últimos agregados e informes quedan locales mientras
+  se obtiene autorización específica para el repositorio/rama de GitHub;
+  imágenes y registros por paciente permanecen excluidos.
